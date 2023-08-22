@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Math Expression Evaluator</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        font-size: 16px;
+      }
+      h1 {
+        font-size: 24px;
+      }
+      h2 {
+        font-size: 20px;
+      }
+      pre {
+        margin: 0;
+        padding: 10px;
+        background-color: #f5f5f5;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        font-family: Consolas, monospace;
+        font-size: 14px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+      }
+		input[type="text"] {
+			padding: 10px;
+			border: none;
+			border-radius: 5px;
+			background-color: #ffffff;
+			box-shadow: 0px 2px 2px rgba(0, 0, 0, 0.1);
+			font-size: 16px;
+			width: 300px;
+			margin-right: 10px;
+			color: #333333;
+		}
+		button {
+			padding: 10px;
+			background-color: #4CAF50;
+			color: #ffffff;
+			border: none;
+			border-radius: 5px;
+			cursor: pointer;
+		}
+		button:hover {
+			background-color: #3e8e41;
+		}
+		#result {
+			padding: 10px;
+			background-color: #ffffff;
+			box-shadow: 0px 2px 2px rgba(0, 0, 0, 0.1);
+			border-radius: 5px;
+			font-size: 20px;
+			color: #333333;
+			margin-top: 20px;
+		}
+    </style>
+  </head>
+  <body>
+    <h1>Math Expression Evaluator</h1>
+	<form>
+		<label for="expression">Enter expression:</label>
+		<input type="text" id="expression" name="expression">
+		<button type="button" onclick="btneval()">Evaluate</button>
+	</form>
+
+	<div id="result"></div>
+    <h2>Explanation</h2>
+    <p>In this example, we will evaluate the following mathematical expression:</p>
+    <pre>50 + 60 - (90 * 2.6)</pre>
+    <h2>Tokenization</h2>
+    <p>We first need to turn the input into tokens:</p>
+    <pre>["50", "+", "60", "-", "(", "90", "*", "2.6", ")"]</pre>
+    <h2>Types</h2>
+    <p>We then assign types to each token:</p>
+    <pre>[value(50), op(+), value(60), op(-), par[value(90), op(*), value(2.6)]]</pre>
+    <p>Values inside parentheses are recursively nested.</p>
+    <h2>Grouping</h2>
+    <p>Next, we use operators to group values together, forming a binary tree:</p>
+    <pre>
+         +
+        / \
+       50  -
+          / \
+         60  *
+            / \
+           90 2.6
+</pre>
+    <h2>Evaluation</h2>
+    <p>Finally, we evaluate the expression by starting at the top (50 + node), recursively evaluating nodes, and returning the result:</p>
+    <pre>50 + 60 - (90 * 2.6) = -124</pre>¨
+  </body>
+  <script defer>
+    document.getElementById("expression").value = localStorage.getItem("in")
+    function btneval(){
+        let _in = document.getElementById("expression").value
+        let out = document.getElementById("result")
+        localStorage.setItem("in", _in)
+        let print = ""
+        let split = _in.split(":")
+        let expr = new Expression(split[0], intoVariables(split[1]) || "")
+        let tokens = expr.tokensFromString(split[0])
+        let types = expr.typesFromTokens(tokens.result)
+        let tree = expr.treeFromTypes(types.result.values)
+        console.log(tree)
+        print += tokens.printable
+        print += "\n=\n"
+        print += tree.result.value()
+        out.innerHTML = print
+    }
+    function intoVariables (string = ""){
+        console.log(string)
+        let vars = string.split(",")
+        let result = {}
+        for (let i in vars) {
+            let split = vars[i].split("=")
+            result[split[0]] = split[1]
+        }
+        return result
+    }
+
+
+    const TOKENS = " +-*/%()<>=&|"
+    const PARENTHESIS = "()"
+    const OPERATION_ORDER = "/*-+<>=&|"
+    const UNARY = "-"
+    class Operation {
+        constructor(str, left, right) {
+            this.op = str
+            this.left = left
+            this.right = right
+        }
+        value() {
+            switch (this.op) {
+                case "+":
+                    return this.left.value() + this.right.value()
+                case "-":
+                    return this.left.value() - this.right.value()
+                case "*":
+                    return this.left.value() * this.right.value()
+                case "/":
+                    return this.left.value() / this.right.value()
+                case "<":
+                    return this.left.value() < this.right.value()
+                case ">":
+                    return this.left.value() > this.right.value()
+                case "=":
+                    return this.left.value() == this.right.value()
+                case "&":
+                    return this.left.value() && this.right.value()
+                case "|":
+                    return this.left.value() || this.right.value()
+            }
+        }
+    }
+    class Operator {
+        constructor(str) {
+            this.op = str
+        }
+    }
+    class Value {
+        constructor(value, unary, variables) {
+            this.val = value
+            this.unary = unary
+            this.variables = variables
+        }
+        value(){
+            if (isNaN(this.val)){
+                return Number(this.variables[this.val])
+            }
+            return Number(this.val)
+        }
+    }
+    class Parenthesis {
+        constructor(values) {
+            this.values = values
+        }
+        value(){
+            return this.values.value()
+        }
+    }
+    class Expression{
+        constructor(string, variables = {}) {
+            this.src = string
+            this.variables = variables
+        }
+        parse(){
+            let tokens = this.tokensFromString(this.src)
+            let types = this.typesFromTokens(tokens.result)
+            let tree = this.treeFromTypes(types.result.values)
+            return tree.result.value()
+        }
+        treeFromTypes(types) {
+            let result = [...types]
+            for (let op of OPERATION_ORDER) {
+                for (let i = 0; i < result.length; i++) {
+                    if (result[i].constructor.name == "Operator" && result[i].op == op){
+                        if (result[i - 1].constructor.name == "Parenthesis") {
+                            result[i - 1] = new Parenthesis(this.treeFromTypes(result[i - 1].values).result)
+                        }
+                        if (result[i + 1].constructor.name == "Parenthesis") {
+                            result[i + 1] = new Parenthesis(this.treeFromTypes(result[i + 1].values).result)
+                        }
+                        let insert = new Operation(op, result[i - 1], result[i + 1])
+                        result[i] = insert
+                        result.splice(i - 1, 1)
+                        result.splice(i,1)
+                        i -= 1
+                    }
+                }
+            }
+            return { result: result[0], printable: result.join(" ")}
+        }
+        typesFromTokens(tokens, start = 0) {
+            let result = []
+            for (var i = start; i < tokens.length; i++) {
+                if (TOKENS.indexOf(tokens[i]) == -1) {
+                    result.push(new Value(tokens[i], null, this.variables))
+                    continue
+                }
+                if (PARENTHESIS.indexOf(tokens[i]) == -1) {
+                    result.push(new Operator(tokens[i]))
+                    continue
+                }
+                if (tokens[i] == "("){
+                    let newTypes = this.typesFromTokens(tokens, i + 1)
+                    i = newTypes.end
+                    result.push(newTypes.result)
+                    continue
+                }
+                if (tokens[i] == ")") break
+            }
+            return { result:new Parenthesis(result), printable: result.join(" "), end: i}
+        }
+        tokensFromString(string) {
+            let result = []
+            let lastIdx = 0
+            for (let i = 0; i < string.length; i++) {
+                while (TOKENS.indexOf(string[i]) > -1) {
+                    result.push(string.substring(lastIdx, i))
+                    result.push(string[i])
+                    i++
+                    lastIdx = i
+                }
+            }
+            result.push(string.substring(lastIdx))
+            result = result.filter(char => char != " " && char != "")
+            return {result, printable: result.join(" ")}
+        }
+    }
+</script>
+</html>

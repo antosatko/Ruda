@@ -1,0 +1,151 @@
+use std.numbers;
+
+const int P_WIDTH = 20;
+const int P_HEIGHT = 80;
+const float P_SPEED = 5;
+const int BALL_SIDE = 10;
+const int SCREEN_WIDTH = 800;
+const int SCREEN_HEIGHT = 500;
+const float FPS = 1000 / 60;
+const int MARGIN = 20;
+
+struct Controls {
+    bool ArrowUp;
+    bool ArrowDown;
+    bool KeyW;
+    bool KeyS;
+
+    fun new(): Self {
+        Self {
+            ArrowDown: false,
+            ArrowUp: false,
+            KeyW: false,
+            KeyS: false,
+        }
+    }
+
+    fun update(self) {
+        // Library dependent things
+    }
+}
+
+struct Player {
+    int x;
+    int y;
+    int points;
+
+    fun new(x: int): Self {
+        Self {
+            x,
+            y: 100,
+            points: 0,
+        }
+    }
+
+    fun addPoint(self) {
+        self.points += 1;
+    }
+
+    fun move(self, moveUp: bool, moveDown: bool, dt: float) {
+        if moveUp && self.y > 0 {
+            self.y -= P_SPEED * dt;
+        }
+        if moveDown && self.y < SCREEN_HEIGHT - P_HEIGHT {
+            self.y += P_SPEED * dt;
+        }
+    }
+}
+
+struct Ball {
+    int x;
+    int y;
+    float xs;
+    float ys;
+
+    fun new(): Self {
+        Self {
+            x: SCREEN_WIDTH / 2,
+            y: SCREEN_HEIGHT / 2,
+            xs: numbers.randFloat() % 2 - 1;
+            ys: numbers.randFloat() % 2 - 1;
+        }
+    }
+
+    fun reset(self) {
+        self.x = SCREEN_WIDTH / 2;
+        self.y = SCREEN_WIDTH / 2;
+        self.xs = numbers.randFloat() % 2 - 1;
+        self.ys = numbers.randFloat() % 2 - 1;
+    }
+
+    fun move(self, dt: float): int {
+        self.x += self.xs * dt;
+        self.y += self.ys * dt;
+        if self.x + BALL_SIDE / 2 > SCREEN_WIDTH {
+            yeet -1;
+        }
+        if self.x - BALL_SIDE / 2 < 0 {
+            yeet 1;
+        }
+        if self.y + BALL_SIDE / 2 > SCREEN_HEIGHT {
+            self.ys *= -1;
+            self.y = SCREEN_HEIGHT - BALL_SIDE / 2;
+        }
+        if self.y - BALL_SIDE / 2 < 0 {
+            self.ys *= -1;
+            self.y = SCREEN_HEIGHT - BALL_SIDE / 2
+        }
+    }
+
+    fun collision(self, player: Player) {
+        // not in a mood to do that now
+    }
+}
+
+fun main() {
+    let time: int = numbers.time();
+    let lastFrame = time;
+    let dt = 0;
+    let controls = Controls.new();
+    let p1 = Player.new(MARGIN);
+    let p2 = Player.new(SCREEN_WIDTH - P_WIDTH - MARGIN);
+    let ball = Ball.new();
+    loop {
+        lastFrame = time;
+        time = numbers.time();
+        dt = (time - lastFrame) as float / FPS;
+
+        controls.update();
+
+        p1.move(controls.KeyW, controls.KeyS, dt);
+        p2.move(controls.ArrowUp, controls.ArrowDown, dt);
+        switch ball.move(dt){
+            -1 {
+                p1.addPoint();
+                ball.reset();
+            }
+            1 {
+                p2.addPoint();
+                ball.reset();
+            }
+            _ break
+        }
+
+        ball.collision(p1);
+        ball.collision(p2);
+
+        if p1.score > 10 {
+            // somehow declare that p1 wins
+            break;
+        }
+        if p2.score > 10 {
+            // somehow declare that p2 wins
+            break;
+        }
+    }
+    // wait until user stops program then terminate
+}
+
+fun drawThings(p1: Player, p2: Player, ball: Ball) {
+    // some library dependent stuff
+}

@@ -1,0 +1,715 @@
+"
+This is main AST
+
+Full documentation for this file format can be found in ast/readme
+"
+
+globals [imports
+	"'any" err="";
+
+
+entry [nodes
+	KWFun ? set="nodes" back="0"
+	KWConst ? set="nodes" back="1"
+	KWStruct ? set="nodes" back="2"
+	KWType ? set="nodes" back="3"
+	KWImport ? set="nodes" back="4"
+	KWImpl ? set="nodes" back="5"
+	KWTrait ? set="nodes" back="6"
+	KWEnum ? set="nodes" back="7"
+	KWError ? set="nodes" back="8"
+	"'eof";
+
+"
+// pretend that double quotes are single quotes
+// it will break otherwise
+error Ree(msg: string) {
+	message: ""Ree: "" + msg,
+	code: 1
+}
+error BadID(id: int, maxId: int) {
+	message: ""Expected id between 0 and "" + maxId + "", got "" + id,
+	code: 1
+}
+error BadID(id: int, maxId: int) {
+	message: {
+		io.print(""I will print this to stdout for debbuging"")
+		return ""Expected id between 0 and "" + maxId + "", got "" + id
+	},
+	code: 1
+}
+"
+
+KWError identifier [args [fields
+	"error" harderr="true"
+	ident set="identifier"
+	( ?
+		arg ? set="args"
+		, ? back="1"
+		)
+	{ ?
+		err_field ? set="fields"
+		, ? back="1"
+		};
+
+
+err_field identifier value
+	ident set="identifier"
+	:
+	err_value set="value";
+
+err_value expression
+	expression set="expression" end="false"
+	code_block set="expression" end="false"
+	"'any" err="";
+
+"
+let danda: int = 50;
+let danda: int;
+let danda = 50;
+let danda;
+"
+KWLet identifier type expression
+	"let" harderr="true"
+	ident set="identifier"
+	type_specifier ? set="type"
+	= ?
+		expression set="expression"
+	;?;
+
+
+"
+const DANDA: int = 50;
+"
+KWConst identifier type expression public
+	"pub" ? set="public"
+	"const" harderr="true"
+	ident set="identifier"
+	=
+	expression set="expression"
+	;?;
+
+
+"
+: type
+usually for function arguments declaration 
+fun danda(txt: String){}
+"
+type_specifier type
+	: harderr="true"
+	type set="type";
+
+
+"
+[int; 50]
+int
+int<float<[int; 50]>>
+etc..
+"
+type main generic ref arr
+	ref_type ? set="ref"
+	function_head ? set="main" end="false"
+	array_decl ? set="arr" end="false"
+	type_ident_null set="main"
+	generic_expr ? set="generic";
+
+ref_type [refs
+	& ? set="refs" back="0"
+	&& ? set="refs" back="1";
+
+type_ident [nodes
+	ident set="nodes"
+	. ? back="1";
+
+
+type_ident_null [nodes nullable
+	ident set="nodes"
+	. ? back="1"
+	? ? set="nullable";
+
+"
+[int; 60]
+"
+array_decl type size
+	[
+	type set="type"
+	;
+	expression set="size"
+	];
+
+
+"
+type danda = int;
+"
+KWType identifier type generic public
+	"pub" ? set="public"
+	"type" harderr="true"
+	ident set="identifier"
+	generic_decl ? set="generic"
+	=
+	type set="type"
+	;?;
+
+
+"
+import ""std.time""; // imagine this with only one ("")
+import ""std.time"" as tm;
+"
+KWImport path identifier
+	"import" harderr="true"
+	"'string" set="path imports"
+	"as" ?
+		ident set="identifier"
+	;?;
+
+
+"
+if true {}
+else if true {}
+else {}
+"
+KWIf expression code [elif else
+	"if" harderr="true"
+	expression set="expression"
+	code_block set="code"
+	KWElif ? back="0" set="elif"
+	KWElse ? set="else";
+
+
+"
+else if true {}
+"
+KWElif expression code
+	"else" 
+	"if" harderr="true"
+	expression set="expression"
+	code_block set="code";
+
+
+"
+else {}
+"
+KWElse code
+	"else" harderr="true"
+	code_block set="code";
+
+
+"
+while true {}
+"
+KWWhile expression code
+	"while" harderr="true"
+	expression set="expression" 
+	code_block set="code";
+
+
+"
+loop {}
+"
+KWLoop code
+	"loop" harderr="true"
+	code_block set="code";
+
+
+"
+for i in range(60) {}
+"
+KWFor identifier expression code
+	"for" harderr="true"
+	ident set="identifier"
+	"in"
+	expression set="expression" 
+	code_block set="code";
+
+
+"
+break;
+"
+KWBreak expression
+	"break" harderr="true"
+	;?;
+
+
+"
+continue;
+"
+KWContinue
+	"continue" harderr="true"
+	;?;
+
+
+"
+switch danda {
+	0 {},
+	1 {},
+	5 {},
+	_ {}
+}
+"
+KWSwitch expression [nodes
+	"switch" harderr="true"
+	expression set="expression" 
+	{
+	switch_node ? set="nodes"
+	, ? back="1"
+	};
+
+
+"
+0 {}
+see KWSwitch..
+"
+switch_node expression code
+	expression harderr="true" set="expression"
+	code_block set="code";
+
+
+"
+try {
+	dangerous_function();
+}
+"
+KWTry code [catch finally
+	"try" harderr="true"
+	code_block set="code"
+	KWCatch ? set="catch" back="0"
+	KWFinally ? set="finally";
+
+
+"
+try{}
+catch e: NotNumber {}
+catch e: WrongEncoding, Ooops {}
+catch e {}
+"
+KWCatch identifier [types code
+	"catch" harderr="true"
+	ident ? set="identifier"
+		: ?
+			type_ident ? set="types"
+			, ? back="1"
+	code_block set="code";
+
+KWFinally code
+	"finally" harderr="true"
+	code_block set="code";
+
+
+"
+if str.NaN() {
+	yeet NotNumeric
+}
+"
+KWYeet err
+	"yeet" harderr="true"
+	variable set="err"
+	;?;
+
+
+"
+enum {
+	One,
+	Two,
+	Five = 5
+}
+"
+KWEnum identifier [values public
+	"pub" ? set="public"
+	"enum" harderr="true"
+	ident set="identifier"
+	{
+	enum_value ? set="values"
+	, ? back="1"
+	};
+
+
+"
+Five = 5
+Six = 6f // error expected int
+see KWEnum..
+"
+enum_value identifier default
+	ident set="identifier"
+	= ? harderr="true"
+		"'int" ? set="default" end="true"
+		"'number" err="expected int at enum variant";
+
+
+"
+struct Danda <T> {
+	name: String,
+	age: int,
+	things: [T, 50],
+}
+"
+KWStruct identifier [keys generic public
+	"pub" ? set="public"
+	"struct" harderr="true"
+	ident set="identifier"
+	generic_decl ? set="generic"
+	{
+	arg ? set="keys"
+	, ? back="1"
+	};
+
+
+"
+impl Danda(Rusty) {
+	fun move(self){}
+}
+"
+KWImpl identifier [traits [methods
+	"impl" harderr="true"
+	type_ident set="identifier"
+	"trait" ?
+		type_ident set="traits"
+		, ? back="1"
+	{
+	KWOverload ? set="methods" back="0"
+	KWFun ? set="methods" back="1"
+	};
+
+
+"
+trait Rusty (Danda){
+	fun print (self){
+		// i can access methods belonging to Danda trait
+		// for example 
+		let name = self.name()
+		print(name)
+	}
+}
+"
+KWTrait identifier [traits [methods public
+	"pub" ? set="public"
+	"trait" harderr="true"
+	ident set="identifier"
+	"impl" ?
+		type_ident set="traits"
+		, ? back="1"
+	{
+	KWOverload ? set="methods" back="0"
+	KWFun ? set="methods" back="1"
+	};
+
+
+"
+fun parse_str<Type>(str: String): Type {}
+fun danda() {}
+fun danda(&self) {}
+fun danda(self) {}
+"
+KWFun identifier generic [arguments type code errorable public
+	"pub" ? set="public"
+	"fun" harderr="true"
+	ident set="identifier"
+	generic_decl ? set="generic"
+	(
+	self_arg ? set="arguments"
+	arg ? set="arguments"
+	, ? back="1"
+	)
+	! ? set="errorable"
+	type_specifier ? set="type"
+	code_block ? set="code" returnable="true";
+
+
+function_head generic [arguments type errorable
+	"fun" harderr="true"
+	generic_decl ? set="generic"
+	(
+	self_arg ? set="arguments"
+	arg ? set="arguments"
+	, ? back="1"
+	)
+	! ? set="errorable"
+	type_specifier ? set="type";
+
+
+anonymous_function [arguments type code generic errorable
+	"fun" harderr="true"
+	generic_decl ? set="generic"
+	(
+	self_arg ? set="arguments"
+	arg ? set="arguments"
+	, ? back="1"
+	)
+	! ? set="errorable"
+	type_specifier ? set="type"
+	code_block set="code" returnable="true";
+
+
+"
+impl Vec2 {
+	overload + (vec: &Vec2): &Vec2 {
+		yeet new Vec2(self[0] + vec[0], self[1] + vec[1])
+	}
+}
+"
+KWOverload op arg type code generic errorable public
+	"pub" ? set="public"
+	"overload" harderr="true"
+	overloadable_op set="op"
+	generic_decl ? set="generic"
+	(
+	arg set="arg"
+	)
+	! ? set="errorable"
+	type_specifier ? set="type"
+	code_block ? set="code" returnable="true";
+
+
+self_arg args ref
+	ref_type ? set="ref"
+	"self" set="args";
+
+generic_decl [identifiers
+	< harderr="true"
+	generic_ident set="identifiers"
+	, ? back="1"
+	>;
+
+generic_ident identifier [traits
+	ident harderr="true" set="identifier"
+	( ?
+		type_ident ? set="traits"
+		, ? back="1"
+		);
+
+KWReturn expression
+	"return" harderr="true"
+	expression_option ? set="expression" 
+	;?;
+	
+arg identifier type
+	ident set="identifier" harderr="true"
+	:
+	type set="type";
+
+code_block [nodes
+	{ harderr="true"
+	KWLet ? set="nodes" back="0"
+	KWIf ? set="nodes" back="1"
+	KWFun ? set="nodes" back="2"
+	KWWhile ? set="nodes" back="3"
+	KWConst ? set="nodes" back="4"
+	KWFor ? set="nodes" back="5"
+	KWSwitch ? set="nodes" back="6"
+	KWStruct ? set="nodes" back="7"
+	KWType ? set="nodes" back="8"
+	KWImport ? set="nodes" back="9"
+	KWLoop ? set="nodes" back="10"
+	KWBreak ? set="nodes" back="11"
+	KWReturn ? set="nodes" back="12"
+	KWContinue ? set="nodes" back="13"
+	KWImpl ? set="nodes" back="14"
+	KWTrait ? set="nodes" back="15"
+	KWEnum ? set="nodes" back="16"
+	KWTry ? set="nodes" back="17"
+	KWYeet ? set="nodes" back="18"
+	code_block ? set="nodes" back="19"
+	set ? set="nodes" back="20"
+	; ? back="21"
+	} ? end="true"
+	expression ? set="nodes" back="23";
+
+set value operator expression
+	value set="value"
+	set_op set="operator"
+	expression set="expression"
+	;?;
+
+set_op op
+	= ? set="op" end="true"
+	+= ? set="op" end="true"
+	-= ? set="op" end="true"
+	/= ? set="op" end="true"
+	*= ? set="op" end="true"
+	"'any" err="not a setting operator";
+
+expression [nodes ignore
+	"_" ? set="ignore" end="true"
+	anonymous_function ? set="nodes" end="false"
+	value ? set="nodes"
+	operator ? set="nodes" back="1"
+	notempty ! nodes="nodes";
+
+expression_option [nodes ignore
+	"_" ? set="ignore" end="true"
+	anonymous_function ? set="nodes" end="false"
+	value ? set="nodes"
+	operator ? set="nodes" back="1";
+
+
+"
+tail is everything that extends basic variable/parenthesis
+example: danda[5].touch_grass(9)
+              ~~~~~~~~~~~~~~~~~~ <- everything here is tail
+"
+variable_tail [nodes
+	nested ? set="nodes" back="0"
+	idx ? set="nodes" back="1"
+	function_call ? set="nodes" back="2"
+	cast ? set="nodes";
+
+free_parenthesis expression tail
+	( harderr="true"
+	expression set="expression"
+	)
+	variable_tail set="tail";
+
+operator op
+	< ? set="op" end="true"
+	<= ? set="op" end="true"
+	>= ? set="op" end="true"
+	> ? set="op" end="true"
+	+ ? set="op" end="true"
+	- ? set="op" end="true"
+	* ? set="op" end="true"
+	/ ? set="op" end="true"
+	!= ? set="op" end="true"
+	== ? set="op" end="true"
+	| ? set="op" end="true"
+	& ? set="op" end="true"
+	|| ? set="op" end="true"
+	&& ? set="op" end="true"
+	% ? set="op" end="true"
+	"'any" err="";
+
+overloadable_op op
+	< ? set="op" end="true"
+	<= ? set="op" end="true"
+	>= ? set="op" end="true"
+	> ? set="op" end="true"
+	+ ? set="op" end="true"
+	- ? set="op" end="true"
+	* ? set="op" end="true"
+	/ ? set="op" end="true"
+	+= ? set="op" end="true"
+	-= ? set="op" end="true"
+	*= ? set="op" end="true"
+	/= ? set="op" end="true"
+	== ? set="op" end="true"
+	| ? set="op" end="true"
+	& ? set="op" end="true"
+	|| ? set="op" end="true"
+	&& ? set="op" end="true"
+	% ? set="op" end="true"
+	[ ? set="op" end="true"
+	! ? set="op" end="true"
+	"'any" err="";
+
+parenthesis [expressions
+	( harderr="true"
+	expression_option ? set="expressions"
+	, ? back="1"
+	);
+
+value_prepend ref keywords unary
+	ref_tok ? set="ref"
+	value_mod ? set="keywords" harderr="true"
+	unary_op ? set="unary";
+
+value value prepend
+	value_prepend set="prepend"
+	variable ? set="value" end="false"
+	literal ? set="value" end="false"
+	free_parenthesis ? set="value" end="false"
+	"'any" err="true";
+
+unary_op op
+	- ? set="op" end="true"
+	! ? set="op" end="true"
+	"'any" err="";
+
+variable identifier tail
+	ident set="identifier"
+	variable_tail set="tail";
+
+
+literal value
+	"'number" ? set="value" end="true"
+	"'char" ? set="value" end="true"
+	"'string" ? set="value" end="true"
+	array_expr ? set="value" end="false"
+	"'any" err="not a literal value";
+
+
+array_expr array
+	array_builder ? set="array" end="false"
+	array_literal ? set="array" end="false"
+	"'any" err="not an array";
+
+array_builder value size
+	[
+	expression set="value"
+	;
+	expression set="size"
+	];
+
+array_literal [values
+	[
+	expression_option ? set="values"
+	, ? back="1"
+	];
+
+ref_tok [tokens
+	* ? set="tokens" back="0"
+	& ? set="tokens" back="1"
+	&& ? set="tokens" back="2";
+
+generic_expr [types
+	< harderr="true"
+	type set="types"
+	, ? back="1"
+	>;
+
+function_call generic parenthesis
+	generic_expr ? set="generic" harderr="true"
+	parenthesis set="parenthesis";
+
+
+nested identifier
+	. harderr="true"
+	ident set="identifier";
+
+idx expression
+	[ harderr="true"
+	expression set="expression"
+	];
+
+RESERVED
+	"const" ? end="false"
+	"let" ? end="false"
+	"if" ? end="false"
+	"while" ? end="false"
+	"fun" ? end="false"
+	"impl" ? end="false"
+	"struct" ? end="false"
+	"yeet" ? end="false"
+	"continue" ? end="false"
+	"break" ? end="false"
+	"as" ? end="false"
+	"new" ? end="false"
+	"sizeof" ? end="false"
+	"delete" ? end="false"
+	"return" ? end="false"
+	"else" ? end="false"
+	"for" ? end="false"
+	"switch" ? end="false"
+	"error" ? end="false"
+	"'any" err="v poradku";
+
+value_mod kw 
+	"new" ? set="kw" end="true"
+	"sizeof" ? set="kw" end="true"
+	"delete" ? set="kw" end="true"
+	"'any" err="neni kw";
+
+cast type
+	"as" harderr="true"
+	type_ident set="type";
+
+ident identifier
+	RESERVED ? err="identifier name is reserved"
+	"'text" set="identifier";

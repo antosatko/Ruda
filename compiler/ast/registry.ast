@@ -1,0 +1,290 @@
+entry [nodes
+	KWFun ? set="nodes" back="0"
+	KWStruct ? set="nodes" back="1"
+	KWType ? set="nodes" back="2"
+	KWImpl ? set="nodes" back="3"
+	KWTrait ? set="nodes" back="4"
+	KWEnum ? set="nodes" back="5"
+	KWConst ? set="nodes" back="6"
+	"'eof";
+
+generic_expr [types
+	< harderr="true"
+	type_ident set="types"
+	, ? back="1"
+	>;
+
+generic_decl [identifiers
+	< harderr="true"
+	generic_ident set="identifiers"
+	, ? back="1"
+	>;
+
+generic_ident identifier [traits
+	ident harderr="true" set="identifier"
+	( ?
+		type_ident ? set="traits"
+		, ? back="1"
+		);
+
+"
+: type
+usually for function arguments declaration 
+fun danda(txt: String){}
+"
+type_specifier type
+	: harderr="true"
+	type set="type";
+
+
+"
+[int; 50]
+int
+int<float<[int; 50]>>
+etc..
+"
+type main generic ref arr
+	ref_type ? set="ref"
+	function_head ? set="main" end="false"
+	array_decl ? set="arr" end="false"
+	type_ident_null set="main"
+	generic_expr ? set="generic";
+
+ref_type [refs
+	& ? set="refs" back="0"
+	&& ? set="refs" back="1";
+
+type_ident [nodes
+	ident set="nodes"
+	. ? back="1";
+
+
+type_ident_null [nodes nullable
+	ident set="nodes"
+	. ? back="1"
+	? ? set="nullable";
+
+"
+[int; 60]
+"
+array_decl type size
+	[ harderr="true"
+	type set="type"
+	;
+	num_none set="size"
+	];
+
+num_none num
+	"'int" ? set="num" end="true"
+	"_" ? set="num" end="true";
+
+
+"
+type danda = int;
+"
+KWType identifier type assign
+	"type" harderr="true"
+	ident set="identifier"
+	=
+	type set="type"
+	assign set="assign"
+	;?;
+
+KWEnum identifier [values assign
+	"enum" harderr="true"
+	ident set="identifier"
+	assign set="assign"
+	{
+	enum_value ? set="values"
+	, ? back="1"
+	};
+
+enum_value identifier default
+	ident set="identifier"
+	= ? harderr="true"
+		"'int" ? set="default" end="true"
+		"'number" ? err="expected int at enum variant"
+		"'any" ? err="expected int at enum variant";
+
+"
+struct Danda <T> {
+	name: String,
+	age: int,
+	things: [T, 50],
+}
+"
+KWStruct identifier [keys generic assign
+	"struct" harderr="true"
+	ident set="identifier"
+	generic_decl ? set="generic"
+	assign set="assign"
+	{
+	struct_arg ? set="keys"
+	, ? back="1"
+	};
+
+struct_arg identifier type
+	ident set="identifier" harderr="true"
+	:
+	type set="type";
+
+
+"
+impl Danda(Rusty) {
+	fun move(self){}
+}
+"
+KWImpl identifier [methods
+	"impl" harderr="true"
+	ident set="identifier"
+	{
+	KWOverload ? set="methods" back="0"
+	KWFun ? set="methods" back="1"
+	};
+
+
+"
+trait Rusty (Danda){
+	fun print (self){
+		// i can access methods belonging to Danda trait
+		// for example 
+		let name = self.name()
+		print(name)
+	}
+}
+"
+KWTrait identifier [traits [methods assign
+	"trait" harderr="true"
+	ident set="identifier"
+	assign set="assign"
+	{
+	KWOverload ? set="methods" back="0"
+	KWFun ? set="methods" back="1"
+	};
+
+
+"
+fun parse_str<Type>(str: String): Type {}
+fun danda() {}
+fun danda(&self) {}
+fun danda(self) {}
+"
+KWFun identifier [arguments type errorable assign generic
+	"fun" harderr="true"
+	ident set="identifier"
+	generic_decl ? set="generic"
+	(
+	self_arg ? set="arguments"
+	arg ? set="arguments"
+	, ? back="1"
+	)
+	! ? set="errorable"
+	type_specifier ? set="type"
+	assign set="assign";
+
+function_head generic [arguments type errorable
+	"fun" harderr="true"
+	generic_decl ? set="generic"
+	(
+	self_arg ? set="arguments"
+	arg ? set="arguments"
+	, ? back="1"
+	)
+	! ? set="errorable"
+	type_specifier ? set="type";
+
+KWOverload op arg type errorable assign generic
+	"overload" harderr="true"
+	overloadable_op set="op"
+	generic_decl ? set="generic"
+	(
+	arg set="arg"
+	)
+	! ? set="errorable"
+	type_specifier ? set="type"
+	assign set="assign";
+
+
+KWConst identifier value
+	"const" harderr="true"
+	ident set="identifier"
+	=
+	value set="value"
+	;?;
+
+value value
+	"'number" ? set="value" end="true"
+	"'string" ? set="value" end="true"
+	"'text" ? set="value" end="true"
+	"'any" err="I am sorry but due to my laziness I have not implemented this properly yet";
+
+
+self_arg args ref mem
+	ref_type ? set="ref"
+	"self" set="args" harderr="true"
+	mem_loc set="mem";
+	
+arg identifier type mem
+	ident set="identifier" harderr="true"
+	mem_loc set="mem"
+	:
+	type set="type";
+
+
+
+overloadable_op op
+	< ? set="op" end="true"
+	<= ? set="op" end="true"
+	>= ? set="op" end="true"
+	> ? set="op" end="true"
+	+ ? set="op" end="true"
+	- ? set="op" end="true"
+	* ? set="op" end="true"
+	/ ? set="op" end="true"
+	+= ? set="op" end="true"
+	-= ? set="op" end="true"
+	*= ? set="op" end="true"
+	/= ? set="op" end="true"
+	== ? set="op" end="true"
+	| ? set="op" end="true"
+	& ? set="op" end="true"
+	|| ? set="op" end="true"
+	&& ? set="op" end="true"
+	% ? set="op" end="true"
+	[ ? set="op" end="true"
+	! ? set="op" end="true"
+	"'any" err="";
+
+ref_tok [tokens
+	* ? set="tokens" back="0"
+	& ? set="tokens" back="1"
+	&& ? set="tokens" back="2";
+
+RESERVED
+	"const" ? end="false"
+	"let" ? end="false"
+	"if" ? end="false"
+	"while" ? end="false"
+	"fun" ? end="false"
+	"impl" ? end="false"
+	"struct" ? end="false"
+	"yeet" ? end="false"
+	"continue" ? end="false"
+	"break" ? end="false"
+	"as" ? end="false"
+	"new" ? end="false"
+	"'any" err="v poradku";
+
+ident identifier
+	RESERVED ? err="identifier name is reserved"
+	"'text" set="identifier";
+
+assign num
+	>
+	"'int" set="num";
+
+mem_loc mem loc
+	= harderr="true"
+	"'text" set="mem"
+	.
+	"'text" set="loc";

@@ -1,0 +1,86 @@
+struct File > 0 {
+    handle: usize
+}
+
+const CIRNO = 9
+
+enum HttpResponses > 0 {
+    Continue = 100,
+    SwitchingProtocols,
+    Processing,
+    OK = 200,
+    Created,
+    Accepted,
+    NonAuthoritativeInformation,
+    NoContent,
+    ResetContent,
+    PartialContent,
+    MultiStatus,
+    AlreadyReported,
+    IMUsed = 226,
+    MultipleChoices = 300,
+    MovedPermanently,
+    Found,
+    SeeOther,
+    NotModified,
+    UseProxy,
+    SwitchProxy,
+    TemporaryRedirect,
+    PermanentRedirect,  
+    BadRequest = 400,
+    Unauthorized,
+    PaymentRequired,
+    Forbidden,
+    NotFound,
+    MethodNotAllowed,
+    NotAcceptable,
+    ProxyAuthenticationRequired,
+    RequestTimeout,
+    Conflict,
+    Gone,
+    LengthRequired,
+    PreconditionFailed,
+    PayloadTooLarge,
+    URITooLong,
+    UnsupportedMediaType,
+    RangeNotSatisfiable,
+    ExpectationFailed,
+    ImATeapot,
+    MisdirectedRequest = 421,
+    UnprocessableEntity,
+    Locked,
+    FailedDependency,
+    UpgradeRequired = 426,
+    PreconditionRequired = 428,
+    TooManyRequests,
+    RequestHeaderFieldsTooLarge = 431,
+    UnavailableForLegalReasons = 451,
+    InternalServerError = 500,
+    NotImplemented,
+    BadGateway,
+    ServiceUnavailable,
+    GatewayTimeout,
+    HTTPVersionNotSupported,
+    VariantAlsoNegotiates,
+    InsufficientStorage,
+    LoopDetected,
+    NotExtended = 510,
+    NetworkAuthenticationRequired,
+}
+
+impl File {
+    fun read(&self=reg.ptr): string > 8
+    fun write(&self=reg.ptr, data=reg.g1:string)! > 9
+    fun append(&self=reg.ptr, data=reg.g1:string)! > 10
+    fun close(&self=reg.ptr)! > 7
+}
+
+
+fun print(msg=reg.ptr: string) > 0
+fun println(msg=reg.ptr: string) > 1
+fun input(): string > 2
+fun fileRead(fileName=reg.ptr: string): string > 3
+fun fileWrite(fileName=reg.ptr: string, data=reg.g1: string)! > 4
+fun fileAppend(fileName=reg.ptr: string, data=reg.g1: string)! > 5
+fun fileOpen(fileName=reg.ptr: string)!: File > 6
+fun args(): &[string; _] > 11

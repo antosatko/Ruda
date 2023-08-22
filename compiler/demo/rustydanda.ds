@@ -1,0 +1,57 @@
+use std.numbers as math;
+use std.io;
+
+enum comparison {
+    Equal,
+    Less,
+    More,
+}
+
+fun compareNum(rand: int, guess: int): comparison {
+    yeet if guess == randNum {
+        comparison.Equal
+    }
+    else if guess < randNum {
+        comparison.Less
+    } 
+    else {
+        comparison.More
+    }
+}
+
+fun again(): bool {
+    io.println("Play again? (y/n)");
+    char? ans;
+    io.getChar(&ans);
+    yeet ans == 'y'
+}
+
+fun gameLoop() {
+    int randNum = math.randInt() % 100;
+    int? guess;
+
+    'a: loop {
+        io.print("Your guess: ");
+        io.getInt(&guess);
+        switch compareNum(randNum, guess){
+            comparison.Equal {
+                io.println("You won!");
+                break 'a;
+            }
+            comparison.Less {
+                io.println("Too low.");
+            }
+            comparison.More {
+                io.println("Too high.");
+            }
+        }
+    }
+}
+
+fun main() {
+    io.println("Welcome to number guessing game!");
+    do {
+        gameLoop();
+    } while again();
+    io.println("Thank you for playing.");
+}

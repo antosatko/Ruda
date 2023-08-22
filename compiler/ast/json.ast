@@ -1,0 +1,32 @@
+entry main
+	array ? set="main" end=""
+	object ? set="main" end=""
+	"'any" err="body must be type object or array";
+
+object [body
+	{ harderr="true" 
+	obj_value ? set="body" 
+		, ? back="1" 
+	};
+
+array [body
+	[ harderr="true"
+	value ? set="body"
+		, ? back="1" 
+	];
+
+obj_value key value
+	"'string" set="key" 
+	: harderr="true"
+	value set="value"  end="";
+
+value value
+	object ? set="value" end="false"
+	array ? set="value" end="false"
+	"'string" ? set="value" end="true"
+	"'number" ? set="value" end="true"
+	"null" ? set="value" end="true"
+	"undefined" ? set="value" end="true"
+	"Infinity" ? set="value" end="true"
+	"NaN" ? set="value" end="true" 
+	"'any" err="neco se nepovedlo";
