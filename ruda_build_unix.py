@@ -25,57 +25,57 @@ import shutil
 #            In your system variables, add RUDA_PATH and set it to the build folder.
 
 # User-defined variables (change to your liking)
-root_dir = os.path.join(os.getcwd(), "build/")  # where to put Ruda
-current_dir = os.getcwd() + "/"  # current directory (don't change this)
+root_dir = os.path.join(os.getcwd(), "build")  # where to put Ruda
+current_dir = os.getcwd()  # current directory (don't change this)
 source_libs = os.path.join(current_dir, "stdlib")  # where to find the stdlib source code
 
 # Create bin folder
-if not os.path.exists(root_dir + "/bin"):
-    os.makedirs(root_dir + "/bin")
+if not os.path.exists(os.path.join(root_dir, "bin")):
+    os.makedirs(os.path.join(root_dir, "bin"))
 
 # Create stdlib folder
-if not os.path.exists(root_dir + "/stdlib"):
-    os.makedirs(root_dir + "/stdlib")
+if not os.path.exists(os.path.join(root_dir, "stdlib")):
+    os.makedirs(os.path.join(root_dir, "stdlib"))
 
 # Build vm
-os.system(f"cd {current_dir}vm && cargo build --release")
+os.system(f"cd {current_dir}/vm && cargo build --release")
 if os.WEXITSTATUS(os.system("echo $?")) != 0:
     print("Build failed")
     exit(1)
 
 # Build compiler
-os.system(f"cd {current_dir}compiler && cargo build --release")
+os.system(f"cd {current_dir}/compiler && cargo build --release")
 if os.WEXITSTATUS(os.system("echo $?")) != 0:
     print("Build failed")
     exit(1)
 
 path_to_vm = os.path.join(current_dir, "vm/target/release/rusty_vm")
 path_to_compiler = os.path.join(current_dir, "compiler/target/release/rusty_danda")
-path_to_binaries = os.path.join(root_dir, "/bin")
+path_to_binaries = os.path.join(root_dir, "bin")
 
 # Remove old vm
-os.remove(os.path.join(root_dir, "/bin/rudavm"))
+os.remove(os.path.join(path_to_binaries, "rudavm"))
 
 # Remove old compiler
-os.remove(os.path.join(root_dir, "/bin/rudac"))
+os.remove(os.path.join(path_to_binaries, "rudac"))
 
 # Copy vm
-shutil.copy(path_to_vm, os.path.join(root_dir, "/bin/rudavm"))
+shutil.copy(path_to_vm, os.path.join(path_to_binaries, "rudavm"))
 
 # Copy compiler
-shutil.copy(path_to_compiler, os.path.join(root_dir, "/bin/rudac"))
+shutil.copy(path_to_compiler, os.path.join(path_to_binaries, "rudac"))
 
 vm_rename = "rudavm"
 compiler_rename = "rudac"
 
 # Rename vm
-os.rename(os.path.join(root_dir, "/bin/rusty_vm"), os.path.join(root_dir, "/bin/", vm_rename))
+os.rename(os.path.join(path_to_binaries, "rusty_vm"), os.path.join(path_to_binaries, vm_rename))
 
 # Rename compiler
-os.rename(os.path.join(root_dir, "/bin/rusty_danda"), os.path.join(root_dir, "/bin/", compiler_rename))
+os.rename(os.path.join(path_to_binaries, "rusty_danda"), os.path.join(path_to_binaries, compiler_rename))
 
 # Copy stdlib
-lib_bin = os.path.join(root_dir, "/stdlib")
+lib_bin = os.path.join(root_dir, "stdlib")
 
 # Get all folders excluding .git
 folders = [f for f in os.listdir(source_libs) if os.path.isdir(os.path.join(source_libs, f)) and f != ".git"]
