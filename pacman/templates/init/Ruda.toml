@@ -4,10 +4,10 @@
 # (todo add link to documentation)
 
 [project]
-name = "project"
-version = "0.1.0"
-author = "author"
-kind = "bin"
+name = "{{name}}"
+version = "{{version}}"
+author = "{{author}}"
+kind = "{{kind}}"
 license = "MIT"
 runtime = "latest"
 description = "description"

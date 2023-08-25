@@ -60,9 +60,17 @@ if proc != 0:
     print("Build failed")
     exit(1)
 
+
+# build package manager
+proc = os.system("cd " + current_dir + "pacman && cargo build --release")
+if proc != 0:
+    print("Build failed")
+    exit(1)
+
 path_to_vm = os.path.join(current_dir, "vm\\target\\release\\rusty_vm.exe")
 path_to_compiler = os.path.join(current_dir, "compiler\\target\\release\\rusty_danda.exe")
 path_to_binaries = os.path.join(root_dir + "\\bin")
+path_to_package_manager = os.path.join(current_dir, "pacman\\target\\release\\ruda.exe")
 
 
 # remove old vm
@@ -73,6 +81,9 @@ proc = os.system('del ' + root_dir +'\\bin\\rudavm.exe')
 # remove old compiler
 proc = os.system('del ' + root_dir +'\\bin\\rudac.exe')
 
+# remove old package manager
+proc = os.system('del ' + root_dir +'\\bin\\ruda.exe')
+
 
 # copy vm
 print('copy ' + current_dir + 'vm\\target\\release\\rusty_vm.exe ' + root_dir +'\\bin')
@@ -80,6 +91,9 @@ proc = os.system('copy ' + current_dir + 'vm\\target\\release\\rusty_vm.exe ' + 
 
 # copy compiler
 proc = os.system('copy ' + current_dir + 'compiler\\target\\release\\rusty_danda.exe ' + root_dir +'\\bin')
+
+# copy package manager
+proc = os.system('copy ' + current_dir + 'pacman\\target\\release\\ruda.exe ' + root_dir +'\\bin')
 
 vm_rename = "rudavm.exe"
 compiler_rename = "rudac.exe"
