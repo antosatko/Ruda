@@ -37,6 +37,10 @@ pub enum Task {
         #[clap(name = "path")]
         path: Option<String>,
 
+        /// Profile to use
+        #[clap(name = "profile", short, long, default_value = "default")]
+        profile: String,
+
         /// Runtime arguments for the VM
         #[clap(name = "args", last = true)]
         args: Vec<String>,
@@ -46,6 +50,10 @@ pub enum Task {
         /// Project path
         #[clap(name = "path")]
         path: Option<String>,
+
+        /// Profile to use
+        #[clap(name = "profile", short, long, default_value = "default")]
+        profile: String,
     },
     /// Install a package
     Install {
