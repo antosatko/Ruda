@@ -16,7 +16,7 @@ pub enum Task {
     /// Initialize a project
     Init {
         /// Kind of project
-        #[clap(name = "kind", default_value = "bin")]
+        #[clap(name = "kind", default_value = "bin", short, long)]
         kind: ProjectKind,
 
         /// Project name
