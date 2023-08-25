@@ -8,16 +8,16 @@ use clap::{Parser, Subcommand, ValueEnum};
 struct Args {
     /// Task to perform
     #[command(subcommand)]
-    task: Option<Task>,
+    task: Task,
 }
 
 #[derive(Debug, Subcommand)]
 enum Task {
     /// Initialize a project
     Init {
-        /// Project path
-        #[clap(name = "path")]
-        path: Option<String>,
+        /// Kind of project
+        #[clap(name = "kind", default_value = "bin")]
+        kind: ProjectKind,
 
         /// Project name
         #[clap(name = "name", short, long)]
@@ -59,7 +59,7 @@ enum Task {
         #[clap(name = "url")]
         url: String,
 
-        /// version (default: all)
+        /// version
         #[clap(name = "version", short, long, default_value = "all")]
         version: String,
     },
@@ -73,6 +73,14 @@ enum Task {
         #[clap(short, long)]
         check: bool,
     },
+}
+
+#[derive(Debug, ValueEnum, Clone)]
+enum ProjectKind {
+    /// A library
+    Lib,
+    /// An executable
+    Bin,
 }
 
 fn main() {
