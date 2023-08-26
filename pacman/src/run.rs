@@ -1,3 +1,4 @@
+use crate::sum;
 use crate::config;
 
 pub fn run(path: &str, profile: &str, args: Vec<String>) {
@@ -18,5 +19,7 @@ pub fn run(path: &str, profile: &str, args: Vec<String>) {
         // create directory
         std::fs::create_dir_all(&profile_path).unwrap();
     }
+    
+
     println!("config: {:#?}", config);
 }
