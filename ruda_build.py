@@ -6,14 +6,16 @@
 # After running this script check the build folder
 # It should look something like this:
 # - bin
-#   - rudac.exe
-#   - rudavm.exe
+#   - rudac.exe             (compiler)
+#   - rudavm.exe            (vm)
+#   - ruda.exe              (package manager)
 # - stdlib
 #   - io.dll
 #   - string.dll
 #   - ...
 # - ruda.ast
 # - registry.ast
+# - Ruda.toml               (package manager config)
 #
 # Those are the files needed to run Ruda programs
 #
@@ -140,3 +142,6 @@ proc = os.system('del ' + root_dir + '\\registry.ast')
 proc = os.system('copy ' + ruda_ast + ' ' + root_dir + '')
 proc = os.system('copy ' + registry_ast + ' ' + root_dir + '')
 
+# copy Ruda.toml if it isn't already there
+if not os.path.exists(root_dir + "\\Ruda.toml"):
+    proc = os.system('copy ' + current_dir + '\\pacman\\templates\\Ruda.toml ' + root_dir + '')

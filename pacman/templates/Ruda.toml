@@ -1,0 +1,8 @@
+author = "author"
+license = "MIT"
+name = "project"
+runtime = "latest"
+version = "0.1.0"
+kind = "bin"
+description = "description"
+3rdparty = "allow"
