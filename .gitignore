@@ -5,3 +5,4 @@ stdlib/**/Cargo.lock
 build
 vm/runtime/target
 vm/runtime/Cargo.lock
+.vscode
