@@ -57,6 +57,9 @@ pub fn write_sums(path: &str, profile: &str, sums: &Vec<String>) {
     let target = std::path::Path::new(path).join("target").join(profile);
     let target_file = target.join(TARGET_FILE);
     let mut file = std::fs::File::create(&target_file).unwrap();
+    // clear file
+    file.set_len(0).unwrap();
+    // write sums to file
     for sum in sums {
         file.write_all(sum.as_bytes()).unwrap();
         file.write_all(b"\n").unwrap();

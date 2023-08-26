@@ -43,19 +43,15 @@ pub enum Task {
     },
     /// Build a project from source
     Build {
-        /// Project path
-        #[clap(name = "path")]
-        path: Option<String>,
-
         /// Profile to use
         #[clap(name = "profile", short, long, default_value = "default")]
         profile: String,
     },
     /// Install a package
     Install {
-        /// URL
-        #[clap(name = "url")]
-        url: String,
+        /// source URL or path
+        #[clap(name = "source")]
+        source: String,
 
         /// version 
         #[clap(name = "version", short, long, default_value = "latest")]
@@ -63,23 +59,24 @@ pub enum Task {
     },
     /// Remove a package
     Remove {
-        /// URL
-        #[clap(name = "url")]
-        url: String,
+        /// source URL or path
+        #[clap(name = "source")]
+        source: String,
 
         /// version
         #[clap(name = "version", short, long, default_value = "all")]
         version: String,
     },
-    /// Update Ruda 
-    Update {
-        /// version 
-        #[clap(name = "version", default_value = "latest")]
-        ver: String,
+    /// Locates a package using url
+    Locate {
+        /// URL
+        /// if no url is provided, outputs the path to the ruda root directory
+        #[clap(name = "url")]
+        url: Option<String>,
 
-        /// Check for updates only
-        #[clap(short, long)]
-        check: bool,
+        /// version
+        #[clap(name = "version", short, long, default_value = "latest")]
+        version: String,
     },
 }
 
