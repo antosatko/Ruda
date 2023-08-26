@@ -3,17 +3,17 @@ use sha2::Digest;
 use sha2;
 
 
-const TARGET_FILE: &str = "target/sums.txt";
+const TARGET_FILE: &str = "sums.txt";
 
 /// Sum all files in the src directory
 /// returns a vector of sums
 /// 
 /// uses sha256 and sha512
-pub fn sum(path: &str) -> Vec<String> {
+pub fn sum(path: &str, profile: &str) -> Vec<String> {
     let mut sums = Vec::new();
     let file = std::path::Path::new(path);
     // check if directory target/ exists, if not create it
-    let target = file.join("target");
+    let target = file.join("target").join(profile);
     if !target.exists() {
         std::fs::create_dir_all(&target).unwrap();
     }
@@ -53,8 +53,8 @@ pub fn sum(path: &str) -> Vec<String> {
 
 /// write sums to target/sums.txt
 /// path is the path to the project
-pub fn write_sums(path: &str, sums: &Vec<String>) {
-    let target = std::path::Path::new(path).join("target");
+pub fn write_sums(path: &str, profile: &str, sums: &Vec<String>) {
+    let target = std::path::Path::new(path).join("target").join(profile);
     let target_file = target.join(TARGET_FILE);
     let mut file = std::fs::File::create(&target_file).unwrap();
     for sum in sums {
@@ -66,13 +66,13 @@ pub fn write_sums(path: &str, sums: &Vec<String>) {
 
 /// check if sums are correct
 /// path is the path to the project
-pub fn check(path: &str) -> bool {
-    let target = std::path::Path::new(path).join("target");
+pub fn check(path: &str, profile: &str) -> bool {
+    let target = std::path::Path::new(path).join("target").join(profile);
     let target_file = target.join(TARGET_FILE);
     if !target_file.exists() {
         return false;
     }
-    let sums = sum(path);
+    let sums = sum(path, profile);
     let mut file = std::fs::File::open(&target_file).unwrap();
     let mut buffer = String::new();
     file.read_to_string(&mut buffer).unwrap();
