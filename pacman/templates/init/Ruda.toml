@@ -14,7 +14,6 @@ description = "description"
 3rdparty = "allow" # "allow" | "std" | "sandboxed" | "deny"
 
 [dependencies]
-
+binaries = []
 
 [profile.default]
-

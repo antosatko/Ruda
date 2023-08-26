@@ -3,7 +3,6 @@
 # See official documentation for more information:
 # (todo add link to documentation)
 
-[project]
 name = "project"
 version = "0.3.6"
 author = "antosatko"
@@ -17,4 +16,7 @@ description = "description"
 
 
 [profile.default]
+binaries = []
 
+
+[profile.default.dependencies]

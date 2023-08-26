@@ -33,10 +33,6 @@ pub enum Task {
     },
     /// Build a project from source and run it
     Run {
-        /// Project path
-        #[clap(name = "path")]
-        path: Option<String>,
-
         /// Profile to use
         #[clap(name = "profile", short, long, default_value = "default")]
         profile: String,
