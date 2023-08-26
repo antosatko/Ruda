@@ -3,7 +3,7 @@ use sha2::Digest;
 use sha2;
 
 
-const TARGET_FILE: &str = "sums.txt";
+pub const TARGET_FILE: &str = "sums.txt";
 
 /// Sum all files in the src directory
 /// returns a vector of sums
