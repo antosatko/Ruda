@@ -10,6 +10,7 @@ edition = "2021"
 clap = { version = "4.3.19", features = ["derive"] }
 toml = "0.5.8"
 serde = { version = "1.0.130", features = ["derive"] }
+sha2 = "0.10.7"
 
 
 [profile.dev]
