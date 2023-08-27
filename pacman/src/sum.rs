@@ -51,6 +51,22 @@ pub fn sum(path: &str, profile: &str) -> Vec<String> {
             path.display()
         ));
     }
+    // read Ruda.toml
+    let mut file = std::fs::File::open(file.join("Ruda.toml")).unwrap();
+    let mut buffer = String::new();
+    file.read_to_string(&mut buffer).unwrap();
+    // calculate sums
+    let mut sha256 = sha2::Sha256::new();
+    sha256.update(&buffer);
+    let mut sha512 = sha2::Sha512::new();
+    sha512.update(&buffer);
+    // push sums to vector
+    sums.push(format!(
+        "{:x} {:x} {}",
+        sha256.finalize(),
+        sha512.finalize(),
+        "Ruda.toml"
+    ));
     sums
 }
 
