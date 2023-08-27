@@ -24,5 +24,5 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
         return;
     }
     // compile
-    println!("Compiling...");
+    println!("Compiling... {} {}", path, profile.0);
 }

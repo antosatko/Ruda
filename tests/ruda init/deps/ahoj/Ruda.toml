@@ -3,19 +3,14 @@
 # See official documentation for more information:
 # (todo add link to documentation)
 
+[project]
 name = "project"
-version = "0.3.6"
-author = "antosatko"
+version = "0.1.0"
+author = "author"
 kind = "lib"
 license = "MIT"
 runtime = "latest"
 description = "description"
 3rdparty = "allow" # "allow" | "std" | "sandboxed" | "deny"
-
-[dependencies]
-ahoj = {path = "deps/ahoj", version = "0.1.0"}
-test = "https://github.com/it-2001/ruda-lib-test"
-
-[binaries]
 
 [profile.default]

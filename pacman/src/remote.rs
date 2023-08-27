@@ -67,8 +67,30 @@ pub fn uninstall(url: &str, version: &str) {
 }
 
 
-// returns path to package from provided url
+/// returns path to package from provided url
+/// if it is not url, it returns the provided url
 pub fn path(url: &str, version: &str) -> String {
+    let ruda_path = std::env::var("RUDA_PATH").unwrap();
+    let packages_path = std::path::Path::new(&ruda_path).join("packages");
+    // if url is not a git url, return url
+    if !is_remote(url) {
+        return url.to_string();
+    }
+    // parse git url
+    let git_url = GitUrl::parse(url).unwrap();
+    // get owner path
+    let author_path = match git_url.owner {
+        Some(owner) => packages_path.join(owner),
+        None => packages_path,
+    };
+    // get package path
+    let package_path = author_path.join(git_url.name);
+    // return package path
+    package_path.to_str().unwrap().to_string()
+}
+
+/// returns true if package is installed
+pub fn is_installed(url: &str, version: &str) -> bool {
     let ruda_path = std::env::var("RUDA_PATH").unwrap();
     let packages_path = std::path::Path::new(&ruda_path).join("packages");
     // parse git url
@@ -81,5 +103,9 @@ pub fn path(url: &str, version: &str) -> String {
     // get package path
     let package_path = author_path.join(git_url.name);
     // return package path
-    package_path.to_str().unwrap().to_string()
+    package_path.exists()
+}
+
+pub fn is_remote(url: &str) -> bool {
+    url.starts_with("git") || url.ends_with(".git") || url.contains("://")
 }

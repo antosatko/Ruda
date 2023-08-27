@@ -1,4 +1,7 @@
+use serde_either::StringOrStruct;
 use std::collections::HashMap;
+
+use crate::remote;
 
 #[derive(serde::Deserialize, Debug)]
 struct TempConfig {
@@ -13,10 +16,10 @@ struct TempConfig {
     _3rdparty: Option<_3rdparty>,
 
     #[serde(default = "HashMap::new")]
-    dependencies: HashMap<String, String>,
+    dependencies: HashMap<String, StringOrStruct<TempDependencyTable>>,
 
-    #[serde(default = "Vec::new")]
-    binaries: Vec<String>,
+    #[serde(default = "HashMap::new")]
+    binaries: HashMap<String, String>,
 
     #[serde(default = "HashMap::new")]
     profile: HashMap<String, TempProfile>,
@@ -27,9 +30,20 @@ struct TempProfile {
     runtime: Option<String>,
     _3rdparty: Option<_3rdparty>,
     #[serde(default = "HashMap::new")]
-    dependencies: HashMap<String, String>,
-    #[serde(default = "Vec::new")]
-    binaries: Vec<String>,
+    dependencies: HashMap<String, StringOrStruct<TempDependencyTable>>,
+    #[serde(default = "HashMap::new")]
+    binaries: HashMap<String, String>,
+}
+
+/// describes a dependency
+#[derive(serde::Deserialize, Debug, Clone)]
+struct TempDependencyTable {
+    version: Option<String>,
+    path: Option<String>,
+    profile: Option<String>,
+    #[serde(rename = "3rdparty")]
+    _3rdparty: Option<_3rdparty>,
+    args: Option<Vec<String>>,
 }
 
 #[derive(serde::Deserialize, Debug)]
@@ -76,8 +90,8 @@ pub struct Config {
     pub runtime: Runtime,
     pub _3rdparty: _3rdparty,
 
-    pub dependencies: HashMap<String, String>,
-    pub binaries: Vec<String>,
+    pub dependencies: HashMap<String, Dependency>,
+    pub binaries: HashMap<String, String>,
 
     pub profile: HashMap<String, Profile>,
 }
@@ -88,6 +102,16 @@ pub enum Runtime {
     Version(usize, usize, usize),
 }
 
+#[derive(Debug, Clone)]
+pub struct Dependency {
+    pub version: String,
+    pub path: String,
+    pub profile: String,
+    pub _3rdparty: _3rdparty,
+    pub args: Vec<String>,
+}
+
+#[allow(unused)]
 impl Runtime {
     pub fn from_str(s: &str) -> Runtime {
         if s == "latest" {
@@ -115,11 +139,11 @@ impl Runtime {
 pub struct Profile {
     pub runtime: String,
     pub _3rdparty: _3rdparty,
-    pub dependencies: HashMap<String, String>,
-    pub binaries: Vec<String>,
+    pub dependencies: HashMap<String, Dependency>,
+    pub binaries: HashMap<String, String>,
 }
 
-fn temp_into_config(temp: TempConfig) -> Config {
+fn temp_into_config(path: &str, temp: TempConfig) -> Config {
     let mut config = Config {
         name: temp.name.unwrap(),
         version: temp.version.unwrap(),
@@ -130,27 +154,82 @@ fn temp_into_config(temp: TempConfig) -> Config {
         runtime: Runtime::from_str(&temp.runtime.unwrap()),
         _3rdparty: temp._3rdparty.unwrap(),
         dependencies: HashMap::new(),
-        binaries: Vec::new(),
+        binaries: HashMap::new(),
         profile: HashMap::new(),
     };
-    
-    config.dependencies = temp.dependencies;
+
+    config.dependencies = canonicalize_dependencies(path, &temp.dependencies);
     config.binaries = temp.binaries;
-    config.profile = temp.profile.into_iter().map(|(name, profile)| (name, Profile {
-        runtime: profile.runtime.unwrap(),
-        _3rdparty: profile._3rdparty.unwrap(),
-        dependencies: profile.dependencies,
-        binaries: profile.binaries,
-    })).collect();
+    config.profile = temp
+        .profile
+        .into_iter()
+        .map(|(name, profile)| {
+            (
+                name,
+                Profile {
+                    runtime: profile.runtime.unwrap(),
+                    _3rdparty: profile._3rdparty.unwrap(),
+                    dependencies: canonicalize_dependencies(&path, &profile.dependencies),
+                    binaries: profile.binaries,
+                },
+            )
+        })
+        .collect();
 
     config
+}
+fn fix_path(project: &str, path: &str) -> String {
+    if remote::is_remote(path) {
+        return path.to_string();
+    }
+    let path = std::path::Path::new(path);
+    if path.is_relative() {
+        let path = std::path::Path::new(project).join(path);
+        path.to_str().unwrap().to_string()
+    } else {
+        path.to_str().unwrap().to_string()
+    }
+}
+
+fn canonicalize_dependencies(
+    path: &str,
+    temp: &HashMap<String, StringOrStruct<TempDependencyTable>>,
+) -> HashMap<String, Dependency> {
+    let mut dependencies = HashMap::new();
+    for (name, dependency) in temp.into_iter() {
+        let dependency = match &dependency {
+            // if path is relative then make it absolute by joining it with the current project path
+            StringOrStruct::String(_path) => Dependency {
+                version: String::from("latest"),
+                path: fix_path(path, _path),
+                profile: String::from("default"),
+                _3rdparty: _3rdparty::Allow,
+                args: Vec::new(),
+            },
+            StringOrStruct::Struct(dependency) => Dependency {
+                version: dependency.version.clone().unwrap_or(String::from("latest")),
+                path: fix_path(path, &dependency
+                    .path
+                    .clone()
+                    .expect(format!("Dependency {} does not have a path", name).as_str())),
+                profile: dependency
+                    .profile
+                    .clone()
+                    .unwrap_or(String::from("default")),
+                _3rdparty: dependency._3rdparty.clone().unwrap_or(_3rdparty::Allow),
+                args: dependency.args.clone().unwrap_or(Vec::new()),
+            },
+        };
+        dependencies.insert(name.to_string(), dependency);
+    }
+    dependencies
 }
 
 /// Read a config file
 /// panics:
 ///    - if the file does not exist
 ///   - if the file is not valid toml
-/// 
+///
 pub fn read(path: &str) -> Config {
     // read config file for the current project
     let _path = std::path::Path::new(path).join("Ruda.toml");
@@ -170,11 +249,11 @@ pub fn read(path: &str) -> Config {
         }
     };
     // read global config file
-    let path = std::path::Path::new(&std::env::var("RUDA_PATH").unwrap()).join("Ruda.toml");
-    let global_config = match std::fs::read_to_string(&path) {
+    let _path = std::path::Path::new(&std::env::var("RUDA_PATH").unwrap()).join("Ruda.toml");
+    let global_config = match std::fs::read_to_string(&_path) {
         Ok(config) => config,
         Err(_) => {
-            println!("Failed to read global config file at {}", path.display());
+            println!("Failed to read global config file at {}", _path.display());
             std::process::exit(1);
         }
     };
@@ -182,7 +261,7 @@ pub fn read(path: &str) -> Config {
         Ok(config) => config,
         Err(err) => {
             println!("{}", err);
-            println!("Failed to parse global config file at {}", path.display());
+            println!("Failed to parse global config file at {}", _path.display());
             std::process::exit(1);
         }
     };
@@ -219,13 +298,28 @@ pub fn read(path: &str) -> Config {
         if profile._3rdparty.is_none() {
             profile._3rdparty = config._3rdparty.clone();
         }
-        if profile.dependencies.is_empty() {
-            profile.dependencies = config.dependencies.clone();
+        // merge global config into profile dependencies
+        // rule is: profile dependencies > global dependencies
+        for (name, dependency) in config.dependencies.iter() {
+            if profile.dependencies.get(name).is_none() {
+                profile
+                    .dependencies
+                    .insert(name.clone(), dependency.clone());
+            }
         }
-        if profile.binaries.is_empty() {
-            profile.binaries = config.binaries.clone();
+        // merge global config into profile binaries
+        // rule is: profile binaries > global binaries
+        for (name, path) in config.binaries.iter() {
+            if profile.binaries.get(name).is_none() {
+                profile.binaries.insert(name.clone(), path.clone());
+            }
         }
     }
 
-    temp_into_config(config)
+    temp_into_config(&path, config)
+}
+
+pub fn contains(path: &str) -> bool {
+    let path = std::path::Path::new(path).join("Ruda.toml");
+    path.exists()
 }

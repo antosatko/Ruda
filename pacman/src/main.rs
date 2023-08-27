@@ -33,6 +33,5 @@ fn main() {
                 None => println!("locate {}", std::env::var("RUDA_PATH").unwrap()),
             }
         }
-        _ => println!("{:?}", args),
     }
 }
