@@ -60,7 +60,6 @@ pub fn build_deps(profile: &Profile, _3rdparty: usize) {
             // levels: 0 - allow, 1 - std, 2 - sandboxed, 3 - deny
             let this_3rdparty = config._3rdparty as usize;
             // only for debug
-            println!("me: {}, dep: {}", _3rdparty, this_3rdparty);
             if this_3rdparty < _3rdparty {
                 println!("Dependency {} is not allowed", dep.1.path);
                 println!(

@@ -10,7 +10,7 @@ kind = "lib"
 license = "MIT"
 runtime = "latest"
 description = "description"
-3rdparty = "std" # "allow" | "std" | "sandboxed" | "deny"
+3rdparty = "allow" # "allow" | "std" | "sandboxed" | "deny"
 
 [dependencies]
 ahoj = {path = "deps/ahoj", version = "0.1.0"}
