@@ -73,7 +73,7 @@ impl _3rdparty {
             1 => String::from("std-only"),
             2 => String::from("sandboxed"),
             3 => String::from("denied"),
-            _ => unreachable!("Invalid _3rdparty value {}", n)
+            _ => unreachable!("Invalid _3rdparty value {}", n),
         }
     }
 }
@@ -220,10 +220,13 @@ fn canonicalize_dependencies(
             },
             StringOrStruct::Struct(dependency) => Dependency {
                 version: dependency.version.clone().unwrap_or(String::from("latest")),
-                path: fix_path(path, &dependency
-                    .path
-                    .clone()
-                    .expect(format!("Dependency {} does not have a path", name).as_str())),
+                path: fix_path(
+                    path,
+                    &dependency
+                        .path
+                        .clone()
+                        .expect(format!("Dependency {} does not have a path", name).as_str()),
+                ),
                 profile: dependency
                     .profile
                     .clone()

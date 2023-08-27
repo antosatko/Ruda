@@ -1,13 +1,12 @@
-use std::io::{Read, Write};
-use sha2::Digest;
 use sha2;
-
+use sha2::Digest;
+use std::io::{Read, Write};
 
 pub const TARGET_FILE: &str = "sums.txt";
 
 /// Sum all files in the src directory
 /// returns a vector of sums
-/// 
+///
 /// uses sha256 and sha512
 pub fn sum(path: &str, profile: &str) -> Vec<String> {
     let mut sums = Vec::new();
@@ -45,11 +44,15 @@ pub fn sum(path: &str, profile: &str) -> Vec<String> {
         let mut sha512 = sha2::Sha512::new();
         sha512.update(&buffer);
         // push sums to vector
-        sums.push(format!("{:x} {:x} {}", sha256.finalize(), sha512.finalize(), path.display()));
+        sums.push(format!(
+            "{:x} {:x} {}",
+            sha256.finalize(),
+            sha512.finalize(),
+            path.display()
+        ));
     }
     sums
 }
-
 
 /// write sums to target/sums.txt
 /// path is the path to the project
@@ -65,7 +68,6 @@ pub fn write_sums(path: &str, profile: &str, sums: &Vec<String>) {
         file.write_all(b"\n").unwrap();
     }
 }
-
 
 /// check if sums are correct
 /// path is the path to the project

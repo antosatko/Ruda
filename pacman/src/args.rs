@@ -1,10 +1,7 @@
 use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Parser, Debug)]
-#[clap(
-    name = "Ruda pacman",
-    version = "0.1.0",
-)]
+#[clap(name = "Ruda pacman", version = "0.1.0")]
 pub struct Args {
     /// Task to perform
     #[command(subcommand)]
@@ -53,7 +50,7 @@ pub enum Task {
         #[clap(name = "source")]
         source: String,
 
-        /// version 
+        /// version
         #[clap(name = "version", short, long, default_value = "latest")]
         version: String,
     },

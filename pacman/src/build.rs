@@ -1,7 +1,7 @@
 use crate::compile;
+use crate::config;
 use crate::config::Profile;
 use crate::remote;
-use crate::config;
 
 pub fn run(path: &str, profile: &str, args: Vec<String>) {
     let config = config::read(path);
@@ -18,7 +18,6 @@ pub fn run(path: &str, profile: &str, args: Vec<String>) {
     compile::compile(path, profile);
 
     // todo: run
-
 
     println!("config: {:#?}", config);
 }
@@ -40,7 +39,6 @@ pub fn build(path: &str, profile: &str) {
     println!("config: {:#?}", config);
 }
 
-
 /// Build dependencies for a profile
 pub fn build_deps(profile: &Profile, _3rdparty: usize) {
     for dep in &profile.dependencies {
@@ -49,7 +47,7 @@ pub fn build_deps(profile: &Profile, _3rdparty: usize) {
         if !std::path::Path::new(&path).exists() {
             if remote::is_remote(&dep.1.path) {
                 path = remote::install(&dep.1.path, &"latest");
-            }else {
+            } else {
                 println!("Dependency {} not found", dep.1.path);
                 std::process::exit(1);
             }
@@ -65,7 +63,12 @@ pub fn build_deps(profile: &Profile, _3rdparty: usize) {
             println!("me: {}, dep: {}", _3rdparty, this_3rdparty);
             if this_3rdparty < _3rdparty {
                 println!("Dependency {} is not allowed", dep.1.path);
-                println!("{} is \"{}\" level, but current project allows \"{}\" level", dep.1.path, config::_3rdparty::to_str(this_3rdparty), config::_3rdparty::to_str(_3rdparty));
+                println!(
+                    "{} is \"{}\" level, but current project allows \"{}\" level",
+                    dep.1.path,
+                    config::_3rdparty::to_str(this_3rdparty),
+                    config::_3rdparty::to_str(_3rdparty)
+                );
                 std::process::exit(1);
             }
             // get profile
@@ -81,7 +84,7 @@ pub fn build_deps(profile: &Profile, _3rdparty: usize) {
             build_deps(&profile.1, this_3rdparty);
             // compile
             compile::compile(&path, (profile.0, profile.1));
-        }else {
+        } else {
             // err
             println!("Dependency {} is not a package", dep.1.path);
             std::process::exit(1);

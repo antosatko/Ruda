@@ -21,14 +21,14 @@ pub fn install(url: &str, version: &str) -> String {
                 std::fs::create_dir_all(&owner_path).unwrap();
             }
             owner_path
-        },
+        }
         None => packages_path,
     };
     // create package directory
     let package_path = author_path.join(git_url.name);
     if !package_path.exists() {
         std::fs::create_dir_all(&package_path).unwrap();
-    }else {
+    } else {
         // remove package directory if it exists
         std::fs::remove_dir_all(&package_path).unwrap();
         // create package directory
@@ -61,11 +61,10 @@ pub fn uninstall(url: &str, version: &str) {
     if package_path.exists() {
         println!("removing {}", package_path.display());
         std::fs::remove_dir_all(&package_path).unwrap();
-    }else {
+    } else {
         println!("package {} not found", package_path.display());
     }
 }
-
 
 /// returns path to package from provided url
 /// if it is not url, it returns the provided url

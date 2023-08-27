@@ -1,14 +1,18 @@
 use crate::args::ProjectKind;
 use std::path::Path;
 
-
 const MAIN: &str = include_str!("..\\templates\\init\\main.rd");
 const LIB: &str = include_str!("..\\templates\\init\\lib.rd");
 const CONFIG: &str = include_str!("..\\templates\\init\\Ruda.toml");
 const GITIGNORE: &str = include_str!("..\\templates\\init\\.gitignore");
 
-
-pub fn init(path: &str, kind: ProjectKind, name: Option<String>, version: Option<String>, author: Option<String>) {
+pub fn init(
+    path: &str,
+    kind: ProjectKind,
+    name: Option<String>,
+    version: Option<String>,
+    author: Option<String>,
+) {
     // init project
     let path = Path::new(path);
     let name = name.unwrap_or("project".to_string());
@@ -18,7 +22,11 @@ pub fn init(path: &str, kind: ProjectKind, name: Option<String>, version: Option
         ProjectKind::Lib => "lib",
         ProjectKind::Bin => "bin",
     };
-    let config = CONFIG.replace("{{name}}", &name).replace("{{version}}", &version).replace("{{kind}}", kind).replace("{{author}}", &author);
+    let config = CONFIG
+        .replace("{{name}}", &name)
+        .replace("{{version}}", &version)
+        .replace("{{kind}}", kind)
+        .replace("{{author}}", &author);
     let main = match kind {
         "lib" => LIB,
         "bin" => MAIN,

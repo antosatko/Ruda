@@ -15,7 +15,7 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
     if !sums_path.exists() {
         compile = true;
         sum::write_sums(path, profile.0, &sum::sum(path, profile.0));
-    }else if !sum::check(path, profile.0) {
+    } else if !sum::check(path, profile.0) {
         compile = true;
         sum::write_sums(path, profile.0, &sum::sum(path, profile.0));
     }
