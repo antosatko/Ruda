@@ -54,16 +54,28 @@ pub enum ProjectKind {
     Bin,
 }
 
-#[derive(serde::Deserialize, Debug, Clone)]
+#[derive(serde::Deserialize, Debug, Clone, Copy)]
 pub enum _3rdparty {
     #[serde(rename = "allow")]
-    Allow,
+    Allow = 0,
     #[serde(rename = "std")]
-    Std,
+    Std = 1,
     #[serde(rename = "sandboxed")]
-    Sandboxed,
+    Sandboxed = 2,
     #[serde(rename = "deny")]
-    Deny,
+    Deny = 3,
+}
+
+impl _3rdparty {
+    pub fn to_str(n: usize) -> String {
+        match n {
+            0 => String::from("allowed"),
+            1 => String::from("std-only"),
+            2 => String::from("sandboxed"),
+            3 => String::from("denied"),
+            _ => unreachable!("Invalid _3rdparty value {}", n)
+        }
+    }
 }
 
 #[derive(serde::Deserialize, Debug)]

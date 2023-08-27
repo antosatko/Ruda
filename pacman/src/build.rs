@@ -13,7 +13,7 @@ pub fn run(path: &str, profile: &str, args: Vec<String>) {
         }
     };
     // build dependencies
-    build_deps(&profile.1);
+    build_deps(&profile.1, profile.1._3rdparty as usize);
     // compile
     compile::compile(path, profile);
 
@@ -33,7 +33,7 @@ pub fn build(path: &str, profile: &str) {
         }
     };
     // build dependencies
-    build_deps(&profile.1);
+    build_deps(&profile.1, config._3rdparty as usize);
     // compile
     compile::compile(path, profile);
 
@@ -42,7 +42,7 @@ pub fn build(path: &str, profile: &str) {
 
 
 /// Build dependencies for a profile
-pub fn build_deps(profile: &Profile) {
+pub fn build_deps(profile: &Profile, _3rdparty: usize) {
     for dep in &profile.dependencies {
         let mut path = remote::path(&dep.1.path, &"latest");
         // exists?
@@ -58,6 +58,16 @@ pub fn build_deps(profile: &Profile) {
         if config::contains(&path) {
             // read config
             let config = config::read(&path);
+            // check 3rdparty level
+            // levels: 0 - allow, 1 - std, 2 - sandboxed, 3 - deny
+            let this_3rdparty = config._3rdparty as usize;
+            // only for debug
+            println!("me: {}, dep: {}", _3rdparty, this_3rdparty);
+            if this_3rdparty < _3rdparty {
+                println!("Dependency {} is not allowed", dep.1.path);
+                println!("{} is \"{}\" level, but current project allows \"{}\" level", dep.1.path, config::_3rdparty::to_str(this_3rdparty), config::_3rdparty::to_str(_3rdparty));
+                std::process::exit(1);
+            }
             // get profile
             // todo: get profile (default profile for now)
             let profile = match config.profile.get("default") {
@@ -68,7 +78,7 @@ pub fn build_deps(profile: &Profile) {
                 }
             };
             // build dependencies
-            build_deps(&profile.1);
+            build_deps(&profile.1, this_3rdparty);
             // compile
             compile::compile(&path, (profile.0, profile.1));
         }else {
