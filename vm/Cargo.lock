@@ -281,6 +281,15 @@ dependencies = [
  "enable-ansi-support",
  "libloading",
  "runtime",
+ "stringify",
+]
+
+[[package]]
+name = "stringify"
+version = "0.1.0"
+dependencies = [
+ "libloading",
+ "runtime",
 ]
 
 [[package]]

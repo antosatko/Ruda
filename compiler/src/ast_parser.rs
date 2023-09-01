@@ -9,7 +9,7 @@ pub mod ast_parser {
         use std::fs;
         let source =
             fs::read_to_string(source_path).expect("Unexpected problem while opening AST file");
-        let (tokens, mut lines, mut errors) = tokenize(&source.into(), false);
+        let (tokens, mut lines, mut errors) = tokenize(&source.as_bytes(), false);
         if let Ok(mut refactored) = refactor(tokens, &mut lines, &mut errors) {
             return Some(analize_tree(&mut refactored));
         } else {

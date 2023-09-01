@@ -100,12 +100,14 @@ impl lib::Library for String {
         }
         return Ok(runtime_types::Types::Void);
     }
-    fn name(&self) -> std::string::String {
-        return "string".to_owned();
-    }
-    fn register(&self) -> lib::RegisterData {
-        RegisterData::new()
-    }
+}
+
+#[no_mangle]
+const name: &'static str = "string";
+
+#[no_mangle]
+fn register() -> std::string::String {
+    "".to_string()
 }
 
 #[no_mangle]

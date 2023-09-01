@@ -566,21 +566,21 @@ pub mod test {
             }
         }
     }
-    pub fn load_lib(path: &PathBuf) -> Box<dyn runtime::lib::Library> {
+    pub fn load_lib(path: &PathBuf) -> Box<dyn runtime::lib::Library + Send> {
         let lib = unsafe { Library::new(path).unwrap() };
-        let init_fn: libloading::Symbol<fn() -> Box<dyn runtime::lib::Library>> =
+        let init_fn: libloading::Symbol<fn() -> Box<dyn runtime::lib::Library + Send>> =
             unsafe { lib.get(b"init").unwrap() };
         let lib_box = init_fn();
 
         mem::forget(lib);
         lib_box
     }
-    pub fn load_libs(libs: Vec<&str>) -> Vec<Box<dyn runtime::lib::Library>> {
+    pub fn load_libs(libs: Vec<&str>) -> Vec<Box<dyn runtime::lib::Library + Send>> {
         let mut result = vec![];
 
         for lib_path in &libs {
             let lib = unsafe { Library::new(std_path(lib_path)).unwrap() };
-            let init_fn: libloading::Symbol<fn() -> Box<dyn runtime::lib::Library>> =
+            let init_fn: libloading::Symbol<fn() -> Box<dyn runtime::lib::Library + Send>> =
                 unsafe { lib.get(b"init").unwrap() };
             let lib_box = init_fn();
 

@@ -5,7 +5,7 @@ use intermediate::dictionary::*;
 use lexing_preprocessor::*;
 
 
-pub fn load(string: &mut Vec<u8>) -> Result<Dictionary, String> {
+pub fn load(string: &[u8]) -> Result<Dictionary, String> {
     let (mut tokens, mut lines, mut errs) = tokenizer::tokenize(string, true);
     let ast_path = std::env::var("RUDA_PATH").unwrap() + "/registry.ast";
     let ast = if let Some(ast) = generate_ast(&ast_path) {
@@ -198,6 +198,12 @@ fn get_assign(node: &Node) -> usize {
 }
 fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>) -> Function {
     let mut args: Vec<(String, ShallowType, MemoryTypes)> = Vec::new();
+    for arg in step_inside_arr(node, "arguments") {
+        let ident = get_ident(&arg);
+        let mem_loc = get_mem_loc(&arg);
+        let mut arg_type = ShallowType::empty();
+        args.push((ident, arg_type, mem_loc));
+    }
     let mut return_type = if let Tokens::Text(txt) = &step_inside_val(node, "type").name {
         if txt == "type_specifier" {
             get_type(step_inside_val(step_inside_val(node, "type"), "type"), errors)
@@ -212,6 +218,7 @@ fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>) -> Function {
     }else {
         false
     };
+    // TODO: get args
     Function {
         name: get_ident(node),
         args,
@@ -222,19 +229,23 @@ fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>) -> Function {
 }
 
 fn get_mem_loc(node: &Node) -> MemoryTypes {
-    let mem = if let Tokens::Text(txt) = &step_inside_val(&node, "mem").name {
+    let node = step_inside_val(&node, "mem");
+    println!("1");
+    let mem = if let Tokens::Text(txt) = &step_inside_val(&step_inside_val(&node, "mem"), "mem").name {
         txt.to_string()
     } else {
         unreachable!("you somehow managed to break the compiler, gj");
     };
+    println!("2");
     let loc = if let Tokens::Text(txt) = &step_inside_val(&node, "loc").name {
         txt.to_string()
     } else {
         unreachable!("you somehow managed to break the compiler, gj");
     };
+    println!("3");
     match mem.to_lowercase().as_str() {
         "stack" => MemoryTypes::Stack(loc.parse::<usize>().unwrap()),
-        "register" => {
+        "reg" => {
             if let Some(reg) = Registers::from_str(&loc, &mut Vec::new()) {
                 MemoryTypes::Register(reg)
             } else {

@@ -133,8 +133,8 @@ type_ident_null [nodes nullable
 array_decl type size
 	[
 	type set="type"
-	;
-	expression set="size"
+	; ?
+		expression set="size"
 	];
 
 

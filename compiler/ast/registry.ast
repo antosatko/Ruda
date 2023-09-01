@@ -70,8 +70,8 @@ type_ident_null [nodes nullable
 array_decl type size
 	[ harderr="true"
 	type set="type"
-	;
-	num_none set="size"
+	; ?
+		num_none set="size"
 	];
 
 num_none num
@@ -285,6 +285,12 @@ assign num
 
 mem_loc mem loc
 	= harderr="true"
-	"'text" set="mem"
+	mem_type set="mem"
 	.
 	"'text" set="loc";
+
+
+mem_type mem
+	"stack" ? set="mem" end="true"
+	"reg" ? set="mem" end="true"
+	"'any" err="expected stack or reg";

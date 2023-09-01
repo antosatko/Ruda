@@ -5,7 +5,7 @@ pub mod tokenizer {
     };
     const RESERVED_CHARS: &str = " +-*/=%;:,.({<[]>})&|!?\"'\\";
     pub fn tokenize(
-        file: &Vec<u8>,
+        file: &[u8],
         format: bool,
     ) -> (Vec<Tokens>, Vec<(usize, usize)>, Vec<parse_err::Errors>) {
         let allocation_size = (file.len() as f64 * 0.7) as usize;

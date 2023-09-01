@@ -20,7 +20,6 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
         sum::write_sums(path, profile.0, &sum::sum(path, profile.0));
     }
     if !compile {
-        println!("Nothing to do");
         return;
     }
     // compile

@@ -11,15 +11,16 @@ pub mod dictionary {
 
     use super::AnalyzationError::{self, ErrType};
 
-    pub fn from_ast(ast: &HashMap<String, tree_walker::ArgNodeType>, globals: &Vec<String>) {
+    pub fn from_ast(ast: &HashMap<String, tree_walker::ArgNodeType>, globals: &Vec<String>) -> (Dictionary, Vec<ErrType>) {
         let mut global_dict = Dictionary::new();
         let mut errors = Vec::new();
         if let Some(ArgNodeType::Array(entry)) = ast.get("nodes") {
             load_dictionary(entry, &mut global_dict, &mut errors)
         }
         println!("errors: {errors:?}");
-        analyze_consts(&mut global_dict, &mut errors);
-        println!("errors: {errors:?}");
+        /*analyze_consts(&mut global_dict, &mut errors); // TODO: add this back
+        println!("errors: {errors:?}");*/
+        (global_dict, errors)
     }
     pub fn analyze_consts(dictionary: &mut Dictionary, errors: &mut Vec<ErrType>) {
         let mut changes = Vec::new();

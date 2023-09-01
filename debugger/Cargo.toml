@@ -1,14 +1,14 @@
 [package]
-name = "rusty_danda"
+name = "rudadb"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[dependencies]
-runtime = { path = "../vm/runtime" }
-snailquote = "0.3.1"
-libloading = "0.7.0"
+[lib]
+crate-type = ["lib"]
 
-[profile.dev]
-opt-level = 3
+[dependencies]
+ratatui = { version = "0.23.0", features = ["all-widgets"] }
+runtime = { path = "../vm/runtime" }
+crossterm = "*"

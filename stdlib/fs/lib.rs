@@ -5,7 +5,7 @@
  * or just ctrl+f for "std::print" or whatever you want to find
  *
  * there is no official documentation for writing Rusty danda libraries at the time of writing this
- * for more information, please refer to the main repository www.github.com/it-2001/Rusty-compiler
+ * for more information, please refer to the main repository www.github.com/it-2001/Ruda
  *
  */
 extern crate runtime;
@@ -328,27 +328,29 @@ impl lib::Library for Foo {
         }
         return Ok(runtime_types::Types::Void);
     }
-    fn name(&self) -> String {
-        return "io".to_owned();
-    }
-    fn register(&self) -> lib::RegisterData {
-        return lib::RegisterData::new().set_rest(r#"
-        type File = usize
-        
-        impl File {
-            fun read(&self=reg.ptr): string > 5
-            fun write(&self=reg.ptr, data=reg.G1:string)! > 6
-            fun append(&self=reg.ptr, data=reg.G1:string)! > 7
-            fun close(&self=reg.ptr)! > 4
-        }
-        
-        fun fileRead(fileName=reg.ptr: string): string > 0
-        fun fileWrite(fileName=reg.ptr: string, data=reg.G1: string)! > 1
-        fun fileAppend(fileName=reg.ptr: string, data=reg.G1: string)! > 2
-        fun fileOpen(fileName=reg.ptr: string)!: File > 3
+}
 
-        "#.to_string())
+#[no_mangle]
+const name: &'static str = "fs";
+
+#[no_mangle]
+fn register() -> String {
+    r#"
+    type File = usize
+    
+    impl File {
+        fun read(&self=reg.ptr): string > 5
+        fun write(&self=reg.ptr, data=reg.G1:string)! > 6
+        fun append(&self=reg.ptr, data=reg.G1:string)! > 7
+        fun close(&self=reg.ptr)! > 4
     }
+    
+    fun fileRead(fileName=reg.ptr: string): string > 0
+    fun fileWrite(fileName=reg.ptr: string, data=reg.G1: string)! > 1
+    fun fileAppend(fileName=reg.ptr: string, data=reg.G1: string)! > 2
+    fun fileOpen(fileName=reg.ptr: string)!: File > 3
+
+    "#.to_string()
 }
 
 #[no_mangle]

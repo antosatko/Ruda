@@ -1,7 +1,9 @@
 #![allow(warnings)]
 
 use ast_parser::ast_parser::generate_ast;
-use std::{env, fs::File, hint::black_box, io::Read, time::SystemTime};
+use lexer::tokenizer::Tokens;
+use lexing_preprocessor::parse_err::Errors;
+use std::{env, fs::File, hint::black_box, io::Read, time::SystemTime, collections::HashMap};
 use tree_walker::tree_walker::generate_tree;
 
 use crate::tree_walker::tree_walker::ArgNodeType;
@@ -41,7 +43,6 @@ fn main() {
             let mut file =
                 File::open(file).expect(&format!("File not found. ({})", path).to_owned());
             file.read_to_string(&mut string).expect("neco se pokazilo");
-            let string = string.into_bytes();
             use lexer::tokenizer::*;
             let ast_path = std::env::var("RUDA_PATH").expect("RUDA_PATH not set.") + "/ruda.ast";
             let mut ast = if let Some(ast) = generate_ast(&ast_path) {
@@ -50,81 +51,9 @@ fn main() {
                 panic!();
             };
             println!("AST loaded.");
-            let time = SystemTime::now();
-            let mut tokens = tokenize(&string, false);
-            tokens.0 = if let Ok(toks) = lexing_preprocessor::lexing_preprocessor::refactor(
-                tokens.0,
-                tokens.1,
-                &mut tokens.2,
-            ) {
-                tokens.1 = toks.1;
-                toks.0
-            } else {
-                panic!("hruzostrasna pohroma");
-            }; //tokenize(&string, true);
-            println!("Tokens generated. {:?}", tokens.0);
-            if tokens.2.len() > 0 {
-                println!("Compilation failed.");
-                println!("Errors:");
-                for err in tokens.2 {
-                    println!("{:?}", err);
-                }
-                return;
-            }
-            let parsed_tree = generate_tree(&tokens.0, (&ast.0, &mut ast.1), &tokens.1);
-            println!("AST generated.");
-            println!(
-                "time: {}",
-                SystemTime::now().duration_since(time).unwrap().as_millis()
-            );
-            use intermediate::dictionary;
-            match &parsed_tree {
-                Some((tree, globals)) => {
-                    let mut imports = Vec::new();
-                    if let ArgNodeType::Array(arr) = globals.get("imports").unwrap() {
-                        for global in arr {
-                            if let Tokens::String(str) = &global.name {
-                                imports.push(str.to_string());
-                            }
-                        }
-                    }
-                    println!("Imports: {:?}", imports);
-                    dictionary::from_ast(&tree.nodes, &imports);
-                    println!("Dictionary generated.");
-                    println!(
-                        "time: {}",
-                        SystemTime::now().duration_since(time).unwrap().as_millis()
-                    );
-                    black_box(tree);
-                }
-                None => {
-                    println!("Aborting.");
-                    return;
-                }
-            }
-            println!("Parsed.");
-            println!(
-                "time: {}",
-                SystemTime::now().duration_since(time).unwrap().as_millis()
-            );
-            if false {
-                if let Some(nodes) = &parsed_tree {
-                    use tree_walker::tree_walker::ArgNodeType;
-                    for nod in &nodes.0.nodes {
-                        println!("{:?}", nod.0);
-                        match nod.1 {
-                            ArgNodeType::Array(arr) => {
-                                for arg in arr {
-                                    println!("{arg:?}");
-                                }
-                            }
-                            ArgNodeType::Value(val) => {
-                                println!("{val:?}");
-                            }
-                        }
-                    }
-                }
-            }
+            let parsed_tree = build_dictionary(&string, (&ast.0, &mut ast.1));
+            println!("Tree generated.");
+            println!("Dictionary: {:?}", parsed_tree);
             black_box(parsed_tree);
         }
         "tokenize" => {
@@ -132,14 +61,13 @@ fn main() {
                 Some(file) => file,
                 None => panic!("File not specified."),
             };
-            println!("Compilation for '{file}' starts.");
+            println!("Tokenization for '{file}' starts.");
             let mut string = String::new();
             let mut file =
                 File::open(file).expect(&format!("File not found. ({})", path).to_owned());
             file.read_to_string(&mut string).expect("neco se pokazilo");
-            let string = string.into_bytes();
-            use lexer::tokenizer::*;
             let tokens = tokenize(&string, true);
+            println!("Tokens generated.");
             println!("{:?}", tokens.0);
         }
         "astTest" => {
@@ -165,37 +93,7 @@ fn main() {
                 None => panic!("File not specified."),
             };
             println!("Loading library '{file}' starts.");
-            let mut string = String::new();
-            let mut file =
-                File::open(file).expect(&format!("File not found. ({})", path).to_owned());
-            file.read_to_string(&mut string).expect("neco se pokazilo");
-            libloader::load(&mut string.into_bytes());
-        }
-        "test" => {
-            use std::path::Path;
-            use std::ffi::OsStr;
-            use std::env;
-
-            let path = Path::new("./ahoj.txt");
-            println!("Absolute path: {:?}", env::current_dir().unwrap().join(path));
-
-            println!("Path: {:?}", path);
-            println!("Extension: {:?}", path.extension());
-            println!("File name: {:?}", path.file_name());
-            println!("Parent directory: {:?}", path.parent());
-            // if is file
-            if path.is_file() {
-                println!("File exists");
-                // if is txt file
-                if path.extension() == Some(OsStr::new("txt")) {
-                    println!("Extension is txt");
-                    // print content
-                    let str = String::from_utf8(std::fs::read(path).unwrap()).unwrap();
-                    println!("Content: {}", String::from_utf8(std::fs::read(path).unwrap()).unwrap());
-                }
-            }else {
-                println!("File does not exist");
-            }
+            libload(&file);
         }
         "help" => {
             let msg = r#"This is a compiler for the language Rusty Danda.
@@ -217,4 +115,85 @@ Commands:
             println!("Try help.");
         }
     }
+}
+
+
+pub fn tokenize(content: &str, formating: bool) -> (Vec<Tokens>, Vec<(usize, usize)>, Vec<Errors>) {
+    use lexer::tokenizer::*;
+    let mut tokens = tokenize(&content.as_bytes(), formating);
+    tokens
+}
+
+pub fn build_dictionary(mut content: &str, ast: (&HashMap<String, ast_parser::ast_parser::Head>, &mut Vec<ast_parser::ast_parser::HeadParam>)) -> Option<(intermediate::dictionary::Dictionary, Vec<intermediate::AnalyzationError::ErrType>, Vec<String>)> {
+    let mut tokens = tokenize(&content, false);
+    tokens.0 = if let Ok(toks) = lexing_preprocessor::lexing_preprocessor::refactor(
+        tokens.0,
+        tokens.1,
+        &mut tokens.2,
+    ) {
+        tokens.1 = toks.1;
+        toks.0
+    } else {
+        return None;
+    }; //tokenize(&string, true);
+    if tokens.2.len() > 0 {
+        println!("Compilation failed.");
+        println!("Errors:");
+        for err in tokens.2 {
+            println!("{:?}", err);
+        }
+        return None;
+    }
+    let parsed_tree = generate_tree(&tokens.0, ast, &tokens.1);
+    match &parsed_tree {
+        Some((tree, globals)) => {
+            let mut imports = Vec::new();
+            if let ArgNodeType::Array(arr) = globals.get("imports").unwrap() {
+                for global in arr {
+                    if let Tokens::String(str) = &global.name {
+                        imports.push(str.to_string());
+                    }
+                }
+            }
+            println!("Imports: {:?}", imports);
+            
+            let mut dictionary = intermediate::dictionary::from_ast(&tree.nodes, &imports);
+            println!("Dictionary generated.");
+            if false {
+                if let Some(nodes) = &parsed_tree {
+                    use tree_walker::tree_walker::ArgNodeType;
+                    for nod in &nodes.0.nodes {
+                        println!("{:?}", nod.0);
+                        match nod.1 {
+                            ArgNodeType::Array(arr) => {
+                                for arg in arr {
+                                    println!("{arg:?}");
+                                }
+                            }
+                            ArgNodeType::Value(val) => {
+                                println!("{val:?}");
+                            }
+                        }
+                    }
+                }
+            }
+            return Some((dictionary.0, dictionary.1, imports));
+        }
+        None => {
+            println!("Aborting.");
+            return None;
+        }
+    }
+}
+
+pub fn libload(file: &str) -> Result<libloader::Dictionary, String> {
+    let lib = unsafe { libloading::Library::new(file).expect("Failed to load library.") };
+    let register = unsafe {
+        lib.get::<fn()->String>(b"register\0")
+            .expect("Failed to load register function.")
+    }();
+    let lib = libloader::load(&register.as_bytes());
+    println!("Library loaded.");
+    println!("Library: {:#?}", lib);
+    lib
 }

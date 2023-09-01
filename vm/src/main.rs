@@ -1,10 +1,9 @@
 extern crate runtime;
+extern crate stringify;
 use enable_ansi_support::enable_ansi_support;
 use runtime::runtime_types::*;
 use stringify::ShLib;
 use std::time::SystemTime;
-
-mod stringify;
 
 mod test;
 

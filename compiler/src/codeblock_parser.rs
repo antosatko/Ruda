@@ -300,7 +300,7 @@ pub enum Nodes {
 }
 
 #[derive(Debug, Clone)]
-struct Catch {
+pub struct Catch {
     ident: String,
     kinds: Vec<Vec<String>>,
     body: Vec<Nodes>,

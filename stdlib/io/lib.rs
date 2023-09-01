@@ -5,7 +5,7 @@
  * or just ctrl+f for "std::print" or whatever you want to find
  *
  * there is no official documentation for writing Rusty danda libraries at the time of writing this
- * for more information, please refer to the main repository www.github.com/it-2001/Rusty-compiler
+ * for more information, please refer to the main repository www.github.com/it-2001/Ruda
  *
  */
 extern crate runtime;
@@ -123,19 +123,21 @@ impl lib::Library for Foo {
         }
         return Ok(runtime_types::Types::Void);
     }
-    fn name(&self) -> String {
-        return "io".to_owned();
-    }
-    fn register(&self) -> lib::RegisterData {
-        return lib::RegisterData::new().set_rest(r#"
-        
-        fun print(msg=reg.ptr: string) > 0
-        fun println(msg=reg.ptr: string) > 1
-        fun args(): &[string] > 2
-        fun vmargs(): &[string] > 3
+}
 
-        "#.to_string())
-    }
+#[no_mangle]
+const name: &'static str = "io";
+
+
+#[no_mangle]
+fn register() -> String {
+    return r#"
+    
+    fun print(msg=reg.ptr: string) > 0i
+    fun println(msg=reg.ptr: string) > 1i
+    fun args(): &[string] > 2i
+    fun vmargs(): &[string] > 3i
+    "#.to_string()
 }
 
 #[no_mangle]

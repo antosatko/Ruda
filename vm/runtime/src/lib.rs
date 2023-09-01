@@ -7,6 +7,18 @@ use std::vec;
 use runtime_error::*;
 use runtime_types::*;
 
+macro_rules! panic_msg {
+    () => {
+        std::panic::set_hook(Box::new(|info| {
+            println!("{}", info.to_string());
+
+            println!("This is most likely caused by a bug in the compiler, please report it to the compiler developer.");
+
+            println!("If you are the compiler developer, then you know what to do :)");
+        }));
+    };
+}
+
 impl Context {
     pub fn new() -> Self {
         Self {
@@ -59,18 +71,40 @@ impl Context {
             libs: vec![],
         }
     }
+    /// runs the context
     pub fn run(&mut self) {
-        std::panic::set_hook(Box::new(|info| {
-            println!("{}", info.to_string());
-
-            println!("This is most likely caused by a bug in the compiler, please report it to the compiler developer.");
-
-            println!("If you are the compiler developer, then you know what to do :)");
-        }));
-
+        panic_msg!();
         while self.read_line() {
             // TODO: remove for or testing
             self.memory.gc_sweep_unoptimized()
+        }
+    }
+    /// runs the context for a given number of cycles
+    pub fn run_for(&mut self, cycles: usize) {
+        panic_msg!();
+        for _ in 0..cycles {
+            if !self.read_line() {
+                break;
+            }
+        }
+    }
+    /// runs the context as fast as possible without checking for errors
+    /// 
+    pub fn run_unchecked(&mut self) {
+        panic_msg!();
+        loop {
+            self.read_line();
+            self.read_line();
+            self.read_line();
+            self.read_line();
+            self.read_line();
+            self.read_line();
+            self.read_line();
+            self.read_line();
+            self.read_line();
+            if !self.read_line() {
+                break;
+            }
         }
     }
     pub fn read_line(&mut self) -> bool {
@@ -1338,7 +1372,7 @@ pub mod runtime_types {
                 + std::mem::size_of_val(&self.non_primitives)
         }
     }
-    pub type Libs = Vec<Box<dyn Library>>;
+    pub type Libs = Vec<Box<dyn Library + Send>>;
     pub struct Stack {
         pub data: Vec<Types>,
         pub ptr: usize,
@@ -1496,6 +1530,8 @@ pub mod runtime_types {
         Exception,
         /// unrecoverable error occured (if you believe this is not meant to happen, contact me)
         Internal(runtime_error::ErrTypes),
+        /// program got signal to break from the outside
+        OuterBreak,
     }
     /// a structure used to register data on heap
     #[derive(Clone, Debug)]
@@ -1958,12 +1994,5 @@ pub mod lib {
     pub trait Library {
         /// calls a function from the library with the given id and arguments and returns the result
         fn call(&mut self, id: usize, mem: PublicData) -> Result<Types, ErrTypes>;
-        /// returns the name of the library
-        fn name(&self) -> String;
-        /// this is only enforced by the compiler
-        /// and not by the interpreter
-        ///
-        /// my_id: the id of the library in case you have a funtion that takes a struct as an argument and you need to check type on runtime
-        fn register(&self) -> RegisterData;
     }
 }
