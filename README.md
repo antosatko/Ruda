@@ -6,6 +6,7 @@
 
 - [About](#about)
 - [Syntax](#syntax)
+- [Byuilding from source](#building-from-source)
 
 ## About
 
