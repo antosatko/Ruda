@@ -102,8 +102,6 @@ impl lib::Library for String {
     }
 }
 
-#[no_mangle]
-const name: &'static str = "string";
 
 #[no_mangle]
 fn register() -> std::string::String {

@@ -114,6 +114,9 @@ lib_bin = root_dir + "\\stdlib"
 folders = [f for f in os.listdir(source_libs) if os.path.isdir(os.path.join(source_libs, f)) and f != ".git"]
 
 for folder in folders:
+    # /base excluded
+    if folder == "base":
+        continue
     # rebuild library
     print("Building " + folder)
     proc = os.system("cd " + os.path.join(source_libs, folder) + " && cargo build --release")

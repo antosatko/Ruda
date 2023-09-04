@@ -331,9 +331,6 @@ impl lib::Library for Foo {
 }
 
 #[no_mangle]
-const name: &'static str = "fs";
-
-#[no_mangle]
 fn register() -> String {
     r#"
     type File = usize

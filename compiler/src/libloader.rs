@@ -201,7 +201,7 @@ fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>) -> Function {
     for arg in step_inside_arr(node, "arguments") {
         let ident = get_ident(&arg);
         let mem_loc = get_mem_loc(&arg);
-        let mut arg_type = ShallowType::empty();
+        let mut arg_type = get_type(step_inside_val(&arg, "type"), errors);
         args.push((ident, arg_type, mem_loc));
     }
     let mut return_type = if let Tokens::Text(txt) = &step_inside_val(node, "type").name {

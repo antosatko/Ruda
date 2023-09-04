@@ -125,8 +125,6 @@ impl lib::Library for Foo {
     }
 }
 
-#[no_mangle]
-const name: &'static str = "io";
 
 
 #[no_mangle]
