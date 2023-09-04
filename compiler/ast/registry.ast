@@ -134,9 +134,12 @@ impl Danda(Rusty) {
 	fun move(self){}
 }
 "
-KWImpl identifier [methods
+KWImpl identifier [methods [traits generic
 	"impl" harderr="true"
 	ident set="identifier"
+	"trait" ?
+		type_ident ? set="traits"
+		generic_decl ? set="generic"
 	{
 	KWOverload ? set="methods" back="0"
 	KWFun ? set="methods" back="1"
@@ -153,13 +156,18 @@ trait Rusty (Danda){
 	}
 }
 "
-KWTrait identifier [traits [methods assign
+KWTrait identifier [traits [methods assign generic
 	"trait" harderr="true"
 	ident set="identifier"
+	generic_decl ? set="generic"
+	( ?
+		type_ident ? set="traits"
+		, ? back="1"
+		)
 	assign set="assign"
 	{
-	KWOverload ? set="methods" back="0"
-	KWFun ? set="methods" back="1"
+	KWOverloadTrait ? set="methods" back="0"
+	KWFunTrait ? set="methods" back="1"
 	};
 
 
@@ -182,6 +190,18 @@ KWFun identifier [arguments type errorable assign generic
 	type_specifier ? set="type"
 	assign set="assign";
 
+KWFunTrait identifier [arguments type errorable assign generic
+	"fun" harderr="true"
+	ident set="identifier"
+	generic_decl ? set="generic"
+	(
+	self_arg ? set="arguments"
+	arg ? set="arguments"
+	, ? back="1"
+	)
+	! ? set="errorable"
+	type_specifier ? set="type";
+
 function_head generic [arguments type errorable
 	"fun" harderr="true"
 	generic_decl ? set="generic"
@@ -203,6 +223,16 @@ KWOverload op arg type errorable assign generic
 	! ? set="errorable"
 	type_specifier ? set="type"
 	assign set="assign";
+
+KWOverloadTrait op arg type errorable assign generic
+	"overload" harderr="true"
+	overloadable_op set="op"
+	generic_decl ? set="generic"
+	(
+	arg set="arg"
+	)
+	! ? set="errorable"
+	type_specifier ? set="type";
 
 
 KWConst identifier value

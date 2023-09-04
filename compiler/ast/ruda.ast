@@ -384,6 +384,11 @@ KWTrait identifier [traits [methods public
 	"pub" ? set="public"
 	"trait" harderr="true"
 	ident set="identifier"
+	generic_decl ? set="generic"
+	( ?
+		type_ident ? set="traits"
+		, ? back="1"
+		)
 	"impl" ?
 		type_ident set="traits"
 		, ? back="1"

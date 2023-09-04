@@ -199,6 +199,15 @@ fn get_assign(node: &Node) -> usize {
 fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>) -> Function {
     let mut args: Vec<(String, ShallowType, MemoryTypes)> = Vec::new();
     for arg in step_inside_arr(node, "arguments") {
+        if let Tokens::Text(txt) = &arg.name {
+            if txt == "self_arg" {
+                let ident = "self".to_string();
+                let arg_type = ShallowType::empty();
+                let mem_loc = get_mem_loc(&arg);
+                args.push((ident, arg_type, mem_loc));
+                continue;
+            }
+        }
         let ident = get_ident(&arg);
         let mem_loc = get_mem_loc(&arg);
         let mut arg_type = get_type(step_inside_val(&arg, "type"), errors);
