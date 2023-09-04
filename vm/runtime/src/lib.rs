@@ -1207,6 +1207,21 @@ pub mod runtime_types {
         pub fn resize_obj(&mut self, heap_idx: usize, new_size: usize) {
             self.heap.data[heap_idx].resize(new_size, Types::Null)
         }
+        pub fn resize_obj_relative(&mut self, heap_idx: usize, new_size: i64) {
+            let size = self.heap.data[heap_idx].len();
+            self.heap.data[heap_idx].resize((size as i64 + new_size) as usize, Types::Null)
+        }
+        pub fn verify_obj(&mut self, heap_idx: usize, id: usize) -> bool {
+            let obj = &self.heap.data[heap_idx][0];
+            if let Types::NonPrimitive(_id) = obj {
+                *_id == id
+            }else {
+                false
+            }
+        }
+        pub fn obj_len(&mut self, heap_idx: usize) -> usize {
+            self.heap.data[heap_idx].len()
+        }
         /// GC
         pub fn gc_sweep(&mut self) {
             if self.gc.disabled {
@@ -1690,6 +1705,14 @@ pub mod runtime_types {
         /// location and index in string pool
         /// may expire any time
         Char(usize),
+    }
+    impl PointerTypes {
+        pub fn is_object(&self) -> bool {
+            match *self {
+                PointerTypes::Object => true,
+                _ => false,
+            }
+        }
     }
     impl fmt::Display for PointerTypes {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

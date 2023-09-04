@@ -1,7 +1,8 @@
-# file system
+# algorithms
 
 Part of standard libraray for rusty danda programming language
-responsible for file manipulation done by application
+responsible for data manipulation done by application
 
 ## currently can
- - write / read files
+ - dyn arrays
+ - iterators

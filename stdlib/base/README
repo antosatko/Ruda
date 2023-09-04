@@ -1,7 +1,1 @@
-# file system
-
-Part of standard libraray for rusty danda programming language
-responsible for file manipulation done by application
-
-## currently can
- - write / read files
+# base template for Ruda binaries
