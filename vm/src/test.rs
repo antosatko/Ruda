@@ -4,7 +4,7 @@ pub mod test {
     use crate::runtime::runtime_types::{Context, Instructions::*, Types::*, *};
     use libloading::Library;
 
-    const ID: usize = 10;
+    const ID: usize = 12;
     pub fn test_init(id: Option<usize>, context: &mut Context) -> bool {
         let test_id = if let Some(num) = id { num } else { ID };
         println!("Running test {test_id}");
@@ -558,6 +558,24 @@ pub mod test {
                 context.code.data = vec![];
                 true
             }
+            12 => {
+                context.set_libs(load_libs(vec!["io", "string", "fs", "algo"]));
+                context.memory.stack.data = vec![
+                    Int(50),
+                    Pointer(0, PointerTypes::Object),
+                ];
+                context.memory.heap.data = vec![
+                    vec![Types::NonPrimitive(3), Types::Null],
+                ];
+                context.code.data = vec![
+                    Rdc(0, GENERAL_REG1),
+                    Rdc(1, POINTER_REG),
+                    Cal(3, 0),
+                    Cal(3, 1),
+                    End,
+                ];
+                true
+            }
             _ => {
                 context.memory.stack.data = vec![Int(0)];
                 context.code.data = vec![End];
@@ -578,11 +596,11 @@ pub mod test {
     pub fn load_libs(libs: Vec<&str>) -> Vec<Box<dyn runtime::lib::Library + Send>> {
         let mut result = vec![];
 
-        for lib_path in &libs {
-            let lib = unsafe { Library::new(std_path(lib_path)).unwrap() };
-            let init_fn: libloading::Symbol<fn() -> Box<dyn runtime::lib::Library + Send>> =
+        for lib_path in libs.iter().enumerate() {
+            let lib = unsafe { Library::new(std_path(lib_path.1)).unwrap() };
+            let init_fn: libloading::Symbol<fn(a: &(), id: usize) -> Box<dyn runtime::lib::Library + Send>> =
                 unsafe { lib.get(b"init").unwrap() };
-            let lib_box = init_fn();
+            let lib_box = init_fn(&(), lib_path.0);
 
             result.push(lib_box);
             mem::forget(lib);

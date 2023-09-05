@@ -89,7 +89,7 @@ impl Context {
         }
     }
     /// runs the context as fast as possible without checking for errors
-    /// 
+    ///
     pub fn run_unchecked(&mut self) {
         panic_msg!();
         loop {
@@ -746,7 +746,12 @@ impl Context {
             }
             Mtd(obj, trt, method) => {
                 if let Types::NonPrimitive(id) = self.memory.registers[obj] {
-                    if let Some(method) = self.memory.non_primitives[id].methods.get(&trt).unwrap().get(method) {
+                    if let Some(method) = self.memory.non_primitives[id]
+                        .methods
+                        .get(&trt)
+                        .unwrap()
+                        .get(method)
+                    {
                         self.memory.stack.call_stack[self.memory.stack.ptr].code_ptr =
                             self.code.ptr;
                         self.code.ptr = *method;
@@ -1207,7 +1212,7 @@ pub mod runtime_types {
         pub fn resize_obj(&mut self, heap_idx: usize, new_size: usize) {
             self.heap.data[heap_idx].resize(new_size, Types::Null)
         }
-        pub fn resize_obj_relative(&mut self, heap_idx: usize, new_size: i64) {
+        pub fn grow_obj(&mut self, heap_idx: usize, new_size: i64) {
             let size = self.heap.data[heap_idx].len();
             self.heap.data[heap_idx].resize((size as i64 + new_size) as usize, Types::Null)
         }
@@ -1215,12 +1220,108 @@ pub mod runtime_types {
             let obj = &self.heap.data[heap_idx][0];
             if let Types::NonPrimitive(_id) = obj {
                 *_id == id
-            }else {
+            } else {
                 false
             }
         }
-        pub fn obj_len(&mut self, heap_idx: usize) -> usize {
+        pub fn obj_len(&self, heap_idx: usize) -> usize {
             self.heap.data[heap_idx].len()
+        }
+        pub fn size_of(&self, val: &Types) -> usize {
+            match val {
+                Types::NonPrimitive(id) => self.non_primitives[*id].len,
+                _ => 1,
+            }
+        }
+        pub fn write_ptr(
+            &mut self,
+            loc: usize,
+            kind: &PointerTypes,
+            value: &Types,
+        ) -> Result<(), ErrTypes> {
+            match kind {
+                PointerTypes::Stack => {
+                    self.stack.data[loc] = *value;
+                }
+                PointerTypes::Heap(idx) => {
+                    self.heap.data[loc][*idx] = *value;
+                }
+                PointerTypes::Object => {
+                    self.heap.data[loc][0] = *value;
+                }
+                PointerTypes::String => {
+                    if let Types::Pointer(dest, PointerTypes::String) = value {
+                        self.strings.copy_from(loc, *dest)
+                    } else {
+                        return Err(ErrTypes::Expected(
+                            Types::Pointer(0, PointerTypes::String),
+                            *value,
+                        ));
+                    }
+                }
+                PointerTypes::Char(idx) => {
+                    if let Types::Char(chr) = value {
+                        self.strings.pool[loc][*idx] = *chr
+                    } else {
+                        return Err(ErrTypes::Expected(Types::Char('a'), *value));
+                    }
+                }
+            }
+            Ok(())
+        }
+        pub fn write_idx(
+            &mut self,
+            loc: usize,
+            kind: &mut PointerTypes,
+            idx: i64,
+            value: &Types,
+        ) -> Result<(), ErrTypes> {
+            kind.index(idx);
+            self.write_ptr(loc, kind, value)
+        }
+        pub fn index(&self, ptr: Types, idx: usize) -> Types {
+            if let Types::Pointer(u_size, kind) = ptr {
+                return match kind {
+                    PointerTypes::Stack => {
+                        self.stack.data[u_size + idx].clone()
+                    }
+                    PointerTypes::Heap(loc) => {
+                        self.heap.data[u_size][loc + idx].clone()
+                    }
+                    PointerTypes::Object => {
+                        self.heap.data[u_size][idx].clone()
+                    }
+                    PointerTypes::String => {
+                        Types::Char(self.strings.pool[u_size][idx])
+                    }
+                    PointerTypes::Char(_) => {
+                        Types::Void
+                    }
+                }
+            }
+            Types::Void
+        }
+        pub fn get(&self, ptr: Types) -> Types {
+            if let Types::Pointer(u_size, kind) = ptr {
+                return match kind {
+                    PointerTypes::Stack => {
+                        self.stack.data[u_size].clone()
+                    }
+                    PointerTypes::Heap(loc) => {
+                        self.heap.data[u_size][loc].clone()
+                    }
+                    PointerTypes::Object => {
+                        self.heap.data[u_size][0].clone()
+                    }
+                    PointerTypes::String => {
+                        Types::Char(self.strings.pool[u_size][0])
+                    }
+                    PointerTypes::Char(c) => {
+                        Types::Char(self.strings.pool[u_size][c])
+                    }
+                }
+            }
+            Types::Void
         }
         /// GC
         pub fn gc_sweep(&mut self) {
@@ -1603,6 +1704,25 @@ pub mod runtime_types {
                 Types::Void => "void".to_string(),
             }
         }
+        pub fn ptr_loc(&self) -> usize {
+            match *self {
+                Types::Pointer(loc, _) => loc,
+                _ => 0,
+            }
+        }
+        pub fn ptr_idx(&self) -> usize {
+            match *self {
+                Types::Pointer(_, PointerTypes::Heap(idx)) => idx,
+                Types::Pointer(_, PointerTypes::Char(idx)) => idx,
+                _ => 0,
+            }
+        }
+        pub fn kind(&self) -> PointerTypes {
+            match *self {
+                Types::Pointer(_, kind) => kind,
+                _ => PointerTypes::Stack,
+            }
+        }
     }
     #[derive(Clone, Copy, Debug)]
     pub enum NonPrimitiveTypes {
@@ -1613,12 +1733,13 @@ pub mod runtime_types {
     pub struct NonPrimitiveType {
         pub name: String,
         pub kind: NonPrimitiveTypes,
+        /// number of values in the type (including header)
         pub len: usize,
         pub pointers: usize,
-        // first index is trait id, second is method id
+        /// first index is trait id, second is method id
         pub methods: HashMap<usize, Vec<usize>>,
     }
-    use std::{clone, fmt, rc::Rc, sync::Arc, hash::Hash, collections::HashMap};
+    use std::{clone, collections::HashMap, fmt, hash::Hash, rc::Rc, sync::Arc};
 
     use super::{
         lib::Library,
@@ -1711,6 +1832,21 @@ pub mod runtime_types {
             match *self {
                 PointerTypes::Object => true,
                 _ => false,
+            }
+        }
+        pub fn index(&mut self, idx: i64) {
+            match *self {
+                PointerTypes::Heap(ref mut i) => *i = (*i as i64 + idx) as usize,
+                PointerTypes::Char(ref mut i) => *i = (*i as i64 + idx) as usize,
+                PointerTypes::Object => *self = PointerTypes::Heap(idx as usize),
+                _ => (),
+            }
+        }
+        pub fn value(&self) -> usize {
+            match *self {
+                PointerTypes::Heap(i) => i,
+                PointerTypes::Char(i) => i,
+                _ => 0,
             }
         }
     }

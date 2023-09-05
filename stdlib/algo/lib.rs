@@ -29,26 +29,26 @@ impl lib::Library for Algo {
         match id {
             // Array::constructor
             0 => {
-                // allocate memory for the object
+                let this = m.registers[POINTER_REG];
                 let raw_ptr = m.allocate_obj(1);
-                // create a pointer to the object
                 let ptr = Types::Pointer(raw_ptr, PointerTypes::Object);
-                // set the type id of the object
                 let type_id = Types::NonPrimitive(self.my_id + STRUCT_ID);
                 m.heap.data[raw_ptr][0] = type_id;
-                // return the pointer
-                return Ok(ptr)
+                let _ = m.write_idx(this.ptr_loc(), &mut this.kind(), 1, &ptr);
             }
             // Array::push
             1 => {
-                if let Types::Pointer(loc, kind) = m.registers[POINTER_REG] {
+                let this = m.registers[POINTER_REG];
+                if let Types::Pointer(loc, kind) = this {
                     if !kind.is_object() || !m.verify_obj(loc, self.my_id + STRUCT_ID) {
                         return Err(runtime_error::ErrTypes::Message(
                             "Expected object pointer".to_string(),
                         ));
                     }
-                    m.resize_obj_relative(loc, 1);
+                    let array = m.index(this, 1);
+                    let loc = array.ptr_loc();
                     let last = m.obj_len(loc);
+                    m.grow_obj(loc, 1);
                     m.heap.data[loc][last] = m.registers[GENERAL_REG1];
                 }
             }
@@ -68,7 +68,7 @@ impl lib::Library for Algo {
                     }
                     let value = m.heap.data[loc][last - 1];
                     m.registers[GENERAL_REG1] = m.heap.data[loc][last - 1];
-                    m.resize_obj_relative(loc, -1);
+                    m.grow_obj(loc, -1);
                     // return the popped value
                     return Ok(value);
                 }
@@ -85,7 +85,7 @@ impl lib::Library for Algo {
                             "Expected object pointer".to_string(),
                         ));
                     }
-                    m.registers[GENERAL_REG1] = Types::Int(m.obj_len(loc) as i64);
+                    m.registers[GENERAL_REG1] = Types::Int(m.obj_len(loc) as i64 - 1);
                 }
             }
             _ => unreachable!("Invalid function id"),
@@ -97,7 +97,7 @@ impl lib::Library for Algo {
 #[no_mangle]
 fn register() -> String {
 r#"
-struct Array<T> > 0i {
+struct Array<T(Primitive)> > 0i {
     data: &T,
 }
 
