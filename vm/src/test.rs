@@ -584,11 +584,11 @@ pub mod test {
             }
         }
     }
-    pub fn load_lib(path: &PathBuf) -> Box<dyn runtime::lib::Library + Send> {
+    pub fn load_lib(path: &PathBuf, lib_id: usize) -> Box<dyn runtime::lib::Library + Send> {
         let lib = unsafe { Library::new(path).unwrap() };
-        let init_fn: libloading::Symbol<fn() -> Box<dyn runtime::lib::Library + Send>> =
+        let init_fn: libloading::Symbol<fn(&(), usize) -> Box<dyn runtime::lib::Library + Send>> =
             unsafe { lib.get(b"init").unwrap() };
-        let lib_box = init_fn();
+        let lib_box = init_fn(&(), lib_id);
 
         mem::forget(lib);
         lib_box

@@ -54,8 +54,8 @@ fn main() {
                 ShLib { path: "fs".to_string(), owns: stringify::LibOwner::Standard},
                 ShLib { path: "algo".to_string(), owns: stringify::LibOwner::Standard},
             ];
-            for lib in &data.shared_libs {
-                ctx.libs.push(test::test::load_lib(&lib.into_real_path(&src, &ruda_path)));
+            for lib in data.shared_libs.iter().enumerate() {
+                ctx.libs.push(test::test::load_lib(&lib.1.into_real_path(&src, &ruda_path), lib.0));
             }
             ctx
         }

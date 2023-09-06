@@ -1244,6 +1244,8 @@ pub mod runtime_types {
                     self.stack.data[loc] = *value;
                 }
                 PointerTypes::Heap(idx) => {
+                    println!("writing to heap: {}", loc);
+                    println!("self: {:?}", self.heap.data);
                     self.heap.data[loc][*idx] = *value;
                 }
                 PointerTypes::Object => {

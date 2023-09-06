@@ -46,8 +46,8 @@ impl lib::Library for Algo {
                         ));
                     }
                     let array = m.index(this, 1);
-                    let loc = array.ptr_loc();
                     let last = m.obj_len(loc);
+                    let loc = array.ptr_loc();
                     m.grow_obj(loc, 1);
                     m.heap.data[loc][last] = m.registers[GENERAL_REG1];
                 }
