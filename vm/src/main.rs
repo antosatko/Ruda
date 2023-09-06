@@ -48,14 +48,15 @@ fn main() {
             ctx.code.data = data.instructions;
             ctx.memory.non_primitives = data.non_primitives;
             ctx.memory.fun_table = data.fun_table;
+            ctx.memory.heap.data = data.heap;
             data.shared_libs = vec![
                 ShLib { path: "io".to_string(), owns: stringify::LibOwner::Standard},
                 ShLib { path: "string".to_string(), owns: stringify::LibOwner::Standard},
                 ShLib { path: "fs".to_string(), owns: stringify::LibOwner::Standard},
                 ShLib { path: "algo".to_string(), owns: stringify::LibOwner::Standard},
             ];
-            for lib in data.shared_libs.iter().enumerate() {
-                ctx.libs.push(test::test::load_lib(&lib.1.into_real_path(&src, &ruda_path), lib.0));
+            for (idx, lib) in data.shared_libs.iter().enumerate() {
+                ctx.libs.push(test::test::load_lib(&lib.into_real_path(&src, &ruda_path), idx));
             }
             ctx
         }

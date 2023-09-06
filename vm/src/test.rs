@@ -562,10 +562,12 @@ pub mod test {
                 context.set_libs(load_libs(vec!["io", "string", "fs", "algo"]));
                 context.memory.stack.data = vec![
                     Int(50),
-                    Pointer(0, PointerTypes::Object),
+                    Pointer(2, PointerTypes::Stack),
+                    NonPrimitive(3),
+                    Null,
                 ];
                 context.memory.heap.data = vec![
-                    vec![Types::NonPrimitive(3), Types::Null],
+
                 ];
                 context.code.data = vec![
                     Rdc(0, GENERAL_REG1),
@@ -584,11 +586,11 @@ pub mod test {
             }
         }
     }
-    pub fn load_lib(path: &PathBuf, lib_id: usize) -> Box<dyn runtime::lib::Library + Send> {
+    pub fn load_lib(path: &PathBuf, id: usize) -> Box<dyn runtime::lib::Library + Send> {
         let lib = unsafe { Library::new(path).unwrap() };
         let init_fn: libloading::Symbol<fn(&(), usize) -> Box<dyn runtime::lib::Library + Send>> =
             unsafe { lib.get(b"init").unwrap() };
-        let lib_box = init_fn(&(), lib_id);
+        let lib_box = init_fn(&(), id);
 
         mem::forget(lib);
         lib_box

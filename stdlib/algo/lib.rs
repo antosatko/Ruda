@@ -40,7 +40,7 @@ impl lib::Library for Algo {
             1 => {
                 let this = m.registers[POINTER_REG];
                 if let Types::Pointer(loc, kind) = this {
-                    if !kind.is_object() || !m.verify_obj(loc, self.my_id + STRUCT_ID) {
+                    if !m.verify_obj(loc, self.my_id + STRUCT_ID) {
                         return Err(runtime_error::ErrTypes::Message(
                             "Expected object pointer".to_string(),
                         ));

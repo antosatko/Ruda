@@ -18,6 +18,7 @@ pub struct Data {
     pub non_primitives: Vec<NonPrimitiveType>,
     pub fun_table: Vec<FunSpec>,
     pub shared_libs: Vec<ShLib>,
+    pub heap: Vec<Vec<Types>>,
 }
 
 #[derive(Debug)]
@@ -57,6 +58,15 @@ pub fn stringify(ctx: &Context) -> String {
     res.push_str(&b256str(ctx.memory.stack.data.len(), 8));
     for value in ctx.memory.stack.data.iter() {
         value_into_byte(*value, &mut res);
+    }
+    // write length of paragraph in 8 bytes (number of heap values)
+    res.push_str(&b256str(ctx.memory.heap.data.len(), 8));
+    for obj in ctx.memory.heap.data.iter() {
+        // write length of paragraph in 8 bytes (number of object values)
+        res.push_str(&b256str(obj.len(), 8));
+        for value in obj {
+            value_into_byte(*value, &mut res);
+        }
     }
     // write length of paragraph in 8 bytes (number of strings)
     res.push_str(&b256str(ctx.memory.strings.pool.len(), 8));
@@ -111,6 +121,27 @@ pub fn parse(str: &str) -> Data {
             break;
         }
         values.push(bytes_into_value(&mut chars));
+        i += 1;
+    }
+    // read length of paragraph in 8 bytes (number of heap values)
+    let len = read_number(&mut chars, 8);
+    let mut heap = Vec::with_capacity(len);
+    i = 0;
+    while let Some(_) = chars.peek() {
+        if i == len {
+            break;
+        }
+        let len_obj = read_number(&mut chars, 8);
+        let mut values_obj = Vec::with_capacity(len);
+        let mut j = 0;
+        while let Some(_) = chars.peek() {
+            if j == len_obj {
+                break;
+            }
+            values_obj.push(bytes_into_value(&mut chars));
+            j += 1;
+        }
+        heap.push(values_obj);
         i += 1;
     }
     // read length of paragraph in 8 bytes (number of strings)
@@ -182,6 +213,7 @@ pub fn parse(str: &str) -> Data {
         non_primitives,
         fun_table,
         shared_libs,
+        heap,
     }
 }
 
