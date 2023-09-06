@@ -1276,8 +1276,9 @@ pub mod runtime_types {
             idx: i64,
             value: &Types,
         ) -> Result<(), ErrTypes> {
-            kind.index(idx);
-            self.write_ptr(loc, kind, value)
+            // TODO: my god pls rewrite this disgusting piece of shit
+            let kind = self.index(Types::Pointer(loc, kind.clone()), idx as usize);
+            self.write_ptr(loc, &kind.kind(), value)
         }
         pub fn index(&self, ptr: Types, idx: usize) -> Types {
             if let Types::Pointer(u_size, kind) = ptr {
