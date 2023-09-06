@@ -35,21 +35,25 @@ impl lib::Library for Algo {
                 let type_id = Types::NonPrimitive(self.my_id + STRUCT_ID);
                 m.heap.data[raw_ptr][0] = type_id;
                 let _ = m.write_idx(this.ptr_loc(), &mut this.kind(), 1, &ptr);
+                println!("{:?}", m.stack.data);
+                println!("{:?}", m.heap.data);
             }
             // Array::push
             1 => {
                 let this = m.registers[POINTER_REG];
                 if let Types::Pointer(loc, kind) = this {
-                    if !m.verify_obj(loc, self.my_id + STRUCT_ID) {
-                        return Err(runtime_error::ErrTypes::Message(
-                            "Expected object pointer".to_string(),
-                        ));
-                    }
+                    println!("push");
                     let array = m.index(this, 1);
-                    let last = m.obj_len(loc);
+                    println!("{:?}", array);
                     let loc = array.ptr_loc();
+                    let last = m.obj_len(loc);
+                    println!("{:?}", last);
+                    let loc = array.ptr_loc();
+                    println!("{:?}", loc);
                     m.grow_obj(loc, 1);
+                    println!("{:?}", m.heap.data);
                     m.heap.data[loc][last] = m.registers[GENERAL_REG1];
+                    println!("{:?}", m.heap.data);
                 }
             }
             // Array::pop

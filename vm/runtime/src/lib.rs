@@ -1217,6 +1217,7 @@ pub mod runtime_types {
             self.heap.data[heap_idx].resize((size as i64 + new_size) as usize, Types::Null)
         }
         pub fn verify_obj(&mut self, heap_idx: usize, id: usize) -> bool {
+            println!("verifying obj: {:?}", self.heap.data);
             let obj = &self.heap.data[heap_idx][0];
             if let Types::NonPrimitive(_id) = obj {
                 *_id == id
@@ -1271,6 +1272,9 @@ pub mod runtime_types {
             }
             Ok(())
         }
+        /// writes value to pointer with index
+        /// 
+        /// btw this needs rewrite asap TODO: rewrite this pls pslspplsplssplsp
         pub fn write_idx(
             &mut self,
             loc: usize,
@@ -1279,9 +1283,12 @@ pub mod runtime_types {
             value: &Types,
         ) -> Result<(), ErrTypes> {
             // TODO: my god pls rewrite this disgusting piece of shit
-            let kind = self.index(Types::Pointer(loc, kind.clone()), idx as usize);
-            self.write_ptr(loc, &kind.kind(), value)
+            let mut ptr = Types::Pointer(loc, *kind);
+            ptr.index(idx);
+            println!("ptr: {:?}", ptr);
+            self.write_ptr(ptr.ptr_loc(), &ptr.kind(), value)
         }
+        /// returns value the pointer points at (or void)
         pub fn index(&self, ptr: Types, idx: usize) -> Types {
             if let Types::Pointer(u_size, kind) = ptr {
                 return match kind {
@@ -1724,6 +1731,19 @@ pub mod runtime_types {
             match *self {
                 Types::Pointer(_, kind) => kind,
                 _ => PointerTypes::Stack,
+            }
+        }
+        pub fn index(&mut self, idx: i64) {
+            match *self {
+                Types::Pointer(ref mut loc, ref mut kind) => {
+                    *loc = (*loc as i64 + idx) as usize;
+                    match kind {
+                        PointerTypes::Heap(ref mut i) => *i = (*i as i64 + idx) as usize,
+                        PointerTypes::Char(ref mut i) => *i = (*i as i64 + idx) as usize,
+                        _ => (),
+                    }
+                }
+                _ => (),
             }
         }
     }
