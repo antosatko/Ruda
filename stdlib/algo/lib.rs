@@ -19,6 +19,16 @@ pub struct Algo{
     my_id: usize,
 }
 
+
+/// returns (this, array_ptr, data_loc, len)
+fn read_array(m: &mut Memory) -> (Types, Types, usize, usize) {
+    let this = m.registers[POINTER_REG];
+    let array_ptr = m.index(this, 1);
+    let data_loc = array_ptr.ptr_loc();
+    let len = m.obj_len(data_loc);
+    return (this, array_ptr, data_loc, len)
+}
+
 impl lib::Library for Algo {
     fn call(
         &mut self,
@@ -35,47 +45,22 @@ impl lib::Library for Algo {
                 let type_id = Types::NonPrimitive(self.my_id + STRUCT_ID);
                 m.heap.data[raw_ptr][0] = type_id;
                 let _ = m.write_idx(this.ptr_loc(), &mut this.kind(), 1, &ptr);
-                println!("{:?}", m.stack.data);
-                println!("{:?}", m.heap.data);
             }
             // Array::push
             1 => {
-                let this = m.registers[POINTER_REG];
-                if let Types::Pointer(loc, kind) = this {
-                    println!("push");
-                    let array = m.index(this, 1);
-                    println!("{:?}", array);
-                    let loc = array.ptr_loc();
-                    let last = m.obj_len(loc);
-                    println!("{:?}", last);
-                    let loc = array.ptr_loc();
-                    println!("{:?}", loc);
-                    m.grow_obj(loc, 1);
-                    println!("{:?}", m.heap.data);
-                    m.heap.data[loc][last] = m.registers[GENERAL_REG1];
-                    println!("{:?}", m.heap.data);
-                }
+                let (_, _, loc, len) = read_array(m);
+                m.grow_obj(loc, 1);
+                m.heap.data[loc][len] = m.registers[GENERAL_REG1];
             }
             // Array::pop
             2 => {
-                if let Types::Pointer(loc, kind) = m.registers[POINTER_REG] {
-                    if !kind.is_object() || !m.verify_obj(loc, self.my_id + STRUCT_ID) {
-                        return Err(runtime_error::ErrTypes::Message(
-                            "Expected object pointer".to_string(),
-                        ));
-                    }
-                    let last = m.obj_len(loc);
-                    if last == 0 {
-                        return Err(runtime_error::ErrTypes::Message(
-                            "Array is empty".to_string(),
-                        ));
-                    }
-                    let value = m.heap.data[loc][last - 1];
-                    m.registers[GENERAL_REG1] = m.heap.data[loc][last - 1];
-                    m.grow_obj(loc, -1);
-                    // return the popped value
-                    return Ok(value);
+                let (_, _, loc, len) = read_array(m);
+                if len < 2 {
+                    return Ok(Types::Null)
                 }
+                let result = m.heap.data[loc][len - 1];
+                m.grow_obj(loc, -1);
+                return Ok(result);
             }
             // Array::remove
             3 => {
@@ -83,14 +68,8 @@ impl lib::Library for Algo {
             }
             // Array::len
             4 => {
-                if let Types::Pointer(loc, kind) = m.registers[POINTER_REG] {
-                    if !kind.is_object() || !m.verify_obj(loc, self.my_id + STRUCT_ID) {
-                        return Err(runtime_error::ErrTypes::Message(
-                            "Expected object pointer".to_string(),
-                        ));
-                    }
-                    m.registers[GENERAL_REG1] = Types::Int(m.obj_len(loc) as i64 - 1);
-                }
+                let (_, _, _, len) = read_array(m);
+                return Ok(Types::Usize(len - 1))
             }
             _ => unreachable!("Invalid function id"),
         }

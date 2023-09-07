@@ -40,7 +40,17 @@ fn main() {
     let mut ctx = match args.input {
         Some(src) => {
             let ruda_path = std::env::var("RUDA_PATH").unwrap();
-            let file = std::fs::read(&src).unwrap();
+            let file = match std::fs::read(&src){
+                Ok(bytes) => {bytes},
+                Err(err) => {
+                    let mut not_found = "Failed to read file: ".to_string();
+                    not_found.push_str(&src);
+                    not_found.push_str("\nReason: ");
+                    not_found.push_str(&err.to_string());
+                    println!("{not_found}");
+                    return;
+                }
+            };
             let mut ctx = Context::new();
             let mut data = stringify::parse(&String::from_utf8(file).unwrap());
             ctx.memory.stack.data = data.values;

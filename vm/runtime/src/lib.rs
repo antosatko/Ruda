@@ -1209,15 +1209,16 @@ pub mod runtime_types {
             self.strings.pool[idx].clear();
             true
         }
+        /// resizes the object
         pub fn resize_obj(&mut self, heap_idx: usize, new_size: usize) {
             self.heap.data[heap_idx].resize(new_size, Types::Null)
         }
+        /// resizes the object relative to its current len
         pub fn grow_obj(&mut self, heap_idx: usize, new_size: i64) {
             let size = self.heap.data[heap_idx].len();
             self.heap.data[heap_idx].resize((size as i64 + new_size) as usize, Types::Null)
         }
         pub fn verify_obj(&mut self, heap_idx: usize, id: usize) -> bool {
-            println!("verifying obj: {:?}", self.heap.data);
             let obj = &self.heap.data[heap_idx][0];
             if let Types::NonPrimitive(_id) = obj {
                 *_id == id
@@ -1225,6 +1226,7 @@ pub mod runtime_types {
                 false
             }
         }
+        /// returns the len of object ignoring the header
         pub fn obj_len(&self, heap_idx: usize) -> usize {
             self.heap.data[heap_idx].len()
         }
@@ -1245,8 +1247,6 @@ pub mod runtime_types {
                     self.stack.data[loc] = *value;
                 }
                 PointerTypes::Heap(idx) => {
-                    println!("writing to heap: {}", loc);
-                    println!("self: {:?}", self.heap.data);
                     self.heap.data[loc][*idx] = *value;
                 }
                 PointerTypes::Object => {
@@ -1285,7 +1285,6 @@ pub mod runtime_types {
             // TODO: my god pls rewrite this disgusting piece of shit
             let mut ptr = Types::Pointer(loc, *kind);
             ptr.index(idx);
-            println!("ptr: {:?}", ptr);
             self.write_ptr(ptr.ptr_loc(), &ptr.kind(), value)
         }
         /// returns value the pointer points at (or void)
@@ -1714,12 +1713,14 @@ pub mod runtime_types {
                 Types::Void => "void".to_string(),
             }
         }
+        /// returns the first index of pointer
         pub fn ptr_loc(&self) -> usize {
             match *self {
                 Types::Pointer(loc, _) => loc,
                 _ => 0,
             }
         }
+        /// returns the second index of pointer or 0
         pub fn ptr_idx(&self) -> usize {
             match *self {
                 Types::Pointer(_, PointerTypes::Heap(idx)) => idx,
@@ -1727,12 +1728,14 @@ pub mod runtime_types {
                 _ => 0,
             }
         }
+        /// returns kind of pointer
         pub fn kind(&self) -> PointerTypes {
             match *self {
                 Types::Pointer(_, kind) => kind,
                 _ => PointerTypes::Stack,
             }
         }
+        /// advances the pointer by index
         pub fn index(&mut self, idx: i64) {
             match *self {
                 Types::Pointer(ref mut loc, ref mut kind) => {
