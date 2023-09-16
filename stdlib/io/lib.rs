@@ -33,10 +33,7 @@ impl lib::Library for Foo {
                 if let Types::Pointer(u_size, PointerTypes::String) =
                     m.registers[runtime_types::POINTER_REG]
                 {
-                    let mut string = String::new();
-                    for i in m.strings.pool[u_size].iter() {
-                        string.push(*i);
-                    }
+                    let string = &m.strings.pool[u_size];
                     print!("{}", string);
                     std::io::stdout().flush().unwrap();
                 } else {
@@ -50,10 +47,7 @@ impl lib::Library for Foo {
                 if let Types::Pointer(u_size, PointerTypes::String) =
                     m.registers[runtime_types::POINTER_REG]
                 {
-                    let mut string = String::new();
-                    for i in m.strings.pool[u_size].iter() {
-                        string.push(*i);
-                    }
+                    let string = &m.strings.pool[u_size];
                     println!("{}", string);
                 } else {
                     return Err(runtime_error::ErrTypes::Message(

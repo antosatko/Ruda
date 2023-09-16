@@ -14,7 +14,7 @@ pub const MAGIC_NUMBER: &str = "RUDA";
 pub struct Data {
     pub instructions: Vec<Instructions>,
     pub values: Vec<Types>,
-    pub strings: Vec<Vec<char>>,
+    pub strings: Vec<String>,
     pub non_primitives: Vec<NonPrimitiveType>,
     pub fun_table: Vec<FunSpec>,
     pub shared_libs: Vec<ShLib>,
@@ -71,7 +71,7 @@ pub fn stringify(ctx: &Context) -> String {
     // write length of paragraph in 8 bytes (number of strings)
     res.push_str(&b256str(ctx.memory.strings.pool.len(), 8));
     for string in ctx.memory.strings.pool.iter() {
-        push_chars(string, &mut res);
+        push_chars(&string.chars().collect(), &mut res);
     }
     // write length of paragraph in 8 bytes (number of non-primitive types)
     res.push_str(&b256str(ctx.memory.non_primitives.len(), 8));
@@ -156,9 +156,9 @@ pub fn parse(str: &str) -> Data {
         let len = read_number(&mut chars, 8);
         let mut string = Vec::with_capacity(len);
         for _ in 0..len {
-            string.push(chars.next().unwrap());
+            string.push(chars.next().unwrap() as u8);
         }
-        strings.push(string);
+        strings.push(String::from_utf8(string).unwrap());
         i += 1;
     }
     // read length of paragraph in 8 bytes (number of non-primitive types)

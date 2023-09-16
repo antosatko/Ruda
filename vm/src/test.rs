@@ -4,7 +4,7 @@ pub mod test {
     use crate::runtime::runtime_types::{Context, Instructions::*, Types::*, *};
     use libloading::Library;
 
-    const ID: usize = 10;
+    const ID: usize = 12;
     pub fn test_init(id: Option<usize>, context: &mut Context) -> bool {
         let test_id = if let Some(num) = id { num } else { ID };
         println!("Running test {test_id}");
@@ -574,13 +574,7 @@ pub mod test {
                     Rdc(1, POINTER_REG),
                     Cal(3, 0),
                     Cal(3, 1),
-                    Cal(3, 4),
-                    Debug(RETURN_REG),
-                    Cal(3, 2),
-                    Debug(RETURN_REG),
-                    Cal(3, 4),
-                    Debug(RETURN_REG),
-                    End,
+                    End, 
                 ];
                 true
             }

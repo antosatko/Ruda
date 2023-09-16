@@ -196,7 +196,7 @@ impl Context {
                         }
                         PointerTypes::Char(loc) => {
                             if let Types::Char(chr) = self.memory.registers[value_reg] {
-                                self.memory.strings.pool[u_size][loc] = chr
+                                self.memory.strings.pool[u_size].replace_range(loc..loc + 1, &chr.to_string());
                             } else {
                                 return self.panic_rt(ErrTypes::Expected(
                                     Types::Char('a'),
@@ -236,7 +236,7 @@ impl Context {
                         }
                         PointerTypes::Char(idx) => {
                             self.memory.registers[cash_reg] =
-                                Types::Char(self.memory.strings.pool[u_size][idx]);
+                                Types::Char(self.memory.strings.pool[u_size].chars().nth(idx).unwrap());
                         }
                     }
                 } else {
@@ -367,7 +367,9 @@ impl Context {
                         }
                         PointerTypes::String => {
                             if let Types::Usize(new_size) = self.memory.registers[size_reg] {
-                                self.memory.strings.pool[u_size].resize(new_size, 0 as char);
+                                let append_len = new_size - self.memory.strings.pool[u_size].len();
+                                let str = "\0".repeat(append_len);
+                                self.memory.strings.pool[u_size].push_str(&str);
                             } else {
                                 return self.panic_rt(ErrTypes::WrongTypeOperation(
                                     self.memory.registers[size_reg],
@@ -802,6 +804,7 @@ impl Context {
                 }
                 self.next_line()
             }
+            // todo optimize
             CpRng(original, new, len) => {
                 let new_ptr = if let Types::Pointer(u_size, kind) = self.memory.registers[new] {
                     (u_size, kind)
@@ -816,12 +819,12 @@ impl Context {
                         let value = match kind {
                             PointerTypes::Object => self.memory.heap.data[u_size][i],
                             PointerTypes::String => {
-                                Types::Char(self.memory.strings.pool[u_size][i])
+                                Types::Pointer(u_size, PointerTypes::String)
                             }
                             PointerTypes::Stack => self.memory.stack.data[u_size + i],
                             PointerTypes::Heap(idx) => self.memory.heap.data[u_size][i + idx],
                             PointerTypes::Char(idx) => {
-                                Types::Char(self.memory.strings.pool[u_size][i + idx])
+                                Types::Char(self.memory.strings.pool[u_size].chars().nth(i + idx).unwrap())
                             }
                         };
                         match new_ptr.1 {
@@ -829,7 +832,7 @@ impl Context {
                                 self.memory.heap.data[new_ptr.0][i] = value;
                             }
                             PointerTypes::String => {
-                                self.memory.strings.pool[new_ptr.0][i] = value.get_char();
+                                self.memory.strings.pool[new_ptr.0].replace_range(i..i + 1, &value.get_char().to_string());
                             }
                             PointerTypes::Stack => {
                                 self.memory.stack.data[new_ptr.0 + i] = value;
@@ -838,7 +841,7 @@ impl Context {
                                 self.memory.heap.data[new_ptr.0][idx + i] = value;
                             }
                             PointerTypes::Char(idx) => {
-                                self.memory.strings.pool[new_ptr.0][idx + i] = value.get_char();
+                                self.memory.strings.pool[new_ptr.0].replace_range(idx + i..idx + i + 1, &value.get_char().to_string());
                             }
                         }
                     }
@@ -849,6 +852,8 @@ impl Context {
                     ));
                 }
             }
+            // TODO: optimize 
+            // - dont match on each iteration
             TRng(val, len) => {
                 let value = self.memory.registers[val];
                 if let Types::Pointer(u_size, kind) = self.memory.registers[POINTER_REG] {
@@ -864,10 +869,10 @@ impl Context {
                                 self.memory.heap.data[u_size][i + idx] = value;
                             }
                             PointerTypes::Char(idx) => {
-                                self.memory.strings.pool[u_size][i + idx] = value.get_char();
+                                todo!()
                             }
                             PointerTypes::String => {
-                                self.memory.strings.pool[u_size][i] = value.get_char();
+                                todo!()
                             }
                         }
                     }
@@ -1264,7 +1269,7 @@ pub mod runtime_types {
                 }
                 PointerTypes::Char(idx) => {
                     if let Types::Char(chr) = value {
-                        self.strings.pool[loc][*idx] = *chr
+                        self.strings.pool[loc].replace_range(*idx..=*idx+1, &chr.to_string());
                     } else {
                         return Err(ErrTypes::Expected(Types::Char('a'), *value));
                     }
@@ -1301,10 +1306,10 @@ pub mod runtime_types {
                         self.heap.data[u_size][idx].clone()
                     }
                     PointerTypes::String => {
-                        Types::Char(self.strings.pool[u_size][idx])
+                        Types::Char(self.strings.pool[u_size].chars().next().expect("tried to get char that may not exist"))
                     }
-                    PointerTypes::Char(_) => {
-                        Types::Void
+                    PointerTypes::Char(loc) => {
+                        Types::Char(self.strings.pool[u_size].chars().nth(loc + idx).expect("tried to get char that may not exist"))
                     }
                 }
             }
@@ -1323,10 +1328,10 @@ pub mod runtime_types {
                         self.heap.data[u_size][0].clone()
                     }
                     PointerTypes::String => {
-                        Types::Char(self.strings.pool[u_size][0])
+                        ptr
                     }
                     PointerTypes::Char(c) => {
-                        Types::Char(self.strings.pool[u_size][c])
+                        Types::Char(self.strings.pool[u_size].chars().nth(c).expect("tried to get char that may not exist"))
                     }
                 }
             }
@@ -1508,7 +1513,7 @@ pub mod runtime_types {
         pub garbage: Vec<usize>,
     }
     pub struct Strings {
-        pub pool: Vec<Vec<char>>,
+        pub pool: Vec<String>,
         pub garbage: Vec<usize>,
     }
     #[allow(unused)]
@@ -1517,10 +1522,10 @@ pub mod runtime_types {
         pub fn new(&mut self) -> usize {
             // either push a new string or occupy a deleted string
             if let Some(loc) = self.garbage.pop() {
-                self.pool[loc] = Vec::new();
+                self.pool[loc] = String::new();
                 loc
             } else {
-                self.pool.push(Vec::new());
+                self.pool.push(String::new());
                 self.pool.len() - 1
             }
         }
@@ -1545,7 +1550,7 @@ pub mod runtime_types {
             }
         }
         ///  Creates a new copied string and returns the location of the string
-        pub fn from(&mut self, str: Vec<char>) -> usize {
+        pub fn from(&mut self, str: String) -> usize {
             // either push a new string or occupy a deleted string
             if let Some(loc) = self.garbage.pop() {
                 self.pool[loc] = str;
@@ -1572,7 +1577,7 @@ pub mod runtime_types {
         }
         pub fn concat(&mut self, left: usize, right: usize) -> usize {
             let mut temp = self.pool[left].clone();
-            temp.extend(self.pool[right].iter());
+            temp.push_str(&self.pool[right]);
             self.from(temp)
         }
         pub fn push_string_array(&mut self, arr: Vec<&str>) -> Vec<usize> {
@@ -1583,7 +1588,7 @@ pub mod runtime_types {
             temp
         }
         pub fn to_string(&self, loc: usize) -> String {
-            self.pool[loc].iter().collect()
+            self.pool[loc].clone()
         }
     }
     pub struct Code {
@@ -1691,7 +1696,7 @@ pub mod runtime_types {
             if let Types::Char(chr) = self {
                 return *chr;
             }
-            unreachable!()
+            unreachable!("tried to get char from non-char type")
         }
         pub fn to_str(&self, mem: &Memory) -> String {
             match *self {
@@ -1765,7 +1770,7 @@ pub mod runtime_types {
         /// first index is trait id, second is method id
         pub methods: HashMap<usize, Vec<usize>>,
     }
-    use std::{clone, collections::HashMap, fmt, hash::Hash, rc::Rc, sync::Arc};
+    use std::{clone, collections::HashMap, fmt, hash::Hash, rc::Rc, sync::Arc, ops::Index};
 
     use super::{
         lib::Library,
