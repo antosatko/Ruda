@@ -169,6 +169,8 @@ pub enum ErrorOrigin {
     LibLoadError(Vec<lexing_preprocessor::parse_err::Errors>),
 }
 
+
+/// you cannot kill me in a way that matters
 pub fn build_dictionary(mut content: &str, ast: (&HashMap<String, ast_parser::ast_parser::Head>, &mut Vec<ast_parser::ast_parser::HeadParam>)) -> Result<(intermediate::dictionary::Dictionary, Vec<intermediate::AnalyzationError::ErrType>, Vec<String>), ErrorOrigin> {
     let mut tokens = tokenize(&content, false);
     if tokens.2.len() > 0 {
