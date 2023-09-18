@@ -21,7 +21,8 @@ const GENERIC_TYPE = Something(1)
 const GENERIC_TYPE_WITH_TRAITS = Something(1)
 // structs
 struct Something<T> {
-    value: T
+    value: T,
+    rodot: ahoj.dfg<sdfsd, fth>
 }
 // implementation of struct Something
 impl Something {

@@ -53,8 +53,45 @@ fn main() {
             println!("AST loaded.");
             let parsed_tree = build_dictionary(&string, (&ast.0, &mut ast.1));
             println!("Tree generated.");
-            println!("Dictionary: {:?}", parsed_tree);
-            black_box(parsed_tree);
+            match &parsed_tree {
+                Ok(tree) => {
+                    println!("Dictionary generated.");
+                    // dictionary
+                    println!("{:?}", tree.0);
+                    println!("Imports: {:?}", tree.2);
+                }
+                Err(err) => {
+                    println!("Compilation failed.");
+                    println!("Errors:");
+                    match err {
+                        ErrorOrigin::LexingError(err) => {
+                            for err in err {
+                                println!("{:?}", err);
+                            }
+                        }
+                        ErrorOrigin::ParsingError(err) => {
+                            for err in err {
+                                println!("{:?}", err);
+                            }
+                        }
+                        ErrorOrigin::CodeBlockParserError(err) => {
+                            for err in err {
+                                println!("{:?}", err);
+                            }
+                        }
+                        ErrorOrigin::IntermediateError(err) => {
+                            for err in err {
+                                println!("{:?}", err);
+                            }
+                        }
+                        ErrorOrigin::LibLoadError(err) => {
+                            for err in err {
+                                println!("{:?}", err);
+                            }
+                        }
+                    }
+                }
+            }
         }
         "tokenize" => {
             let file = match args.nth(0) {
@@ -124,8 +161,19 @@ pub fn tokenize(content: &str, formating: bool) -> (Vec<Tokens>, Vec<(usize, usi
     tokens
 }
 
-pub fn build_dictionary(mut content: &str, ast: (&HashMap<String, ast_parser::ast_parser::Head>, &mut Vec<ast_parser::ast_parser::HeadParam>)) -> Option<(intermediate::dictionary::Dictionary, Vec<intermediate::AnalyzationError::ErrType>, Vec<String>)> {
+pub enum ErrorOrigin {
+    LexingError(Vec<lexing_preprocessor::parse_err::Errors>),
+    ParsingError(Vec<lexing_preprocessor::parse_err::Errors>),
+    CodeBlockParserError(Vec<lexing_preprocessor::parse_err::Errors>),
+    IntermediateError(Vec<lexing_preprocessor::parse_err::Errors>),
+    LibLoadError(Vec<lexing_preprocessor::parse_err::Errors>),
+}
+
+pub fn build_dictionary(mut content: &str, ast: (&HashMap<String, ast_parser::ast_parser::Head>, &mut Vec<ast_parser::ast_parser::HeadParam>)) -> Result<(intermediate::dictionary::Dictionary, Vec<intermediate::AnalyzationError::ErrType>, Vec<String>), ErrorOrigin> {
     let mut tokens = tokenize(&content, false);
+    if tokens.2.len() > 0 {
+        return Err(ErrorOrigin::LexingError(tokens.2));
+    }
     tokens.0 = if let Ok(toks) = lexing_preprocessor::lexing_preprocessor::refactor(
         tokens.0,
         tokens.1,
@@ -134,15 +182,10 @@ pub fn build_dictionary(mut content: &str, ast: (&HashMap<String, ast_parser::as
         tokens.1 = toks.1;
         toks.0
     } else {
-        return None;
+        return Err(ErrorOrigin::LexingError(tokens.2));
     }; //tokenize(&string, true);
     if tokens.2.len() > 0 {
-        println!("Compilation failed.");
-        println!("Errors:");
-        for err in tokens.2 {
-            println!("{:?}", err);
-        }
-        return None;
+        return Err(ErrorOrigin::LexingError(tokens.2));
     }
     let parsed_tree = generate_tree(&tokens.0, ast, &tokens.1);
     match &parsed_tree {
@@ -155,10 +198,11 @@ pub fn build_dictionary(mut content: &str, ast: (&HashMap<String, ast_parser::as
                     }
                 }
             }
-            println!("Imports: {:?}", imports);
-            
+            //
+            //println!("Imports: {:?}", imports);
+            //
+
             let mut dictionary = intermediate::dictionary::from_ast(&tree.nodes, &imports);
-            println!("Dictionary generated.");
             if false {
                 if let Some(nodes) = &parsed_tree {
                     use tree_walker::tree_walker::ArgNodeType;
@@ -177,11 +221,10 @@ pub fn build_dictionary(mut content: &str, ast: (&HashMap<String, ast_parser::as
                     }
                 }
             }
-            return Some((dictionary.0, dictionary.1, imports));
+            return Ok((dictionary.0, dictionary.1, imports));
         }
         None => {
-            println!("Aborting.");
-            return None;
+            return Err(ErrorOrigin::ParsingError(tokens.2));
         }
     }
 }

@@ -1023,7 +1023,7 @@ pub mod dictionary {
     }*/
     type GenericExpr = Vec<ShallowType>;
 
-    #[derive(Debug, Clone)]
+    #[derive(Clone)]
     pub struct ShallowType {
         pub is_fun: Option<Box<Function>>,
         /// if Some then it is an array of that length
@@ -1031,6 +1031,46 @@ pub mod dictionary {
         pub refs: usize,
         pub main: NestedIdent,
         pub generics: GenericExpr,
+    }
+    // print formating
+    impl std::fmt::Debug for ShallowType {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            if let Some(fun) = &self.is_fun {
+                write!(f, "{}", fun.identifier.as_ref().unwrap())?;
+                write!(f, "(")?;
+                for (i, arg) in fun.args.iter().enumerate() {
+                    write!(f, "{:?}", arg.1)?;
+                    if i != fun.args.len() - 1 {
+                        write!(f, ", ")?;
+                    }
+                }
+                write!(f, ")")?;
+                return Ok(());
+            }
+            if self.arr_len.is_some() {
+                write!(f, "[")?;
+            }
+            for (i, part) in self.main.iter().enumerate() {
+                write!(f, "{}", part)?;
+                if i != self.main.len() - 1 {
+                    write!(f, "::")?;
+                }
+            }
+            if self.arr_len.is_some() {
+                write!(f, "; {}]", self.arr_len.unwrap())?;
+            }
+            if !self.generics.is_empty() {
+                write!(f, "<")?;
+                for (i, gen) in self.generics.iter().enumerate() {
+                    write!(f, "{:?}", gen)?;
+                    if i != self.generics.len() - 1 {
+                        write!(f, ", ")?;
+                    }
+                }
+                write!(f, ">")?;
+            }
+            Ok(())
+        }
     }
     impl ShallowType {
         pub fn empty() -> Self {
