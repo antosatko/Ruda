@@ -18,7 +18,7 @@ pub mod tree_walker {
                             name: Tokens::Text(String::from("'none")),
                             data: None,
                             nodes: HashMap::new(),
-                            line: (0, 0),
+                            line: Line::from((0, 0)),
                         }),
                     );
                 }
@@ -59,7 +59,7 @@ pub mod tree_walker {
                                     name: Tokens::Text(String::from("'none")),
                                     data: None,
                                     nodes: HashMap::new(),
-                                    line: (0, 0),
+                                    line: Line::from((0, 0)),
                                 }),
                             );
                         }
@@ -85,7 +85,7 @@ pub mod tree_walker {
             name: Tokens::Text(id.into()),
             data: None,
             nodes: prep_nodes(&syntax, &id).expect(&id),
-            line: fix_line(&lines[*idx])
+            line: Line::from(lines[*idx]),
         };
         match parse_scope(
             &tokens,
@@ -467,13 +467,13 @@ pub mod tree_walker {
                 name: token_found.clone(),
                 data: Some(token_expected.clone()),
                 nodes: HashMap::new(),
-                line,
+                line: Line::from(line),
             },
             _ => Node {
                 name: token_found.clone(),
                 data: None,
                 nodes: HashMap::new(),
-                line,
+                line: Line::from(line),
             },
         }
     }
@@ -608,13 +608,41 @@ pub mod tree_walker {
         WrongEndingToken(Tokens, Tokens),
         EmptyNodeParameter(String),
     }
+
+    #[derive(Clone, Copy)]
+    pub struct Line {
+        pub line: usize,
+        pub column: usize,
+    }
+
+    impl std::fmt::Debug for Line {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "line: {}, column: {}", self.line, self.column)
+        }
+    }
+
+    impl std::fmt::Display for Line {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "line: {}, column: {}", self.line, self.column)
+        }
+    }
+
+    impl Line {
+        /// returns Self and fixes line and column
+        pub fn from(line: (usize, usize)) -> Self {
+            Self {
+                line: line.1 + 1,
+                column: line.0 + 1,
+            }
+        }
+    }
     /// structures defined by user
     #[derive(Debug, Clone)]
     pub struct Node {
         pub name: Tokens,
         pub data: Option<Tokens>,
         pub nodes: HashMap<String, ArgNodeType>,
-        pub line: (usize, usize),
+        pub line: Line,
     }
     #[derive(Debug, Clone)]
     pub enum ArgNodeType {

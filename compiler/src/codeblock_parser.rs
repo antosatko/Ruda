@@ -71,7 +71,7 @@ pub fn node_from_node(node: &tree_walker::tree_walker::Node, errors: &mut Vec<Er
                 let op = if let Tokens::Operator(op) = &op.name {
                     *op
                 }else {
-                    errors.push(ErrType::NotOperator);
+                    errors.push(ErrType::NotOperator(node.line));
                     return None;
                 };
                 let target = step_inside_val(&node, "value");

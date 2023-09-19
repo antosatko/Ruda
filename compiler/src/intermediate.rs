@@ -4,7 +4,7 @@ pub mod dictionary {
         expression_parser::{self, get_args, ValueType},
         lexer::tokenizer::{Operators, Tokens},
         libloader,
-        tree_walker::tree_walker::{self, ArgNodeType, Err, Node},
+        tree_walker::tree_walker::{self, ArgNodeType, Err, Node, Line},
     };
     use core::panic;
     use std::{collections::HashMap, fs::DirEntry, io::Read};
@@ -221,11 +221,11 @@ pub mod dictionary {
                     let ident = get_ident(&enum_value);
                     for variant in &result.keys {
                         if variant.1 == n {
-                            errors.push(ErrType::EnumVariantAssignedNumber(n, (0, 0)))
+                            errors.push(ErrType::EnumVariantAssignedNumber(n, enum_value.line))
                         }
                         if variant.0 == ident {
                             errors
-                                .push(ErrType::EnumVariantAssignedIdent(ident.to_string(), (0, 0)))
+                                .push(ErrType::EnumVariantAssignedIdent(ident.to_string(), enum_value.line))
                         }
                     }
                     result.keys.push((ident, n));
@@ -233,7 +233,7 @@ pub mod dictionary {
                 if dictionary.register_id(result.identifier.to_string(), IdentifierKinds::Enum) {
                     dictionary.enums.push(result);
                 } else {
-                    errors.push(ErrType::ConflictingNames(result.identifier.to_string()))
+                    errors.push(ErrType::ConflictingNames(result.identifier.to_string(), node.line))
                 }
             }
             "KWType" => {
@@ -248,7 +248,7 @@ pub mod dictionary {
                         public: public(&node),
                     })
                 } else {
-                    errors.push(ErrType::ConflictingNames(name.to_string()))
+                    errors.push(ErrType::ConflictingNames(name.to_string(), node.line))
                 }
             }
             "KWStruct" => {
@@ -268,7 +268,10 @@ pub mod dictionary {
                         if *field.0 == ident {
                             errors.push(ErrType::StructVariantAssignedIdent(
                                 ident.to_string(),
-                                (0, 0),
+                                Line {
+                                    line: 0,
+                                    column: 0,
+                                }
                             ))
                         }
                     }
@@ -280,7 +283,7 @@ pub mod dictionary {
                 if dictionary.register_id(result.identifier.to_string(), IdentifierKinds::Struct) {
                     dictionary.structs.push(result);
                 } else {
-                    errors.push(ErrType::ConflictingNames(result.identifier.to_string()))
+                    errors.push(ErrType::ConflictingNames(result.identifier.to_string(), node.line))
                 }
             }
             "KWImport" => {
@@ -305,7 +308,7 @@ pub mod dictionary {
                 if dictionary.register_id(String::from(&name), IdentifierKinds::Function) {
                     dictionary.functions.push(fun);
                 } else {
-                    errors.push(ErrType::ConflictingNames(String::from(&name)))
+                    errors.push(ErrType::ConflictingNames(String::from(&name), node.line))
                 }
             }
             "KWLet" => {
@@ -329,7 +332,7 @@ pub mod dictionary {
                         location: 0,
                     })
                 } else {
-                    errors.push(ErrType::ConflictingNames(identifier.to_string()))
+                    errors.push(ErrType::ConflictingNames(identifier.to_string(), node.line))
                 }
             }
             "KWConst" => {
@@ -346,7 +349,7 @@ pub mod dictionary {
                         real_value: None,
                     })
                 } else {
-                    errors.push(ErrType::ConflictingNames(identifier.to_string()))
+                    errors.push(ErrType::ConflictingNames(identifier.to_string(), node.line))
                 }
                 //expression_parser::traverse_da_fokin_value(&expression_parser::expr_into_tree(step_inside_val(&node, "expression"), errors), 0);
                 //println!("{:#?}", expression_parser::expr_into_tree(step_inside_val(&node, "expression"), errors));
@@ -406,7 +409,7 @@ pub mod dictionary {
                         public: is_pub,
                     })
                 } else {
-                    errors.push(ErrType::ConflictingNames(identifier.to_string()))
+                    errors.push(ErrType::ConflictingNames(identifier.to_string(), node.line))
                 }
             }
             "expression" => {}
@@ -445,7 +448,7 @@ pub mod dictionary {
                         src_loc: 0,
                     })
                 } else {
-                    errors.push(ErrType::ConflictingNames(ident.to_string()))
+                    errors.push(ErrType::ConflictingNames(ident.to_string(), node.line))
                 }
             }
             _ => {}
@@ -533,7 +536,7 @@ pub mod dictionary {
                         let ident = get_ident(arg);
                         for (arg_ident, _) in &args {
                             if *arg_ident == ident {
-                                errors.push(ErrType::ConflictingArgsName(ident.to_string()));
+                                errors.push(ErrType::ConflictingArgsName(ident.to_string(), arg.line));
                             }
                         }
                         args.push((ident, get_type(step_inside_val(&arg, "type"), errors)));
@@ -1182,38 +1185,38 @@ pub mod dictionary {
     }
 }
 pub mod AnalyzationError {
-    use crate::expression_parser;
+    use crate::{expression_parser, tree_walker::tree_walker::Line};
 
     use super::dictionary::IdentifierKinds;
 
     #[derive(Debug)]
     pub enum ErrType {
         /// assigned_number line col | occurs when you try to assign same number to two or more enum variants
-        EnumVariantAssignedNumber(usize, (usize, usize)),
+        EnumVariantAssignedNumber(usize, Line),
         /// variant_ident line col | occurs when you try to assign same identifier to two or more enum variants
-        EnumVariantAssignedIdent(String, (usize, usize)),
+        EnumVariantAssignedIdent(String, Line),
         /// name | occurs when you try to assign same identifier twice
-        ConflictingNames(String),
+        ConflictingNames(String, Line),
         /// name | occurs when you try to assign same identifier for two or more arguments
-        ConflictingArgsName(String),
+        ConflictingArgsName(String, Line),
         /// name kind | occurs when you try to implement on non implementable identifier (implementable: enum, struct, type)
-        BadImpl(String, IdentifierKinds),
+        BadImpl(String, IdentifierKinds, Line),
         /// name kind | occurs when you try to use identifier that has not been declared
-        NonExistentIdentifier(String),
+        NonExistentIdentifier(String, Line),
         /// field line col | occurs when you try to assign same identifier to two or more struct fields
-        StructVariantAssignedIdent(String, (usize, usize)),
+        StructVariantAssignedIdent(String, Line),
         /// transform_error | occurs when there is an error in expression
-        TreeTransformError(expression_parser::TreeTransformError),
+        TreeTransformError(expression_parser::TreeTransformError, Line),
         /// invalid_register | occurs when you try to use register that does not exist
-        InvalidRegister(String),
+        InvalidRegister(String, Line),
         /// invalid_constant | occurs when you try to use constant that is not supported in rust libraries
         InvalidConstant(crate::lexer::tokenizer::Tokens),
         /// import_path | occurs when you try to import file that does not exist
-        ImportPathDoesNotExist(String),
+        ImportPathDoesNotExist(String, Line),
         /// not_code_block | occurs when you try to use code block that is not code block (probably wont happen tho)
-        NotCodeBlock,
+        NotCodeBlock(Line),
         /// not_operator | occurs when you try to use operator that is not operator (probably wont happen tho)
-        NotOperator,
+        NotOperator(Line),
         /// cannot_initialize_constant | occurs when you try to initialize constant with something that is not constant
         CannotInitializeConstant(String),
         /// missong_operator | occurs when expression expects operator but there is none

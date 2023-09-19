@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{intermediate::{self, AnalyzationError::ErrType}, lexer::tokenizer::{Tokens, self, Operators}, ast_parser::ast_parser::generate_ast, tree_walker::tree_walker::{generate_tree, Node, Err}, lexing_preprocessor::{lexing_preprocessor, parse_err::Errors}, expression_parser::{ValueType, get_args}};
+use crate::{intermediate::{self, AnalyzationError::ErrType}, lexer::tokenizer::{Tokens, self, Operators}, ast_parser::ast_parser::generate_ast, tree_walker::tree_walker::{generate_tree, Node, Err, Line}, lexing_preprocessor::{lexing_preprocessor, parse_err::Errors}, expression_parser::{ValueType, get_args}};
 use intermediate::dictionary::*;
 use lexing_preprocessor::*;
 
@@ -35,7 +35,10 @@ pub fn load(string: &[u8]) -> Result<Dictionary, String> {
                             if *field.0 == ident {
                                 errors.push(ErrType::StructVariantAssignedIdent(
                                     ident.to_string(),
-                                    (0, 0),
+                                    Line {
+                                        line: 0,
+                                        column: 0,
+                                    }
                                 ))
                             }
                         }
@@ -47,7 +50,7 @@ pub fn load(string: &[u8]) -> Result<Dictionary, String> {
                     // check if already exists
                     for struct_ in &dictionary.structs {
                         if struct_.name == ident {
-                            errors.push(ErrType::ConflictingNames(ident.to_string()))
+                            errors.push(ErrType::ConflictingNames(ident.to_string(), node.line))
                         }
                     }
                     dictionary.structs.push(Struct {
@@ -65,7 +68,7 @@ pub fn load(string: &[u8]) -> Result<Dictionary, String> {
                     // check if already exists
                     for type_ in &dictionary.types {
                         if type_.name == ident {
-                            errors.push(ErrType::ConflictingNames(ident.to_string()))
+                            errors.push(ErrType::ConflictingNames(ident.to_string(), node.line))
                         }
                     }
                     dictionary.types.push(Type {
@@ -84,7 +87,7 @@ pub fn load(string: &[u8]) -> Result<Dictionary, String> {
                             if *variant.0 == ident {
                                 errors.push(ErrType::EnumVariantAssignedIdent(
                                     ident.to_string(),
-                                    (0, 0),
+                                    key.line
                                 ))
                             }
                         }
@@ -102,7 +105,7 @@ pub fn load(string: &[u8]) -> Result<Dictionary, String> {
                     // check if already exists
                     for enum_ in &dictionary.enums {
                         if enum_.name == ident {
-                            errors.push(ErrType::ConflictingNames(ident.to_string()))
+                            errors.push(ErrType::ConflictingNames(ident.to_string(), node.line))
                         }
                     }
                     dictionary.enums.push(Enum {
@@ -116,7 +119,7 @@ pub fn load(string: &[u8]) -> Result<Dictionary, String> {
                     // check if already exists
                     for fun_ in &dictionary.functions {
                         if fun_.name == fun.name {
-                            errors.push(ErrType::ConflictingNames(fun.name.to_string()))
+                            errors.push(ErrType::ConflictingNames(fun.name.to_string(), node.line))
                         }
                     }
                     dictionary.functions.push(fun);
@@ -131,7 +134,7 @@ pub fn load(string: &[u8]) -> Result<Dictionary, String> {
                                 // check if already exists
                                 for fun_ in &struct_.methods {
                                     if fun_.name == fun.name {
-                                        errors.push(ErrType::ConflictingNames(fun.name.to_string()))
+                                        errors.push(ErrType::ConflictingNames(fun.name.to_string(), method.line))
                                     }
                                 }
                                 struct_.methods.push(fun);
@@ -158,7 +161,7 @@ pub fn load(string: &[u8]) -> Result<Dictionary, String> {
                     // check if already exists
                     for const_ in &dictionary.consts {
                         if const_.name == ident {
-                            errors.push(ErrType::ConflictingNames(ident.to_string()))
+                            errors.push(ErrType::ConflictingNames(ident.to_string(), node.line))
                         }
                     }
                     dictionary.consts.push(Const {
@@ -255,7 +258,7 @@ fn get_mem_loc(node: &Node) -> MemoryTypes {
     match mem.to_lowercase().as_str() {
         "stack" => MemoryTypes::Stack(loc.parse::<usize>().unwrap()),
         "reg" => {
-            if let Some(reg) = Registers::from_str(&loc, &mut Vec::new()) {
+            if let Some(reg) = Registers::from_str(&loc, &mut Vec::new(), node.line) {
                 MemoryTypes::Register(reg)
             } else {
                 MemoryTypes::Register(Registers::G1)
@@ -285,7 +288,7 @@ pub enum Registers {
 }
 
 impl Registers {
-    fn from_str(s: &str, errors: &mut Vec<ErrType>) -> Option<Self> {
+    fn from_str(s: &str, errors: &mut Vec<ErrType>, line: Line) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "g1" => Some(Registers::G1),
             "g2" => Some(Registers::G2),
@@ -297,7 +300,7 @@ impl Registers {
             "ret" => Some(Registers::Ret),
             "cptr" => Some(Registers::CodePtr),
             _ => {
-                errors.push(ErrType::InvalidRegister(s.to_string()));
+                errors.push(ErrType::InvalidRegister(s.to_string(), line));
                 None
             },
         }
