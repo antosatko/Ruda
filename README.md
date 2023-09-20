@@ -32,17 +32,11 @@ fun main() {
 
 If you are one of those crazy people and want to modify the source code or have any other reasons to, you are more than welcome to!
 
-### Windows
-
-Just clone the repository and run `ruda_build.py`. This should create a  `build/` directory with the whole application.
+Just clone the repository and run `py ruda_build.py`. This should create a  `build/` directory with the whole application.
 
 Add `build/bin` to your path variable and create a new variable `RUDA_PATH` with the path to `build`. If this is unclear, look up _How to Change the PATH Environment Variable on Windows_.
 
 Open new terminal and try `rudavm .\test.rdbin -- Hello, World!`.
-
-### Linux
-
-Steps are simmilar to Windows but instead of running `ruda_build.py`, run `ruda_build.sh` (It will work with a little hope).
 
 ## Other
 
