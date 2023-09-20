@@ -3,10 +3,10 @@ pub mod tree_walker {
 
     use crate::ast_parser::ast_parser::{self, *};
     use crate::lexer::tokenizer::{*, self};
-    pub fn generate_tree(tokens: &Vec<Tokens>, syntax: (&Tree, &mut Vec<HeadParam>), lines: &Vec<(usize, usize)>) -> Option<(Node, HashMap<String, ArgNodeType>)> {
+    pub fn generate_tree(tokens: &Vec<Tokens>, syntax: &mut (Tree, Vec<HeadParam>), lines: &Vec<(usize, usize)>) -> Option<(Node, HashMap<String, ArgNodeType>)> {
         let mut idx = 0;
         let mut globals_data = HashMap::new();
-        for global in syntax.1 {
+        for global in &syntax.1 {
             match global {
                 HeadParam::Array(arr) => {
                     globals_data.insert(arr.to_string(), ArgNodeType::Array(vec![]));

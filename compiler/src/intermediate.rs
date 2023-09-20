@@ -17,7 +17,6 @@ pub mod dictionary {
         if let Some(ArgNodeType::Array(entry)) = ast.get("nodes") {
             load_dictionary(entry, &mut global_dict, &mut errors)
         }
-        println!("errors: {errors:?}");
         /*analyze_consts(&mut global_dict, &mut errors); // TODO: add this back
         println!("errors: {errors:?}");*/
         (global_dict, errors)
@@ -293,7 +292,6 @@ pub mod dictionary {
                 } else {
                     unreachable!("Path not specified");
                 };
-
                 dictionary.imports.push(Import {
                     path,
                     alias,

@@ -1,6 +1,7 @@
 #![allow(warnings)]
 
-use ast_parser::ast_parser::generate_ast;
+use ast_parser::ast_parser::{generate_ast, Head, HeadParam};
+use intermediate::AnalyzationError::ErrType;
 use lexer::tokenizer::Tokens;
 use lexing_preprocessor::parse_err::Errors;
 use std::{env, fs::File, hint::black_box, io::Read, time::SystemTime, collections::HashMap};
@@ -39,10 +40,6 @@ fn main() {
                 None => panic!("File not specified."),
             };
             println!("Compilation for '{file}' starts.");
-            let mut string = String::new();
-            let mut file =
-                File::open(file).expect(&format!("File not found. ({})", path).to_owned());
-            file.read_to_string(&mut string).expect("neco se pokazilo");
             use lexer::tokenizer::*;
             let ast_path = std::env::var("RUDA_PATH").expect("RUDA_PATH not set.") + "/ruda.ast";
             let mut ast = if let Some(ast) = generate_ast(&ast_path) {
@@ -51,19 +48,19 @@ fn main() {
                 panic!();
             };
             println!("AST loaded.");
-            let parsed_tree = build_dictionary(&string, (&ast.0, &mut ast.1));
+            let parsed_tree = build_dictionaries(&file, &mut (ast.0, ast.1));
             println!("Tree generated.");
             match &parsed_tree {
                 Ok(tree) => {
                     println!("Dictionary generated.");
                     // dictionary
-                    println!("{:?}", tree.0);
-                    println!("Imports: {:?}", tree.2);
+                    //println!("{:?}", tree.0);
+                    //println!("Imports: {:?}", tree.2);
                 }
                 Err(err) => {
                     println!("Compilation failed.");
                     println!("Errors:");
-                    match err {
+                    match &err.0 {
                         ErrorOrigin::LexingError(err) => {
                             for err in err {
                                 println!("{:?}", err);
@@ -88,6 +85,9 @@ fn main() {
                             for err in err {
                                 println!("{:?}", err);
                             }
+                        }
+                        ErrorOrigin::LinkingError(err) => {
+                            println!("{:?}", err);
                         }
                     }
                 }
@@ -167,11 +167,116 @@ pub enum ErrorOrigin {
     CodeBlockParserError(Vec<lexing_preprocessor::parse_err::Errors>),
     IntermediateError(Vec<lexing_preprocessor::parse_err::Errors>),
     LibLoadError(Vec<lexing_preprocessor::parse_err::Errors>),
+    LinkingError(LinkingError),
+}
+
+#[derive(Debug)]
+pub enum LinkingError {
+    /// file, reason
+    FileNotFound(String, String),
+    /// file, reason
+    CouldNotOpen(String, String),
+}
+
+
+pub type Dictionaries = HashMap<String, intermediate::dictionary::Dictionary>;
+
+pub fn read_source(root: &str, main: &str) -> Result<String, ErrorOrigin> {
+    let root = std::path::PathBuf::from(root);
+    let mut string = String::new();
+    let path = root.join(main);
+    let mut file = match File::open(&path) {
+        Ok(file) => file,
+        Err(err) => {
+            return Err(ErrorOrigin::LinkingError(LinkingError::FileNotFound(path.to_str().unwrap().to_string(), err.to_string())));
+        }
+    };
+    match file.read_to_string(&mut string) {
+        Ok(_) => {},
+        Err(err) => {
+            return Err(ErrorOrigin::LinkingError(LinkingError::CouldNotOpen(path.to_str().unwrap().to_string(), err.to_string())));
+        }
+    };
+    Ok(string)
+}
+
+
+pub fn new_imports(imports: &mut Vec<String>, new: Vec<String>) {
+    imports.extend(new);
+    imports.sort();
+    imports.dedup();
+}
+
+pub fn build_dictionaries(main: &str, ast: &mut (HashMap<String, Head>, Vec<HeadParam>)) -> Result<Dictionaries, (ErrorOrigin, String)> {
+    // root is the directory of the main file
+    let main_path = std::path::Path::new(main);
+    let main = main_path.file_name().expect("internal error 6. please contact the developer.").to_str().expect("internal error 5. please contact the developer.");
+    let root = main_path.parent().expect("internal error 0. please contact the developer.").to_str().expect("internal error 0. please contact the developer.");
+    let main = match read_source(root, main) {
+        Ok(main) => main,
+        Err(err) => {
+            return Err((err, main.to_string()));
+        }
+    };
+    let mut imports = Vec::new();
+    let mut dictionaries = Dictionaries::new();
+    match build_dictionary(&main, ast) {
+        Ok(res) => {
+            if res.1.len() > 0 {
+                panic!("internal error 1. please contact the developer.")
+            }
+            new_imports(&mut imports, res.2);
+            dictionaries.insert(main, res.0);
+        },
+        Err(err) => {
+            return Err((err, main.to_string()));
+        }
+    };
+    loop {
+        for import in &imports {
+            if !dictionaries.contains_key(import) {
+                match read_source(root, import) {
+                    Ok(main) => {
+                        // remove for prod
+                        println!("Building {}", import);
+                        match build_dictionary(&main, ast) {
+                            Ok(res) => {
+                                if res.1.len() > 0 {
+                                    panic!("internal error 2. please contact the developer.")
+                                }
+                                new_imports(&mut imports.clone(), res.2);
+                                dictionaries.insert(main, res.0);
+                            },
+                            Err(err) => {
+                                return Err((err, main.to_string()));
+                            }
+                        };
+                    },
+                    Err(err) => {
+                        return Err((err, import.to_string()));
+                    }
+                };
+            }
+        }
+        // check if all imports are in the dictionary
+        let mut all = true;
+        for import in &imports {
+            if !dictionaries.contains_key(import) {
+                all = false;
+                break;
+            }
+        }
+        if all {
+            return Ok(dictionaries);
+        }
+    }
+
+    
 }
 
 
 /// you cannot kill me in a way that matters
-pub fn build_dictionary(mut content: &str, ast: (&HashMap<String, ast_parser::ast_parser::Head>, &mut Vec<ast_parser::ast_parser::HeadParam>)) -> Result<(intermediate::dictionary::Dictionary, Vec<intermediate::AnalyzationError::ErrType>, Vec<String>), ErrorOrigin> {
+pub fn build_dictionary(mut content: &str, ast: &mut (HashMap<String, ast_parser::ast_parser::Head>, Vec<ast_parser::ast_parser::HeadParam>)) -> Result<(intermediate::dictionary::Dictionary, Vec<ErrType>, Vec<String>), ErrorOrigin> {
     let mut tokens = tokenize(&content, false);
     if tokens.2.len() > 0 {
         return Err(ErrorOrigin::LexingError(tokens.2));
@@ -200,9 +305,8 @@ pub fn build_dictionary(mut content: &str, ast: (&HashMap<String, ast_parser::as
                     }
                 }
             }
-            //
-            //println!("Imports: {:?}", imports);
-            //
+            
+            // println!("Imports: {:?}", imports);
 
             let mut dictionary = intermediate::dictionary::from_ast(&tree.nodes, &imports);
             if false {

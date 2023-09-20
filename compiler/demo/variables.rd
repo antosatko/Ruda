@@ -1,4 +1,4 @@
-import "demo/variables.rd" as danda
+import "test.rd" as danda
 
 
 // here i test behavior of parser for variables and expressions
