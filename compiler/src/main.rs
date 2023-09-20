@@ -49,7 +49,6 @@ fn main() {
             };
             println!("AST loaded.");
             let parsed_tree = build_dictionaries(&file, &mut (ast.0, ast.1));
-            println!("Tree generated.");
             match &parsed_tree {
                 Ok(tree) => {
                     println!("Dictionary generated.");
@@ -60,34 +59,33 @@ fn main() {
                 Err(err) => {
                     println!("Compilation failed.");
                     println!("Errors:");
+                    let prepend = format!("Err {}: ", err.1);
                     match &err.0 {
                         ErrorOrigin::LexingError(err) => {
                             for err in err {
-                                println!("{:?}", err);
+                                println!("{prepend}{:?}", err);
                             }
                         }
                         ErrorOrigin::ParsingError(err) => {
-                            for err in err {
-                                println!("{:?}", err);
-                            }
+                            println!("{prepend}{:?} at {}", err.0, err.1);
                         }
                         ErrorOrigin::CodeBlockParserError(err) => {
                             for err in err {
-                                println!("{:?}", err);
+                                println!("{prepend}{:?}", err);
                             }
                         }
                         ErrorOrigin::IntermediateError(err) => {
                             for err in err {
-                                println!("{:?}", err);
+                                println!("{prepend}{:?}", err);
                             }
                         }
                         ErrorOrigin::LibLoadError(err) => {
                             for err in err {
-                                println!("{:?}", err);
+                                println!("{prepend}{:?}", err);
                             }
                         }
                         ErrorOrigin::LinkingError(err) => {
-                            println!("{:?}", err);
+                            println!("{prepend}{:?}", err);
                         }
                     }
                 }
@@ -163,7 +161,7 @@ pub fn tokenize(content: &str, formating: bool) -> (Vec<Tokens>, Vec<(usize, usi
 
 pub enum ErrorOrigin {
     LexingError(Vec<lexing_preprocessor::parse_err::Errors>),
-    ParsingError(Vec<lexing_preprocessor::parse_err::Errors>),
+    ParsingError((tree_walker::tree_walker::Err, tree_walker::tree_walker::Line)),
     CodeBlockParserError(Vec<lexing_preprocessor::parse_err::Errors>),
     IntermediateError(Vec<lexing_preprocessor::parse_err::Errors>),
     LibLoadError(Vec<lexing_preprocessor::parse_err::Errors>),
@@ -233,6 +231,7 @@ pub fn build_dictionaries(main: &str, ast: &mut (HashMap<String, Head>, Vec<Head
         }
     };
     loop {
+        let mut found_imports = Vec::new();
         for import in &imports {
             if !dictionaries.contains_key(import) {
                 match read_source(root, import) {
@@ -244,11 +243,11 @@ pub fn build_dictionaries(main: &str, ast: &mut (HashMap<String, Head>, Vec<Head
                                 if res.1.len() > 0 {
                                     panic!("internal error 2. please contact the developer.")
                                 }
-                                new_imports(&mut imports.clone(), res.2);
-                                dictionaries.insert(main, res.0);
+                                found_imports.extend(res.2);
+                                dictionaries.insert(import.clone(), res.0);
                             },
                             Err(err) => {
-                                return Err((err, main.to_string()));
+                                return Err((err, import.to_string()));
                             }
                         };
                     },
@@ -258,6 +257,7 @@ pub fn build_dictionaries(main: &str, ast: &mut (HashMap<String, Head>, Vec<Head
                 };
             }
         }
+        new_imports(&mut imports, found_imports);
         // check if all imports are in the dictionary
         let mut all = true;
         for import in &imports {
@@ -296,7 +296,7 @@ pub fn build_dictionary(mut content: &str, ast: &mut (HashMap<String, ast_parser
     }
     let parsed_tree = generate_tree(&tokens.0, ast, &tokens.1);
     match &parsed_tree {
-        Some((tree, globals)) => {
+        Ok((tree, globals)) => {
             let mut imports = Vec::new();
             if let ArgNodeType::Array(arr) = globals.get("imports").unwrap() {
                 for global in arr {
@@ -309,28 +309,10 @@ pub fn build_dictionary(mut content: &str, ast: &mut (HashMap<String, ast_parser
             // println!("Imports: {:?}", imports);
 
             let mut dictionary = intermediate::dictionary::from_ast(&tree.nodes, &imports);
-            if false {
-                if let Some(nodes) = &parsed_tree {
-                    use tree_walker::tree_walker::ArgNodeType;
-                    for nod in &nodes.0.nodes {
-                        println!("{:?}", nod.0);
-                        match nod.1 {
-                            ArgNodeType::Array(arr) => {
-                                for arg in arr {
-                                    println!("{arg:?}");
-                                }
-                            }
-                            ArgNodeType::Value(val) => {
-                                println!("{val:?}");
-                            }
-                        }
-                    }
-                }
-            }
             return Ok((dictionary.0, dictionary.1, imports));
         }
-        None => {
-            return Err(ErrorOrigin::ParsingError(tokens.2));
+        Err(err) => {
+            return Err(ErrorOrigin::ParsingError(err.clone()));
         }
     }
 }

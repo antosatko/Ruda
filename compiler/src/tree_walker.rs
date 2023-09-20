@@ -3,7 +3,7 @@ pub mod tree_walker {
 
     use crate::ast_parser::ast_parser::{self, *};
     use crate::lexer::tokenizer::{*, self};
-    pub fn generate_tree(tokens: &Vec<Tokens>, syntax: &mut (Tree, Vec<HeadParam>), lines: &Vec<(usize, usize)>) -> Option<(Node, HashMap<String, ArgNodeType>)> {
+    pub fn generate_tree(tokens: &Vec<Tokens>, syntax: &mut (Tree, Vec<HeadParam>), lines: &Vec<(usize, usize)>) -> Result<(Node, HashMap<String, ArgNodeType>), (Err, Line)> {
         let mut idx = 0;
         let mut globals_data = HashMap::new();
         for global in &syntax.1 {
@@ -34,12 +34,12 @@ pub mod tree_walker {
             lines
         );
         match product {
-            Ok(prd) => {
-                Some((prd, globals_data))
+            Ok(product) => {
+                Ok((product, globals_data))
             }
             Err(err) => {
-                println!("{err:?}\nOriginated at line: {}, column: {}", lines[idx].1 + 1, lines[idx].0 + 1);
-                None
+                // println!("{err:?}\nOriginated at line: {}, column: {}", lines[idx].1 + 1, lines[idx].0 + 1);
+                Err((err.0, Line::from(lines[idx])))
             }
         }
     }
@@ -596,7 +596,7 @@ pub mod tree_walker {
         NotEq,
         Ident(&'a str),
     }
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub enum Err {
         Expected(Tokens, Tokens),
         ExpectedOneOf(Vec<Tokens>, Tokens),

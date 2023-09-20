@@ -13,7 +13,7 @@ pub fn load(string: &[u8]) -> Result<Dictionary, String> {
     } else {
         return Err("".to_owned());
     };
-    let tree = if let Some(tree) = generate_tree(&tokens, &mut (ast.0, vec![]), &lines) {
+    let tree = if let Ok(tree) = generate_tree(&tokens, &mut (ast.0, vec![]), &lines) {
         println!("{:?}", tree);
         tree
     } else {

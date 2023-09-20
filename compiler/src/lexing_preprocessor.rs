@@ -1,7 +1,8 @@
 pub mod lexing_preprocessor {
+
     use std::time::SystemTime;
 
-    use crate::lexer::tokenizer::{deparse_token, Operators, Tokens};
+    use crate::{lexer::tokenizer::{deparse_token, Operators, Tokens}, tree_walker::tree_walker::Line};
 
     use super::parse_err::Errors;
     pub fn refactor(
@@ -35,7 +36,7 @@ pub mod lexing_preprocessor {
                                 num
                             } else {
                                 // syntax err: incorrect number
-                                errors.push(Errors::InvalidNumber(lines[idx], txt.to_string()));
+                                errors.push(Errors::InvalidNumber(Line::from(lines[idx]), txt.to_string()));
                                 return 1;
                             };
                             if let Tokens::Text(txt2) = &tokens[idx + 2] {
@@ -51,7 +52,7 @@ pub mod lexing_preprocessor {
                                     let mut res = txt.to_string();
                                     res.push('.');
                                     res.push_str(txt2);
-                                    errors.push(Errors::InvalidNumber(lines[idx], res));
+                                    errors.push(Errors::InvalidNumber(Line::from(lines[idx]), res));
                                     return 1;
                                 };
                             } else {
@@ -63,7 +64,7 @@ pub mod lexing_preprocessor {
                                 if let Ok(num) = txt.parse::<usize>() {
                                     tokens[idx] = Tokens::Number(num as f64, 'n')
                                 } else {
-                                    errors.push(Errors::InvalidNumber(lines[idx], txt.to_string()));
+                                    errors.push(Errors::InvalidNumber(Line::from(lines[idx]), txt.to_string()));
                                     // syntax err: incorrect number
                                 }
                             } else {
@@ -71,7 +72,7 @@ pub mod lexing_preprocessor {
                                     tokens[idx] =
                                         Tokens::Number(num as f64, last)
                                 } else {
-                                    errors.push(Errors::InvalidNumber(lines[idx], txt.to_string()));
+                                    errors.push(Errors::InvalidNumber(Line::from(lines[idx]), txt.to_string()));
                                     // syntax err: incorrect number
                                 }
                             }
@@ -129,12 +130,12 @@ pub mod lexing_preprocessor {
                         if temp.len() == 1 {
                             tokens[idx] = Tokens::Char(temp.chars().next().unwrap());
                         } else {
-                            errors.push(Errors::CharacterTooLong(lines[idx], temp));
+                            errors.push(Errors::CharacterTooLong(Line::from(lines[idx]), temp));
                         }
                     }
                     Err(err) => {
                         // syntax err: invalid string
-                        errors.push(Errors::InvalidChar(lines[idx], err.to_string()));
+                        errors.push(Errors::InvalidChar(Line::from(lines[idx]), err.to_string()));
                         tokens[idx] = Tokens::String(res);
                     }
                 }
@@ -284,13 +285,16 @@ pub mod lexing_preprocessor {
 }
 
 pub mod parse_err {
+    use crate::tree_walker::tree_walker::Line;
+
+
     #[derive(Debug)]
     pub enum Errors {
-        // (line, column) number
-        InvalidNumber((usize, usize), String),
-        // (line, column) character
-        InvalidChar((usize, usize), String),
-        // (line, column) character
-        CharacterTooLong((usize, usize), String),
+        // number
+        InvalidNumber(Line, String),
+        // character
+        InvalidChar(Line, String),
+        // character
+        CharacterTooLong(Line, String),
     }
 }

@@ -1,8 +1,8 @@
-import "std.time" as time
-import "std.window" as win
+// import "std.time" as time
+// import "std.window" as win
 
-pub const S_WIDTH: uint = 650
-const S_HEIGHT: uint = 400
+pub const S_WIDTH = 650
+const S_HEIGHT = 400
 
 
 pub trait TRT impl danda.dfg5 .fg, sger.fdg {
@@ -43,8 +43,8 @@ impl Ball {
 }
 
 enum Sides {
-    Left = 50,
-    Right = 600,
+    Left = 50i,
+    Right = 600i,
 }
 
 struct Player {
