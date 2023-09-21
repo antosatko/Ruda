@@ -868,7 +868,7 @@ impl Context {
                             PointerTypes::Heap(idx) => {
                                 self.memory.heap.data[u_size][i + idx] = value;
                             }
-                            PointerTypes::Char(idx) => {
+                            PointerTypes::Char(_idx) => {
                                 todo!()
                             }
                             PointerTypes::String => {

@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use git2::Repository;
 use git_url_parse::GitUrl;
 

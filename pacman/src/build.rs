@@ -3,7 +3,7 @@ use crate::config;
 use crate::config::Profile;
 use crate::remote;
 
-pub fn run(path: &str, profile: &str, args: Vec<String>) {
+pub fn run(path: &str, profile: &str, _args: Vec<String>) {
     let config = config::read(path);
     let profile = match config.profile.get(profile) {
         Some(prof) => (profile, prof),
