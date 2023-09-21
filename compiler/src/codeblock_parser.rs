@@ -3,7 +3,6 @@ use crate::tree_walker::tree_walker::Line;
 use crate::{expression_parser::*, tree_walker};
 use crate::intermediate::dictionary::{ShallowType, step_inside_arr, step_inside_val, get_ident, get_type};
 use crate::lexer::tokenizer::*;
-use crate::type_check::*;
 use crate::expression_parser::*;
 
 pub fn generate_tree(node: &tree_walker::tree_walker::Node, errors: &mut Vec<ErrType>) -> Vec<Nodes> {
