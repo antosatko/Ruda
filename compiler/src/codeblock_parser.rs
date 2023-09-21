@@ -184,7 +184,7 @@ pub fn node_from_node(node: &tree_walker::tree_walker::Node, errors: &mut Vec<Er
                         kinds.push(kind);
                     }
                     
-                    catch.push(Catch { ident, kinds, body });
+                    catch.push(Catch { ident, kinds, body, line: node.line });
                 }
                 Some(Nodes::Try {
                     body,
@@ -308,7 +308,7 @@ pub enum Nodes {
         line: Line,
     },
     Yeet {
-        expr: (String, Vec<TailNodes>),
+        expr: ((String, Line), Vec<(TailNodes, Line)>),
         line: Line,
     },
     Try {
@@ -337,4 +337,5 @@ pub struct Catch {
     ident: String,
     kinds: Vec<Vec<String>>,
     body: Vec<Nodes>,
+    pub line: Line,
 }

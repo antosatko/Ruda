@@ -33,7 +33,7 @@ pub fn traverse_da_fokin_value(val: &ValueType, depth: usize) {
                 traverse_da_fokin_value(val, depth + 1);
             }
         }
-        ValueType::Operator(val) => {
+        ValueType::Operator(val, _) => {
             println!("{}Operator", "-".repeat(depth));
         }
         ValueType::AnonymousFunction(val) => {
@@ -86,17 +86,13 @@ const ORDER_OF_OPERATIONS: [Operators; 13] = [
 
 /// recursive function that transforms list of values into tree
 pub fn list_into_tree(list: &mut Vec<ValueType>) -> Result<ValueType, TreeTransformError> {
-    let mut result = ExprNode {
-        left: None,
-        right: None,
-        operator: None,
-    };
+    let mut result = ExprNode::blank();
     if list.len() == 0 {
         return Ok(ValueType::Blank);
     }
     if list.len() == 1 {
-        if let ValueType::Operator(_) = &list[0] {
-            return Err(TreeTransformError::ExcessOperator);
+        if let ValueType::Operator(_, line) = &list[0] {
+            return Err(TreeTransformError::ExcessOperator(line.clone()));
         }
         return Ok(list.pop().unwrap());
     }
@@ -104,13 +100,13 @@ pub fn list_into_tree(list: &mut Vec<ValueType>) -> Result<ValueType, TreeTransf
         let mut i = 0;
         // if the list consists of only 1 value and it is not an operator, return it
         while i < list.len() {
-            if let ValueType::Operator(op2) = &list[i] {
-                if op == op2 {
+            if let ValueType::Operator(op2, line) = list[i] {
+                if *op == op2 {
                     if i == 0 {
-                        return Err(TreeTransformError::NoValue);
+                        return Err(TreeTransformError::NoValue(line.clone()));
                     }
                     if i == list.len() - 1 {
-                        return Err(TreeTransformError::ExcessOperator);
+                        return Err(TreeTransformError::ExcessOperator(line.clone()));
                     }
                     result.operator = Some(*op);
                     // split list into 2 lists using index
@@ -119,7 +115,7 @@ pub fn list_into_tree(list: &mut Vec<ValueType>) -> Result<ValueType, TreeTransf
                     // call this function recursively for each side
                     // left side
                     if list.len() == 0 {
-                        return Err(TreeTransformError::NoValue);
+                        return Err(TreeTransformError::NoValue(line.clone()));
                     }
                     let res = list_into_tree(list);
                     if let Ok(left) = res {
@@ -129,7 +125,7 @@ pub fn list_into_tree(list: &mut Vec<ValueType>) -> Result<ValueType, TreeTransf
                     }
                     // right side
                     if right.len() == 0 {
-                        return Err(TreeTransformError::NoValue);
+                        return Err(TreeTransformError::NoValue(line.clone()));
                     }
                     let res = list_into_tree(&mut right);
                     if let Ok(right) = res {
@@ -150,9 +146,9 @@ pub fn list_into_tree(list: &mut Vec<ValueType>) -> Result<ValueType, TreeTransf
 
 #[derive(Debug)]
 pub enum TreeTransformError {
-    NoValue,
-    ExcessOperator,
-    ExcessValue,
+    NoValue(Line),
+    ExcessOperator(Line),
+    ExcessValue(Line),
     NotImplementedCuzLazy,
 }
 
@@ -160,7 +156,7 @@ pub fn transform_expr(nodes: &Vec<Node>, errors: &mut Vec<ErrType>) -> Vec<Value
     let mut result = vec![];
     for node in nodes {
         if let Some(op) = try_get_op(&node, errors) {
-            result.push(ValueType::Operator(op));
+            result.push(ValueType::Operator(op, node.line));
             continue;
         }
         if let Some(val) = try_get_value(&node, errors) {
@@ -185,6 +181,7 @@ pub fn try_get_value(node: &Node, errors: &mut Vec<ErrType>) -> Option<ValueType
             modificatior: prepend.1,
             root: car.0,
             tail: car.1,
+            line: node.line
         }));
     }
     if let Some(lit) = try_get_literal(step_inside_val(&node, "value"), errors, &prepend) {
@@ -199,7 +196,7 @@ pub fn try_get_value(node: &Node, errors: &mut Vec<ErrType>) -> Option<ValueType
 pub fn try_get_literal(
     node: &Node,
     errors: &mut Vec<ErrType>,
-    prepend: &(Ref, Option<String>, Option<Operators>),
+    prepend: &(Ref, Option<(String, Line)>, Option<(Operators, Line)>),
 ) -> Option<Literal> {
     if let Tokens::Text(txt) = &node.name {
         if txt != "literal" {
@@ -281,7 +278,7 @@ pub fn try_get_literal(
 pub fn try_get_variable(
     node: &Node,
     errors: &mut Vec<ErrType>,
-) -> Option<(String, Vec<TailNodes>)> {
+) -> Option<((String, Line), Vec<(TailNodes, Line)>)> {
     if let Tokens::Text(txt) = &node.name {
         if txt != "variable" {
             return None;
@@ -289,7 +286,7 @@ pub fn try_get_variable(
     }
     let ident = get_ident(&node);
     let tail = get_tail(step_inside_val(&node, "tail"), errors);
-    Some((ident, tail))
+    Some(((ident, node.line), tail))
 }
 
 pub fn get_args(node: &Node, errors: &mut Vec<ErrType>) -> Vec<ValueType> {
@@ -303,7 +300,7 @@ pub fn get_args(node: &Node, errors: &mut Vec<ErrType>) -> Vec<ValueType> {
 pub fn try_get_parenthesis(
     node: &Node,
     errors: &mut Vec<ErrType>,
-) -> Option<(ValueType, Vec<TailNodes>)> {
+) -> Option<(ValueType, Vec<(TailNodes, Line)>)> {
     if let Tokens::Text(txt) = &node.name {
         if txt != "free_parenthesis" {
             return None;
@@ -314,28 +311,28 @@ pub fn try_get_parenthesis(
     Some((expression, tail))
 }
 
-pub fn get_tail(node: &Node, errors: &mut Vec<ErrType>) -> Vec<TailNodes> {
+pub fn get_tail(node: &Node, errors: &mut Vec<ErrType>) -> Vec<(TailNodes, Line)> {
     let mut tail = vec![];
     for child in step_inside_arr(&node, "nodes") {
         if let Tokens::Text(txt) = &child.name {
             if txt == "idx" {
                 let expr = expr_into_tree(step_inside_val(&child, "expression"), errors);
-                tail.push(TailNodes::Index(expr));
+                tail.push((TailNodes::Index(expr), child.line));
                 continue;
             }
             if txt == "nested" {
-                tail.push(TailNodes::Nested(get_ident(&child)));
+                tail.push((TailNodes::Nested(get_ident(&child)), child.line));
                 continue;
             }
             if txt == "function_call" {
                 let generic = get_generics_expr(&child, errors);
                 let args = get_args(step_inside_val(&child, "parenthesis"), errors);
-                tail.push(TailNodes::Call(FunctionCall { generic, args }));
+                tail.push((TailNodes::Call(FunctionCall { generic, args }), child.line));
                 continue;
             }
             if txt == "cast" {
                 let kind = get_nested_ident(step_inside_val(&child, "type"), errors);
-                tail.push(TailNodes::Cast(kind));
+                tail.push((TailNodes::Cast(kind), child.line));
                 break;
             }
         }
@@ -346,21 +343,22 @@ pub fn get_tail(node: &Node, errors: &mut Vec<ErrType>) -> Vec<TailNodes> {
 pub fn get_prepend(
     node: &Node,
     errors: &mut Vec<ErrType>,
-) -> (Ref, Option<String>, Option<Operators>) {
+) -> (Ref, Option<(String, Line)>, Option<(Operators, Line)>) {
     // TODO: use "ref_tok" instead of "ref_type"
     let refs = get_ref_type(&node);
-    let modificator = if let Tokens::Text(txt) = &step_inside_val(&node, "keywords").name {
+    let temp = &step_inside_val(&node, "keywords");
+    let modificator = if let Tokens::Text(txt) = &temp.name {
         if txt == "'none" {
             None
         } else {
-            Some(txt.to_string())
+            Some((txt.to_string(), temp.line))
         }
     } else {
         None
     };
     let unary = if let Some(un) = try_step_inside_val(&step_inside_val(&node, "unary"), "op") {
         if let Tokens::Operator(op) = un.name {
-            Some(op)
+            Some((op, un.line))
         } else {
             None
         }
@@ -417,17 +415,20 @@ pub struct ExprNode {
     pub left: Option<ValueType>,
     pub right: Option<ValueType>,
     pub operator: Option<Operators>,
+    pub line: Line,
 }
 impl ExprNode {
     pub fn new(
         left: Option<ValueType>,
         right: Option<ValueType>,
         operator: Option<Operators>,
+        line: Line,
     ) -> ExprNode {
         ExprNode {
             left,
             right,
             operator,
+            line
         }
     }
     pub fn blank() -> ExprNode {
@@ -435,6 +436,7 @@ impl ExprNode {
             left: None,
             right: None,
             operator: None,
+            line: Line::from((0, 0))
         }
     }
 }
@@ -443,10 +445,10 @@ pub enum ValueType {
     Literal(Literal),
     AnonymousFunction(Function),
     /// parenthesis
-    Parenthesis(Box<ValueType>, Vec<TailNodes>),
+    Parenthesis(Box<ValueType>, Vec<(TailNodes, Line)>),
     Expression(Box<ExprNode>),
     /// only for inner functionality
-    Operator(Operators),
+    Operator(Operators, Line),
     Value(Variable),
     Blank,
 }
@@ -460,10 +462,10 @@ impl ValueType {
 }
 #[derive(Debug, Clone)]
 pub struct Literal {
-    pub unary: Option<Operators>,
+    pub unary: Option<(Operators, Line)>,
     pub refs: Ref,
     /// atm only keyword new, so bool would be sufficient, but who knows what will be in the future updates
-    pub modificatior: Option<String>,
+    pub modificatior: Option<(String, Line)>,
     pub value: Literals,
     pub line: Line,
 }
@@ -497,23 +499,24 @@ impl fmt::Debug for ArrayRule {
 }
 #[derive(Debug, Clone)]
 pub struct Variable {
-    pub unary: Option<Operators>,
+    pub unary: Option<(Operators, Line)>,
     pub refs: Ref,
     /// atm only keyword new, so bool would be sufficient, but who knows what will be in the future updates
-    pub modificatior: Option<String>,
+    pub modificatior: Option<(String, Line)>,
     /// for longer variables
     /// example: *danda[5].touch_grass(9)
     ///           ~~~~~ <- this is considered root
-    pub root: String,
+    pub root: (String, Line),
     /// for longer variables
     /// example: danda[5].touch_grass(9)
     /// danda is root .. rest is tail
-    pub tail: Vec<TailNodes>,
+    pub tail: Vec<(TailNodes, Line)>,
+    pub line: Line,
 }
 
 impl Variable {
     pub fn is_simple(&self) -> bool {
-        self.refs == Ref::None && self.modificatior.is_none() && self.tail.iter().all(|x| match x {
+        self.refs == Ref::None && self.modificatior.is_none() && self.tail.iter().all(|x| match x.0 {
             TailNodes::Nested(_) => true,
             _ => false
         })

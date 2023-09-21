@@ -208,12 +208,12 @@ pub fn new_imports(imports: &mut Vec<String>, new: Vec<String>) {
 pub fn build_dictionaries(main: &str, ast: &mut (HashMap<String, Head>, Vec<HeadParam>)) -> Result<Dictionaries, (ErrorOrigin, String)> {
     // root is the directory of the main file
     let main_path = std::path::Path::new(main);
-    let main = main_path.file_name().expect("internal error 6. please contact the developer.").to_str().expect("internal error 5. please contact the developer.");
+    let main_ = main_path.file_name().expect("internal error 6. please contact the developer.").to_str().expect("internal error 5. please contact the developer.");
     let root = main_path.parent().expect("internal error 0. please contact the developer.").to_str().expect("internal error 0. please contact the developer.");
-    let main = match read_source(root, main) {
+    let main = match read_source(root, main_) {
         Ok(main) => main,
         Err(err) => {
-            return Err((err, main.to_string()));
+            return Err((err, main_.to_string()));
         }
     };
     let mut imports = Vec::new();
@@ -224,10 +224,10 @@ pub fn build_dictionaries(main: &str, ast: &mut (HashMap<String, Head>, Vec<Head
                 panic!("internal error 1. please contact the developer.")
             }
             new_imports(&mut imports, res.2);
-            dictionaries.insert(main, res.0);
+            dictionaries.insert(main_.to_string(), res.0);
         },
         Err(err) => {
-            return Err((err, main.to_string()));
+            return Err((err, root.to_string()));
         }
     };
     loop {
@@ -267,6 +267,10 @@ pub fn build_dictionaries(main: &str, ast: &mut (HashMap<String, Head>, Vec<Head
             }
         }
         if all {
+            for dict in &dictionaries {
+                println!("Dictionary: {}", dict.0);
+                println!("{:?}", dict.1);
+            }
             return Ok(dictionaries);
         }
     }

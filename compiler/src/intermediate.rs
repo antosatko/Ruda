@@ -89,17 +89,17 @@ pub mod dictionary {
             ValueType::AnonymousFunction(fun) => Some(ConstValue::Function((*fun).clone())),
             ValueType::Value(val) => {
                 let unary = if let Some(unary) = &val.unary {
-                    unary
+                    *unary
                 } else {
-                    &Operators::DoubleEq
+                    (Operators::DoubleEq, val.line)
                 };
                 let val = if val.is_simple() {
                     if val.tail.len() == 0 {
-                        match val.root.as_str() {
+                        match val.root.0.as_str() {
                             "true" => Some(ConstValue::Bool(true)),
                             "false" => Some(ConstValue::Bool(false)),
                             _ => {
-                                let const_val = dictionary.find_const(&val.root);
+                                let const_val = dictionary.find_const(&val.root.0);
                                 if let Some(const_val) = const_val {
                                     if let Some(val) = &const_val.real_value {
                                         Some((*val).clone())
@@ -119,7 +119,7 @@ pub mod dictionary {
                 };
                 match val {
                     Some(mut val) => {
-                        val.apply_unary(unary);
+                        val.apply_unary(&unary.0);
                         Some(val)
                     }
                     None => None,
@@ -147,7 +147,7 @@ pub mod dictionary {
                 let op = if let Some(op) = &expression.operator {
                     op
                 } else {
-                    errors.push(ErrType::MissingOperator);
+                    errors.push(ErrType::MissingOperator(expression.line));
                     return None;
                 };
                 match &op {
@@ -206,9 +206,9 @@ pub mod dictionary {
                 let mut result = Enum {
                     identifier: get_ident(&node),
                     keys: vec![],
-                    src_loc: 0,
                     methods: vec![],
                     overloads: vec![],
+                    line: node.line
                 };
                 for enum_value in step_inside_arr(&node, "values") {
                     let n = if let Tokens::Number(n, _) = get_token(&enum_value, "default") {
@@ -227,7 +227,7 @@ pub mod dictionary {
                                 .push(ErrType::EnumVariantAssignedIdent(ident.to_string(), enum_value.line))
                         }
                     }
-                    result.keys.push((ident, n));
+                    result.keys.push((ident, n, enum_value.line));
                 }
                 if dictionary.register_id(result.identifier.to_string(), IdentifierKinds::Enum) {
                     dictionary.enums.push(result);
@@ -245,6 +245,7 @@ pub mod dictionary {
                         overloads: vec![],
                         methods: vec![],
                         public: public(&node),
+                        line: node.line
                     })
                 } else {
                     errors.push(ErrType::ConflictingNames(name.to_string(), node.line))
@@ -254,12 +255,12 @@ pub mod dictionary {
                 let mut result = Struct {
                     identifier: get_ident(node),
                     fields: Vec::new(),
-                    src_loc: 0,
                     generics: get_generics_decl(node, errors),
                     traits: Vec::new(),
                     public: public(&node),
                     memory_layout: Vec::new(),
                     ptrs: 0,
+                    line: node.line
                 };
                 for key in step_inside_arr(node, "keys") {
                     let ident = get_ident(&key);
@@ -295,6 +296,7 @@ pub mod dictionary {
                 dictionary.imports.push(Import {
                     path,
                     alias,
+                    line: node.line
                 });
             }
             "KWFun" => {
@@ -328,6 +330,7 @@ pub mod dictionary {
                         kind,
                         identifier,
                         location: 0,
+                        line: node.line
                     })
                 } else {
                     errors.push(ErrType::ConflictingNames(identifier.to_string(), node.line))
@@ -345,6 +348,7 @@ pub mod dictionary {
                             errors,
                         ),
                         real_value: None,
+                        line: node.line
                     })
                 } else {
                     errors.push(ErrType::ConflictingNames(identifier.to_string(), node.line))
@@ -375,7 +379,7 @@ pub mod dictionary {
                     traits,
                     functions,
                     overloads,
-                    src_loc: 0,
+                    line: node.line
                 })
             }
             "KWTrait" => {
@@ -403,8 +407,8 @@ pub mod dictionary {
                         methods: functions,
                         overloads,
                         traits,
-                        src_loc: 0,
                         public: is_pub,
+                        line: node.line
                     })
                 } else {
                     errors.push(ErrType::ConflictingNames(identifier.to_string(), node.line))
@@ -417,7 +421,11 @@ pub mod dictionary {
                 for arg in step_inside_arr(&node, "args") {
                     let ident = get_ident(&arg);
                     let kind = get_type(&step_inside_val(&arg, "type"), errors);
-                    args.push((ident, kind));
+                    args.push(Arg {
+                        identifier: ident,
+                        kind,
+                        line: arg.line
+                    })
                 }
                 let mut fields = Vec::new();
                 for field in step_inside_arr(&node, "fields") {
@@ -444,6 +452,7 @@ pub mod dictionary {
                         args,
                         fields,
                         src_loc: 0,
+                        line: node.line
                     })
                 } else {
                     errors.push(ErrType::ConflictingNames(ident.to_string(), node.line))
@@ -489,17 +498,18 @@ pub mod dictionary {
 
         Overload {
             operator,
-            arg: (
-                get_ident(&arg),
-                get_type(step_inside_val(&arg, "type"), errors),
-            ),
+            arg: Arg {
+                identifier: get_ident(&arg),
+                kind: get_type(step_inside_val(&arg, "type"), errors),
+                line: arg.line
+            },
             stack_size: None,
             location: None,
             return_type: kind,
             generics,
-            src_loc: 0,
             public: public(&node),
             code,
+            line: node.line
         }
     }
     pub fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>) -> Function {
@@ -519,25 +529,30 @@ pub mod dictionary {
             if let Tokens::Text(name) = &arg.name {
                 match name.as_str() {
                     "self_arg" => {
-                        args.push((
-                            String::from("self"),
-                            ShallowType {
+                        args.push(Arg{
+                            identifier: String::from("self"),
+                            kind: ShallowType {
                                 is_fun: None,
                                 arr_len: None,
                                 refs: count_refs(&arg),
                                 main: vec![String::from("Self")],
                                 generics: Vec::new(),
                             },
-                        ));
+                            line: arg.line
+                        });
                     }
                     "arg" => {
                         let ident = get_ident(arg);
-                        for (arg_ident, _) in &args {
-                            if *arg_ident == ident {
+                        for arg in &args {
+                            if arg.identifier == ident {
                                 errors.push(ErrType::ConflictingArgsName(ident.to_string(), arg.line));
                             }
                         }
-                        args.push((ident, get_type(step_inside_val(&arg, "type"), errors)));
+                        args.push(Arg{
+                            identifier: ident,
+                            kind: get_type(step_inside_val(&arg, "type"), errors),
+                            line: arg.line
+                        });
                     }
                     _ => {
                         unreachable!()
@@ -573,9 +588,9 @@ pub mod dictionary {
             location: None,
             return_type: kind,
             generics,
-            src_loc: 0,
             public: false,
             code,
+            line: node.line
         }
     }
     pub fn public(node: &Node) -> bool {
@@ -750,6 +765,7 @@ pub mod dictionary {
     pub struct Import {
         pub path: String,
         pub alias: Option<String>,
+        pub line: Line,
     }
     #[derive(Debug)]
     pub struct Trait {
@@ -758,8 +774,8 @@ pub mod dictionary {
         pub overloads: Vec<Overload>,
         // dependences
         pub traits: Vec<NestedIdent>,
-        pub src_loc: usize,
         pub public: bool,
+        pub line: Line
     }
     #[derive(Debug, Clone)]
     pub enum IdentifierKinds {
@@ -780,6 +796,7 @@ pub mod dictionary {
         pub public: bool,
         pub overloads: Vec<Overload>,
         pub methods: Vec<Function>,
+        pub line: Line,
     }
     #[derive(Debug, Clone)]
     pub struct GenericDecl {
@@ -791,12 +808,19 @@ pub mod dictionary {
         pub identifier: String,
         pub src_loc: usize,
         pub fields: Vec<(String, ErrorField)>,
-        pub args: Vec<(String, ShallowType)>,
+        pub args: Vec<Arg>,
+        pub line: Line,
     }
     #[derive(Debug)]
     pub enum ErrorField {
         Expression(expression_parser::ValueType),
         CodeBlock(Vec<codeblock_parser::Nodes>),
+    }
+    #[derive(Debug, Clone)]
+    pub struct Arg {
+        pub identifier: String,
+        pub kind: ShallowType,
+        pub line: Line,
     }
     #[derive(Debug, Clone)]
     pub struct Function {
@@ -810,7 +834,7 @@ pub mod dictionary {
         /// "nothing:"
         pub identifier: Option<String>,
         /// type of args in order
-        pub args: Vec<(String, ShallowType)>,
+        pub args: Vec<Arg>,
         /// size needed to allocate on stack while function call (args.len() included)
         pub stack_size: Option<usize>,
         /// location in bytecode, so runtime knows where to jump
@@ -818,37 +842,34 @@ pub mod dictionary {
         pub return_type: Option<ShallowType>,
         pub can_yeet: bool,
         pub generics: Vec<GenericDecl>,
-        /// location in source code
-        pub src_loc: usize,
         pub public: bool,
         pub code: Vec<codeblock_parser::Nodes>,
+        pub line: Line,
     }
     #[derive(Debug)]
     pub struct Overload {
         pub operator: Tokens,
         /// type of args in order
-        pub arg: (String, ShallowType),
+        pub arg: Arg,
         /// size needed to allocate on stack while function call (args.len() included)
         pub stack_size: Option<usize>,
         /// location in bytecode, so runtime knows where to jump
         pub location: Option<usize>,
         pub return_type: Option<ShallowType>,
         pub generics: Vec<GenericDecl>,
-        /// location in source code
-        pub src_loc: usize,
         pub public: bool,
         pub code: Vec<codeblock_parser::Nodes>,
+        pub line: Line,
     }
     #[derive(Debug)]
     pub struct Enum {
         pub identifier: String,
         /// enum values and their offset
         /// enum ErrCode { Continue = 100, SwitchingProtocols, ..., Ok = 200, ... }
-        pub keys: Vec<(String, usize)>,
-        /// location in source code
-        pub src_loc: usize,
+        pub keys: Vec<(String, usize, Line)>,
         pub methods: Vec<Function>,
         pub overloads: Vec<Overload>,
+        pub line: Line,
     }
     pub type NestedIdent = Vec<String>;
     #[derive(Debug)]
@@ -856,13 +877,12 @@ pub mod dictionary {
         pub generics: Vec<GenericDecl>,
         pub identifier: String,
         pub fields: Vec<(String, ShallowType)>,
-        /// location in source code
-        pub src_loc: usize,
         pub traits: Vec<NestedIdent>,
         pub public: bool,
         pub memory_layout: Vec<(String, usize)>,
         /// number of pointers in struct
         pub ptrs: usize,
+        pub line: Line,
     }
     #[derive(Debug)]
     pub struct Implementation {
@@ -870,8 +890,7 @@ pub mod dictionary {
         pub traits: Vec<NestedIdent>,
         pub functions: Vec<Function>,
         pub overloads: Vec<Overload>,
-        /// location in source code
-        pub src_loc: usize,
+        pub line: Line,
     }
     #[derive(Debug)]
     pub struct Variable {
@@ -879,6 +898,7 @@ pub mod dictionary {
         pub identifier: String,
         /// location on stack
         pub location: usize,
+        pub line: Line,
     }
     #[derive(Debug)]
     pub struct Constant {
@@ -888,6 +908,7 @@ pub mod dictionary {
         pub public: bool,
         pub value: expression_parser::ValueType,
         pub real_value: Option<ConstValue>,
+        pub line: Line,
     }
     #[derive(Debug, Clone)]
     pub enum ConstValue {
@@ -909,7 +930,7 @@ pub mod dictionary {
             dictionary: &Dictionary,
             errors: &mut Vec<ErrType>,
         ) -> Option<ConstValue> {
-            let negate = if let Some(Operators::Minus) = literal.unary {
+            let negate = if let Some((Operators::Minus, _)) = literal.unary {
                 -1.0
             } else {
                 1.0
@@ -1040,7 +1061,7 @@ pub mod dictionary {
                 write!(f, "{}", fun.identifier.as_ref().unwrap())?;
                 write!(f, "(")?;
                 for (i, arg) in fun.args.iter().enumerate() {
-                    write!(f, "{:?}", arg.1)?;
+                    write!(f, "{:?}", arg.kind)?;
                     if i != fun.args.len() - 1 {
                         write!(f, ", ")?;
                     }
@@ -1054,7 +1075,7 @@ pub mod dictionary {
             for (i, part) in self.main.iter().enumerate() {
                 write!(f, "{}", part)?;
                 if i != self.main.len() - 1 {
-                    write!(f, "::")?;
+                    write!(f, ".")?;
                 }
             }
             if self.arr_len.is_some() {
@@ -1218,6 +1239,6 @@ pub mod AnalyzationError {
         /// cannot_initialize_constant | occurs when you try to initialize constant with something that is not constant
         CannotInitializeConstant(String),
         /// missong_operator | occurs when expression expects operator but there is none
-        MissingOperator,
+        MissingOperator(Line),
     }
 }
