@@ -5,7 +5,7 @@ use std::ops::Index;
 use crate::intermediate::dictionary::*;
 use crate::intermediate::AnalyzationError::ErrType;
 use crate::lexer::tokenizer::{Operators, Tokens};
-use crate::tree_walker::tree_walker::Node;
+use crate::tree_walker::tree_walker::{Node, Line};
 use crate::{intermediate, lexer};
 use intermediate::dictionary::*;
 use intermediate::*;
@@ -213,6 +213,7 @@ pub fn try_get_literal(
             refs: prepend.0.clone(),
             modificatior: prepend.1.clone(),
             value: Literals::Number(this.name.clone()),
+            line: this.line
         });
     }
     if let Tokens::String(str) = &this.name {
@@ -221,6 +222,7 @@ pub fn try_get_literal(
             refs: prepend.0.clone(),
             modificatior: prepend.1.clone(),
             value: Literals::String(str.clone()),
+            line: this.line
         });
     }
     if let Tokens::Char(chr) = &this.name {
@@ -229,6 +231,7 @@ pub fn try_get_literal(
             refs: prepend.0.clone(),
             modificatior: prepend.1.clone(),
             value: Literals::Char(chr.clone()),
+            line: this.line
         });
     }
     if let Tokens::Text(txt) = &this.name {
@@ -250,7 +253,8 @@ pub fn try_get_literal(
                         value: Literals::Array(ArrayRule::Fill {
                             value: Box::new(value),
                             size: Box::new(size),
-                        })
+                        }),
+                        line: array.line
                     });
                 }
                 "array_literal" => {
@@ -263,7 +267,8 @@ pub fn try_get_literal(
                         unary: prepend.2,
                         refs: prepend.0.clone(),
                         modificatior: prepend.1.clone(),
-                        value: Literals::Array(ArrayRule::Explicit(result))
+                        value: Literals::Array(ArrayRule::Explicit(result)),
+                        line: array.line
                     });
                 }
                 _ => unreachable!("array_expr has to be either array_builder or array_literal, please report this bug")
@@ -460,6 +465,7 @@ pub struct Literal {
     /// atm only keyword new, so bool would be sufficient, but who knows what will be in the future updates
     pub modificatior: Option<String>,
     pub value: Literals,
+    pub line: Line,
 }
 impl Literal {
     pub fn is_simple(&self) -> bool {

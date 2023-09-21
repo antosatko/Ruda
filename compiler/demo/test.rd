@@ -1,6 +1,9 @@
 // import "std.time" as time
 // import "std.window" as win
 
+import "variables.rd"
+import "test.rd"
+
 pub const S_WIDTH = 650
 const S_HEIGHT = 400
 

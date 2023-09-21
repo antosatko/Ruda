@@ -1,4 +1,5 @@
 use crate::intermediate::AnalyzationError::ErrType;
+use crate::tree_walker::tree_walker::Line;
 use crate::{expression_parser::*, tree_walker};
 use crate::intermediate::dictionary::{ShallowType, step_inside_arr, step_inside_val, get_ident, get_type};
 use crate::lexer::tokenizer::*;
@@ -37,10 +38,15 @@ pub fn node_from_node(node: &tree_walker::tree_walker::Node, errors: &mut Vec<Er
                 };
                 Some(Nodes::Return {
                     expr,
+                    line: node.line,
                 })
             }
-            "KWBreak" => Some(Nodes::Break),
-            "KWContinue" => Some(Nodes::Continue),
+            "KWBreak" => Some(Nodes::Break{
+                line: node.line,
+            }),
+            "KWContinue" => Some(Nodes::Continue{
+                line: node.line,
+            }),
             "KWLoop" => {
                 let body = step_inside_arr(&node, "body");
                 let mut nodes = Vec::new();
@@ -52,6 +58,7 @@ pub fn node_from_node(node: &tree_walker::tree_walker::Node, errors: &mut Vec<Er
                 }
                 Some(Nodes::Loop {
                     body: nodes,
+                    line: node.line,
                 })
             }
             "KWYeet" => {
@@ -59,11 +66,13 @@ pub fn node_from_node(node: &tree_walker::tree_walker::Node, errors: &mut Vec<Er
                 let expr = try_get_variable(&expr, errors).unwrap();
                 Some(Nodes::Yeet {
                     expr,
+                    line: node.line,
                 })
             }
             "code_block" => {
                 Some(Nodes::Block {
                     body: generate_tree(&node, errors),
+                    line: node.line,
                 })
             }
             "set" => {
@@ -82,12 +91,14 @@ pub fn node_from_node(node: &tree_walker::tree_walker::Node, errors: &mut Vec<Er
                     target,
                     expr,
                     op,
+                    line: node.line,
                 })
             }
             "expression" => {
                 let expr = expr_into_tree(&node, errors);
                 Some(Nodes::Expr {
                     expr,
+                    line: node.line,
                 })
             }
             "KWIf" => {
@@ -99,7 +110,7 @@ pub fn node_from_node(node: &tree_walker::tree_walker::Node, errors: &mut Vec<Er
                     let cond = step_inside_val(&node, "expression");
                     let cond = expr_into_tree(&cond, errors);
                     let body = generate_tree(step_inside_val(&node, "code"), errors);
-                    elif.push((cond, Nodes::Block { body }));
+                    elif.push((cond, Nodes::Block { body, line: node.line }));
                 }
                 let els = step_inside_val(&node, "else");
                 let els = if let Tokens::Text(txt) = &els.name {
@@ -117,6 +128,7 @@ pub fn node_from_node(node: &tree_walker::tree_walker::Node, errors: &mut Vec<Er
                     body,
                     elif,
                     els,
+                    line: node.line,
                 })
             }
             "KWWhile" => {
@@ -126,6 +138,7 @@ pub fn node_from_node(node: &tree_walker::tree_walker::Node, errors: &mut Vec<Er
                 Some(Nodes::While {
                     cond,
                     body,
+                    line: node.line,
                 })
             }
             "KWFor" => {
@@ -137,6 +150,7 @@ pub fn node_from_node(node: &tree_walker::tree_walker::Node, errors: &mut Vec<Er
                     ident,
                     expr,
                     body,
+                    line: node.line,
                 })
             }
             "KWTry" => {
@@ -176,6 +190,7 @@ pub fn node_from_node(node: &tree_walker::tree_walker::Node, errors: &mut Vec<Er
                     body,
                     catch,
                     finally,
+                    line: node.line,
                 })
             }
             "KWSwitch" => {
@@ -200,7 +215,8 @@ pub fn node_from_node(node: &tree_walker::tree_walker::Node, errors: &mut Vec<Er
                 return Some(Nodes::Switch {
                     expr,
                     body,
-                    default
+                    default,
+                    line: node.line,
                 });
             }
             "KWLet" => {
@@ -232,6 +248,7 @@ pub fn node_from_node(node: &tree_walker::tree_walker::Node, errors: &mut Vec<Er
                     ident,
                     expr,
                     kind,
+                    line: node.line,
                 })
             }
 
@@ -248,54 +265,70 @@ pub enum Nodes {
         ident: String,
         expr: Option<ValueType>,
         kind: Option<ShallowType>,
+        line: Line,
     },
     If {
         cond: ValueType,
         body: Vec<Nodes>,
         elif: Vec<(ValueType, Nodes)>,
         els: Option<Vec<Nodes>>,
+        line: Line,
     },
     While {
         cond: ValueType,
         body: Vec<Nodes>,
+        line: Line,
     },
     For {
         ident: String,
         expr: ValueType,
         body: Vec<Nodes>,
+        line: Line,
     },
     Return {
         expr: Option<ValueType>,
+        line: Line,
     },
     Expr {
         expr: ValueType,
+        line: Line,
     },
     Block {
         body: Vec<Nodes>,
+        line: Line,
     },
-    Break,
-    Continue,
+    Break {
+        line: Line,
+    },
+    Continue{
+        line: Line,
+    },
     Loop {
         body: Vec<Nodes>,
+        line: Line,
     },
     Yeet {
         expr: (String, Vec<TailNodes>),
+        line: Line,
     },
     Try {
         body: Vec<Nodes>,
         ///     catches ((ident, [types]), body)
         catch: Vec<Catch>,
         finally: Option<Vec<Nodes>>,
+        line: Line,
     },
     Switch {
         expr: ValueType,
         body: Vec<(ValueType, Vec<Nodes>)>,
         default: Option<Vec<Nodes>>,
+        line: Line,
     },
     Set {
         target: ValueType,
         expr: ValueType,
         op: Operators,
+        line: Line,
     },
 }
 
