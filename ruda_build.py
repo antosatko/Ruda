@@ -21,7 +21,7 @@ os.chdir(vm_dir)
 os.system("cargo build --release")
 
 # Build compiler
-compiler_dir = os.path.join(current_dir, "compiler")
+compiler_dir = os.path.join(current_dir, "compiler_cli")
 os.chdir(compiler_dir)
 os.system("cargo build --release")
 
@@ -32,7 +32,7 @@ os.system("cargo build --release")
 
 # Paths to executables and binaries
 path_to_vm = os.path.join(vm_dir, "target", "release", "rusty_vm")
-path_to_compiler = os.path.join(compiler_dir, "target", "release", "rusty_danda")
+path_to_compiler = os.path.join(compiler_dir, "target", "release", "compiler_cli")
 path_to_binaries = bin_dir
 path_to_package_manager = os.path.join(pacman_dir, "target", "release", "ruda")
 

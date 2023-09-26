@@ -1,9 +1,11 @@
-use ast_parser::ast_parser::{generate_ast, Head, HeadParam};
-use intermediate::AnalyzationError::ErrType;
-use lexer::tokenizer::Tokens;
-use lexing_preprocessor::parse_err::Errors;
+#![allow(warnings)]
+
+use crate::ast_parser::ast_parser::{generate_ast as gen_ast, Head, HeadParam};
+use crate::intermediate::AnalyzationError::ErrType;
+use crate::lexing_preprocessor::parse_err::Errors;
+use crate::lexer::tokenizer::Tokens;
+use crate::tree_walker::tree_walker::generate_tree;
 use std::{env, fs::File, hint::black_box, io::Read, time::SystemTime, collections::HashMap};
-use tree_walker::tree_walker::generate_tree;
 
 use crate::{tree_walker::tree_walker::ArgNodeType, intermediate::AnalyzationError};
 
@@ -196,7 +198,71 @@ pub fn libload(file: &str) -> Result<libloader::Dictionary, String> {
             .expect("Failed to load register function.")
     }();
     let lib = libloader::load(&register.as_bytes());
-    println!("Library loaded.");
-    println!("Library: {:#?}", lib);
     lib
+}
+
+pub fn generate_ast(ruda_path: &str) -> Result<Asts, AstGenError> {
+    use lexer::tokenizer::*;
+    // ruda_path + "/ruda.ast"
+    let ast_path = std::path::PathBuf::from(ruda_path).join("ruda.ast");
+    let ast_path = match ast_path.to_str() {
+        Some(path) => path,
+        None => return Err(AstGenError::NotFound(AstType::Ast)),
+    };
+    let (ast, globals) = if let Some(ast) = gen_ast(&ast_path) {
+        ast
+    } else {
+        return Err(AstGenError::CouldNotOpen(AstType::Ast));
+    };
+    let registry_path = std::path::PathBuf::from(ruda_path).join("registry.ast");
+    let registry_path = match registry_path.to_str() {
+        Some(path) => path,
+        None => return Err(AstGenError::NotFound(AstType::Registry)),
+    };
+    let (registry, _) = if let Some(ast) = gen_ast(&registry_path) {
+        ast
+    } else {
+        return Err(AstGenError::CouldNotOpen(AstType::Registry));
+    };
+    return Ok(Asts {
+        ast,
+        params: globals,
+        registry,
+    });
+}
+
+pub enum AstGenError {
+    NotFound(AstType),
+    ParseError(AstType),
+    CouldNotOpen(AstType),
+}
+
+impl std::fmt::Display for AstGenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AstGenError::NotFound(ast) => write!(f, "Could not find {} file.", ast),
+            AstGenError::ParseError(ast) => write!(f, "Could not parse {} file.", ast),
+            AstGenError::CouldNotOpen(ast) => write!(f, "Could not open {} file.", ast),
+        }
+    }
+}
+
+pub enum AstType {
+    Ast,
+    Registry,
+}
+
+impl std::fmt::Display for AstType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AstType::Ast => write!(f, "ast"),
+            AstType::Registry => write!(f, "registry"),
+        }
+    }
+}
+
+pub struct Asts {
+    pub ast: HashMap<String, Head>,
+    pub params: Vec<HeadParam>,
+    pub registry: HashMap<String, Head>,
 }
