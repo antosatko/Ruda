@@ -46,7 +46,7 @@ struct TempDependencyTable {
     args: Option<Vec<String>>,
 }
 
-#[derive(serde::Deserialize, Debug)]
+#[derive(serde::Deserialize, Debug, Copy, Clone)]
 pub enum ProjectKind {
     #[serde(rename = "lib")]
     Lib,
@@ -153,6 +153,7 @@ pub struct Profile {
     pub _3rdparty: _3rdparty,
     pub dependencies: HashMap<String, Dependency>,
     pub binaries: HashMap<String, String>,
+    pub kind: ProjectKind,
 }
 
 fn temp_into_config(path: &str, temp: TempConfig) -> Config {
@@ -183,6 +184,7 @@ fn temp_into_config(path: &str, temp: TempConfig) -> Config {
                     _3rdparty: profile._3rdparty.unwrap(),
                     dependencies: canonicalize_dependencies(&path, &profile.dependencies),
                     binaries: profile.binaries,
+                    kind: config.kind,
                 },
             )
         })

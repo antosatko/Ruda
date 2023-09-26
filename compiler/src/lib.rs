@@ -28,6 +28,7 @@ pub fn tokenize(content: &str, formating: bool) -> (Vec<Tokens>, Vec<(usize, usi
     tokens
 }
 
+#[derive(Debug)]
 pub enum ErrorOrigin {
     LexingError(Vec<lexing_preprocessor::parse_err::Errors>),
     ParsingError((tree_walker::tree_walker::Err, tree_walker::tree_walker::Line)),
@@ -137,10 +138,10 @@ pub fn build_dictionaries(main: &str, ast: &mut (HashMap<String, Head>, Vec<Head
             }
         }
         if all {
-            for dict in &dictionaries {
-                println!("Dictionary: {}", dict.0);
-                println!("{:?}", dict.1);
-            }
+            // for dict in &dictionaries {
+            //     println!("Dictionary: {}", dict.0);
+            //     println!("{:?}", dict.1);
+            // }
             return Ok(dictionaries);
         }
     }
@@ -148,6 +149,22 @@ pub fn build_dictionaries(main: &str, ast: &mut (HashMap<String, Head>, Vec<Head
     
 }
 
+
+/// returns all of the binaries as dictionaries in the order of the paths
+pub fn build_binaries(paths: &Vec<String>) -> Result<Vec<libloader::Dictionary>, String> {
+    let mut binaries = Vec::new();
+    for path in paths {
+        match libload(&path) {
+            Ok(lib) => {
+                binaries.push(lib);
+            },
+            Err(err) => {
+                return Err(err);
+            }
+        }
+    }
+    Ok(binaries)
+}
 
 /// you cannot kill me in a way that matters
 pub fn build_dictionary(mut content: &str, ast: &mut (HashMap<String, ast_parser::ast_parser::Head>, Vec<ast_parser::ast_parser::HeadParam>)) -> Result<(intermediate::dictionary::Dictionary, Vec<ErrType>, Vec<String>), ErrorOrigin> {
@@ -231,6 +248,7 @@ pub fn generate_ast(ruda_path: &str) -> Result<Asts, AstGenError> {
     });
 }
 
+#[derive(Debug)]
 pub enum AstGenError {
     NotFound(AstType),
     ParseError(AstType),
@@ -247,6 +265,7 @@ impl std::fmt::Display for AstGenError {
     }
 }
 
+#[derive(Debug)]
 pub enum AstType {
     Ast,
     Registry,
