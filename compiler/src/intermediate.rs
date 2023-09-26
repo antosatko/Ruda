@@ -268,10 +268,7 @@ pub mod dictionary {
                         if *field.0 == ident {
                             errors.push(ErrType::StructVariantAssignedIdent(
                                 ident.to_string(),
-                                Line {
-                                    line: 0,
-                                    column: 0,
-                                }
+                                field.1.line
                             ))
                         }
                     }
@@ -537,6 +534,7 @@ pub mod dictionary {
                                 refs: count_refs(&arg),
                                 main: vec![String::from("Self")],
                                 generics: Vec::new(),
+                                line: arg.line
                             },
                             line: arg.line
                         });
@@ -644,6 +642,7 @@ pub mod dictionary {
                 refs,
                 main: vec![],
                 generics: Vec::new(),
+                line: node.line,
             };
         }
         let mut arr_len = None;
@@ -682,6 +681,7 @@ pub mod dictionary {
             refs,
             main,
             generics: get_generics_expr(node, errors),
+            line: node.line
         }
     }
     pub fn get_generics_expr(node: &Node, errors: &mut Vec<ErrType>) -> GenericExpr {
@@ -1053,6 +1053,7 @@ pub mod dictionary {
         pub refs: usize,
         pub main: NestedIdent,
         pub generics: GenericExpr,
+        pub line: Line,
     }
     // print formating
     impl std::fmt::Debug for ShallowType {
@@ -1102,6 +1103,7 @@ pub mod dictionary {
                 refs: 0,
                 main: vec![],
                 generics: vec![],
+                line: Line { line: 0, column: 0 }
             }
         }
         pub fn cmp(&self, other: &Self, dict: &Dictionary) -> TypeComparison {

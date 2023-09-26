@@ -12,3 +12,6 @@ libloading = "0.7.0"
 
 [profile.dev]
 opt-level = 3
+
+[lib]
+crate-type = ["lib"]

@@ -35,10 +35,7 @@ pub fn load(string: &[u8]) -> Result<Dictionary, String> {
                             if *field.0 == ident {
                                 errors.push(ErrType::StructVariantAssignedIdent(
                                     ident.to_string(),
-                                    Line {
-                                        line: 0,
-                                        column: 0,
-                                    }
+                                    field.1.line
                                 ))
                             }
                         }
