@@ -27,6 +27,10 @@ pub enum Task {
         /// Project author
         #[clap(name = "author", short, long)]
         author: Option<String>,
+
+        /// Path to initialize
+        #[clap(name = "path", default_value = ".")]
+        path: String,
     },
     /// Build a project from source and run it
     Run {
@@ -37,12 +41,20 @@ pub enum Task {
         /// Runtime arguments for the VM
         #[clap(name = "args", last = true)]
         args: Vec<String>,
+        
+        /// Path to project
+        #[clap(name = "path", default_value = ".")]
+        path: String,
     },
     /// Build a project from source
     Build {
         /// Profile to use
         #[clap(name = "profile", short, long, default_value = "default")]
         profile: String,
+
+        /// Path to project
+        #[clap(name = "path", default_value = ".")]
+        path: String,
     },
     /// Install a package
     Install {

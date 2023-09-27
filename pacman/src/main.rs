@@ -17,20 +17,21 @@ fn main() {
             name,
             version,
             author,
+            path,
         } => {
             init::init(
-                ".",
+                &path,
                 kind.clone(),
                 name.clone(),
                 version.clone(),
                 author.clone(),
             );
         }
-        Task::Run { profile, args } => {
-            build::run(".", profile, args.clone());
+        Task::Run { profile, args, path } => {
+            build::run(&path, profile, args.clone());
         }
-        Task::Build { profile } => {
-            build::build(".", profile);
+        Task::Build { profile, path } => {
+            build::build(&path, profile);
         }
         Task::Install { source, version } => {
             remote::install(source, version);
