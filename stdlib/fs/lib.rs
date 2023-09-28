@@ -332,20 +332,26 @@ impl lib::Library for Foo {
 
 #[no_mangle]
 fn register() -> String {
+    
+    
+    
+    
+    
+    
     r#"
-    type File = usize
+    type File = usize > 0i
     
     impl File {
-        fun read(&self=reg.ptr): string > 5
-        fun write(&self=reg.ptr, data=reg.G1:string)! > 6
-        fun append(&self=reg.ptr, data=reg.G1:string)! > 7
-        fun close(&self=reg.ptr)! > 4
+        fun read(&self=reg.ptr): string > 5i
+        fun write(&self=reg.ptr, data=reg.G1:string)! > 6i
+        fun append(&self=reg.ptr, data=reg.G1:string)! > 7i
+        fun close(&self=reg.ptr)! > 4i
     }
     
-    fun fileRead(fileName=reg.ptr: string): string > 0
-    fun fileWrite(fileName=reg.ptr: string, data=reg.G1: string)! > 1
-    fun fileAppend(fileName=reg.ptr: string, data=reg.G1: string)! > 2
-    fun fileOpen(fileName=reg.ptr: string)!: File > 3
+    fun fileRead(fileName=reg.ptr: string): string > 0i
+    fun fileWrite(fileName=reg.ptr: string, data=reg.G1: string)! > 1i
+    fun fileAppend(fileName=reg.ptr: string, data=reg.G1: string)! > 2i
+    fun fileOpen(fileName=reg.ptr: string)!: File > 3i
 
     "#.to_string()
 }

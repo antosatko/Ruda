@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{config, sum};
 
 pub fn compile(path: &str, profile: (&str, &config::Profile)) {
@@ -57,15 +59,43 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
         }
     };
     let mut dictionaries = build_dictionaries(&main_file, &mut (ast, params));
-    let bin_paths = profile.1.binaries.iter().map(|(_, path)|path.clone()).collect();
-    let mut binaries = build_binaries(&bin_paths);
     println!("Dictionary generated.");
     println!("{:?}", dictionaries);
-    println!("Binaries generated.");
-    for (name, binary) in &profile.1.binaries {
-        println!("{name}");
-        println!("{binary}");
+    let mut bin_paths = Vec::new();
+    let mut lib_names = Vec::new();
+    for (lib_name, lib_path) in &profile.1.binaries {
+        let lib_path = std::path::Path::new(path).join(lib_path);
+        if !lib_path.exists() {
+            println!("{} does not exist.", lib_path.to_str().unwrap());
+            return;
+        }
+        let lib_path = match lib_path.to_str() {
+            Some(path) => path,
+            None => {
+                println!("Failed to convert path to string.");
+                return;
+            }
+        };
+        bin_paths.push(lib_path.to_string());
+        lib_names.push(lib_name.to_string());
     }
+    let mut binaries = match build_binaries(&bin_paths) {
+        Ok(binaries) => binaries,
+        Err(err) => {
+            println!("Failed to load binaries.");
+            println!("{}", err);
+            return;
+        }
+    };
+    let mut binaries = {
+        let mut bins = HashMap::new();
+        for (lib_name, lib_path) in lib_names.iter().zip(binaries.iter_mut()) {
+            bins.insert(lib_name.to_string(), lib_path);
+        }
+        bins
+    };
+    println!("Binaries generated.");
+    println!("{:?}", binaries);
     // TODO: uncomment for prod
     // sum::write_sums(path, profile.0, &sum::sum(path, profile.0));
 }

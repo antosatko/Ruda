@@ -209,10 +209,19 @@ pub fn build_dictionary(mut content: &str, ast: &mut (HashMap<String, ast_parser
 }
 
 pub fn libload(file: &str) -> Result<libloader::Dictionary, String> {
-    let lib = unsafe { libloading::Library::new(file).expect("Failed to load library.") };
+    let lib = unsafe { match libloading::Library::new(file) {
+        Ok(lib) => lib,
+        Err(err) => {
+            return Err(format!("Failed to load library '{file}'. {}", err));
+        }
+    } };
     let register = unsafe {
-        lib.get::<fn()->String>(b"register\0")
-            .expect("Failed to load register function.")
+        match lib.get::<fn()->String>(b"register\0") {
+            Ok(register) => register,
+            Err(err) => {
+                return Err(format!("Library is not correct format '{file}'. {}", err));
+            }
+        }
     }();
     let lib = libloader::load(&register.as_bytes());
     lib

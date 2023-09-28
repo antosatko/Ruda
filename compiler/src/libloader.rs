@@ -11,13 +11,13 @@ pub fn load(string: &[u8]) -> Result<Dictionary, String> {
     let ast = if let Some(ast) = generate_ast(&ast_path) {
         ast
     } else {
-        return Err("".to_owned());
+        return Err("Failed to load AST.".to_owned());
     };
-    let tree = if let Ok(tree) = generate_tree(&tokens, &mut (ast.0, vec![]), &lines) {
-        println!("{:?}", tree);
-        tree
-    } else {
-        return Err("".to_owned());
+    let tree = match generate_tree(&tokens, &mut (ast.0, vec![]), &lines) {
+        Ok(tree) => tree,
+        Err(err) => {
+            return Err(format!("Failed to generate tree. {:?}", err));
+        }
     };
     let mut errors = Vec::new();
     let mut dictionary = Dictionary::new();
@@ -239,19 +239,16 @@ fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>) -> Function {
 
 fn get_mem_loc(node: &Node) -> MemoryTypes {
     let node = step_inside_val(&node, "mem");
-    println!("1");
     let mem = if let Tokens::Text(txt) = &step_inside_val(&step_inside_val(&node, "mem"), "mem").name {
         txt.to_string()
     } else {
         unreachable!("you somehow managed to break the compiler, gj");
     };
-    println!("2");
     let loc = if let Tokens::Text(txt) = &step_inside_val(&node, "loc").name {
         txt.to_string()
     } else {
         unreachable!("you somehow managed to break the compiler, gj");
     };
-    println!("3");
     match mem.to_lowercase().as_str() {
         "stack" => MemoryTypes::Stack(loc.parse::<usize>().unwrap()),
         "reg" => {

@@ -102,15 +102,23 @@ fn main() {
                 Some(file) => file,
                 None => panic!("File not specified."),
             };
+            let mute = match args.nth(0) {
+                Some(mute) => mute == "mute",
+                None => false,
+            };
             println!("Loading library '{file}' starts.");
             match libload(&file) {
                 Ok(lib) => {
-                    println!("Library loaded.");
-                    println!("{:#?}", lib);
+                    if !mute {
+                        println!("Library loaded.");
+                        println!("{:#?}", lib);
+                    }
+                    std::process::exit(0);
                 }
                 Err(err) => {
                     println!("Failed to load library.");
                     println!("{}", err);
+                    std::process::exit(1);
                 }
             }
         }
