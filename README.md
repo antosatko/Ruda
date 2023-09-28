@@ -10,9 +10,11 @@
 
 ## About
 
-Ruda was designed to offer an easy but performant alternative to common languages. It aims to provide flawless experience for hobbyists. Ruda was never meant to go into production but it is more than capable to fill this role. To learn how to use Ruda, see [Ruda docs](https://it-2001.github.io/Ruda-docs/).
+Ruda was designed to offer an easy but performant alternative to common languages. It aims to provide flawless experience for hobbyists. Ruda was never meant to go into production but it is more than capable to fill this role. 
 
-Our charming mascot does not have name yet. Help pick one for this nameless quail. 🐦
+To learn how to use Ruda, see [Ruda docs](https://it-2001.github.io/Ruda-docs/).
+
+Our charming mascot does not have a name yet. We need your help to pick one for this nameless quail. 🐦
 
 ## Syntax
 
@@ -44,4 +46,4 @@ Open new terminal and try `rudavm .\test.rdbin -- Hello, World!`.
 
 ## Other
 
-For other information about the Ruda components see their directories.
+To learn more about the Ruda components see their respective directories. (good luck reading compiler source code)
