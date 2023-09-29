@@ -1,19 +1,13 @@
 use std::collections::HashMap;
 
-use crate::{intermediate::{self, AnalyzationError::ErrType}, lexer::tokenizer::{Tokens, self, Operators}, ast_parser::ast_parser::generate_ast, tree_walker::tree_walker::{generate_tree, Node, Err, Line}, lexing_preprocessor::{lexing_preprocessor, parse_err::Errors}, expression_parser::{ValueType, get_args}};
+use crate::{intermediate::{self, AnalyzationError::ErrType}, lexer::tokenizer::{Tokens, self, Operators}, ast_parser::ast_parser::{generate_ast, Head, HeadParam}, tree_walker::tree_walker::{generate_tree, Node, Err, Line}, lexing_preprocessor::{lexing_preprocessor, parse_err::Errors}, expression_parser::{ValueType, get_args}};
 use intermediate::dictionary::*;
 use lexing_preprocessor::*;
 
 
-pub fn load(string: &[u8]) -> Result<Dictionary, String> {
+pub fn load(string: &[u8], ast: &mut (HashMap<String, Head>, Vec<HeadParam>)) -> Result<Dictionary, String> {
     let (mut tokens, mut lines, mut errs) = tokenizer::tokenize(string, true);
-    let ast_path = std::env::var("RUDA_PATH").unwrap() + "/registry.ast";
-    let ast = if let Some(ast) = generate_ast(&ast_path) {
-        ast
-    } else {
-        return Err("Failed to load AST.".to_owned());
-    };
-    let tree = match generate_tree(&tokens, &mut (ast.0, vec![]), &lines) {
+    let tree = match generate_tree(&tokens, ast, &lines) {
         Ok(tree) => tree,
         Err(err) => {
             return Err(format!("Failed to generate tree. {:?}", err));

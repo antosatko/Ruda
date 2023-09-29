@@ -21,7 +21,7 @@ fn main() {
             };
             println!("Compilation for '{file}' starts.");
             let ruda_path = std::env::var("RUDA_PATH").expect("RUDA_PATH not set.");
-            let (ast, params, registry) = match generate_ast(&ruda_path) {
+            let (ast, params, _registry) = match generate_ast(&ruda_path) {
                 Ok(ast) => (ast.ast, ast.params, ast.registry),
                 Err(err) => {
                     println!("Failed to load AST.");
@@ -107,7 +107,16 @@ fn main() {
                 None => false,
             };
             println!("Loading library '{file}' starts.");
-            match libload(&file) {
+            let ruda_path = std::env::var("RUDA_PATH").expect("RUDA_PATH not set.");
+            let (_, _, registry) = match generate_ast(&ruda_path) {
+                Ok(ast) => (ast.ast, ast.params, ast.registry),
+                Err(err) => {
+                    println!("Failed to load AST.");
+                    println!("{}", err);
+                    return;
+                }
+            };
+            match libload(&file, &mut (registry, Vec::new())) {
                 Ok(lib) => {
                     if !mute {
                         println!("Library loaded.");

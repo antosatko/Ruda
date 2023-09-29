@@ -151,10 +151,10 @@ pub fn build_dictionaries(main: &str, ast: &mut (HashMap<String, Head>, Vec<Head
 
 
 /// returns all of the binaries as dictionaries in the order of the paths
-pub fn build_binaries(paths: &Vec<String>) -> Result<Vec<libloader::Dictionary>, String> {
+pub fn build_binaries(paths: &Vec<String>, ast: &mut (HashMap<String, Head>, Vec<HeadParam>)) -> Result<Vec<libloader::Dictionary>, String> {
     let mut binaries = Vec::new();
     for path in paths {
-        match libload(&path) {
+        match libload(&path, ast) {
             Ok(lib) => {
                 binaries.push(lib);
             },
@@ -208,7 +208,7 @@ pub fn build_dictionary(mut content: &str, ast: &mut (HashMap<String, ast_parser
     }
 }
 
-pub fn libload(file: &str) -> Result<libloader::Dictionary, String> {
+pub fn libload(file: &str, ast: &mut (HashMap<String, Head>, Vec<HeadParam>)) -> Result<libloader::Dictionary, String> {
     let lib = unsafe { match libloading::Library::new(file) {
         Ok(lib) => lib,
         Err(err) => {
@@ -223,7 +223,7 @@ pub fn libload(file: &str) -> Result<libloader::Dictionary, String> {
             }
         }
     }();
-    let lib = libloader::load(&register.as_bytes());
+    let lib = libloader::load(&register.as_bytes(), ast);
     lib
 }
 

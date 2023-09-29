@@ -30,7 +30,6 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
             return;
         }
     };
-    let bin_kind = String::from("src/");
     let main_file = match profile.1.kind {
         config::ProjectKind::Bin => {
             let bin_path = std::path::Path::new(path).join("src").join("main.rd");
@@ -79,7 +78,7 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
         bin_paths.push(lib_path.to_string());
         lib_names.push(lib_name.to_string());
     }
-    let mut binaries = match build_binaries(&bin_paths) {
+    let mut binaries = match build_binaries(&bin_paths, &mut (registry, Vec::new())) {
         Ok(binaries) => binaries,
         Err(err) => {
             println!("Failed to load binaries.");
