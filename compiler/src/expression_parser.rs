@@ -1,15 +1,14 @@
 use core::panic;
-use std::fmt::{format, self};
+use std::fmt::{self, format};
 use std::ops::Index;
 
 use crate::intermediate::dictionary::*;
 use crate::intermediate::AnalyzationError::ErrType;
 use crate::lexer::tokenizer::{Operators, Tokens};
-use crate::tree_walker::tree_walker::{Node, Line};
+use crate::tree_walker::tree_walker::{Line, Node};
 use crate::{intermediate, lexer};
 use intermediate::dictionary::*;
 use intermediate::*;
-
 
 // recursive function that traverses the tree and prints it
 pub fn traverse_da_fokin_value(val: &ValueType, depth: usize) {
@@ -25,7 +24,11 @@ pub fn traverse_da_fokin_value(val: &ValueType, depth: usize) {
             traverse_da_fokin_value(val, depth + 1);
         }
         ValueType::Expression(val) => {
-            println!("{}Expression {:?}", "-".repeat(depth), val.operator.as_ref().unwrap());
+            println!(
+                "{}Expression {:?}",
+                "-".repeat(depth),
+                val.operator.as_ref().unwrap()
+            );
             if let Some(val) = &val.left {
                 traverse_da_fokin_value(val, depth + 1);
             }
@@ -42,7 +45,6 @@ pub fn traverse_da_fokin_value(val: &ValueType, depth: usize) {
         ValueType::Blank => {
             println!("{}Blank", "-".repeat(depth));
         }
-        
     }
 }
 
@@ -155,7 +157,9 @@ pub enum TreeTransformError {
 impl std::fmt::Display for TreeTransformError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TreeTransformError::NoValue(line) => write!(f, "No value for operator at line {}", line),
+            TreeTransformError::NoValue(line) => {
+                write!(f, "No value for operator at line {}", line)
+            }
             TreeTransformError::ExcessOperator(line) => {
                 write!(f, "Excess operator at line {}", line)
             }
@@ -194,7 +198,7 @@ pub fn try_get_value(node: &Node, errors: &mut Vec<ErrType>) -> Option<ValueType
             modificatior: prepend.1,
             root: car.0,
             tail: car.1,
-            line: node.line
+            line: node.line,
         }));
     }
     if let Some(lit) = try_get_literal(step_inside_val(&node, "value"), errors, &prepend) {
@@ -223,7 +227,7 @@ pub fn try_get_literal(
             refs: prepend.0.clone(),
             modificatior: prepend.1.clone(),
             value: Literals::Number(this.name.clone()),
-            line: this.line
+            line: this.line,
         });
     }
     if let Tokens::String(str) = &this.name {
@@ -232,7 +236,7 @@ pub fn try_get_literal(
             refs: prepend.0.clone(),
             modificatior: prepend.1.clone(),
             value: Literals::String(str.clone()),
-            line: this.line
+            line: this.line,
         });
     }
     if let Tokens::Char(chr) = &this.name {
@@ -241,7 +245,7 @@ pub fn try_get_literal(
             refs: prepend.0.clone(),
             modificatior: prepend.1.clone(),
             value: Literals::Char(chr.clone()),
-            line: this.line
+            line: this.line,
         });
     }
     if let Tokens::Text(txt) = &this.name {
@@ -441,7 +445,7 @@ impl ExprNode {
             left,
             right,
             operator,
-            line
+            line,
         }
     }
     pub fn blank() -> ExprNode {
@@ -449,7 +453,7 @@ impl ExprNode {
             left: None,
             right: None,
             operator: None,
-            line: Line::from((0, 0))
+            line: Line::from((0, 0)),
         }
     }
 }
@@ -496,14 +500,17 @@ pub enum Literals {
 }
 #[derive(Clone)]
 pub enum ArrayRule {
-    Fill{value: Box<ValueType>, size: Box<ValueType>},
+    Fill {
+        value: Box<ValueType>,
+        size: Box<ValueType>,
+    },
     Explicit(Vec<ValueType>),
 }
 
 impl fmt::Debug for ArrayRule {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ArrayRule::Fill{value, size} => write!(f, "[_; _]"),
+            ArrayRule::Fill { value, size } => write!(f, "[_; _]"),
             ArrayRule::Explicit(vec) => {
                 write!(f, "[{}]", vec.len())
             }
@@ -529,10 +536,12 @@ pub struct Variable {
 
 impl Variable {
     pub fn is_simple(&self) -> bool {
-        self.refs == Ref::None && self.modificatior.is_none() && self.tail.iter().all(|x| match x.0 {
-            TailNodes::Nested(_) => true,
-            _ => false
-        })
+        self.refs == Ref::None
+            && self.modificatior.is_none()
+            && self.tail.iter().all(|x| match x.0 {
+                TailNodes::Nested(_) => true,
+                _ => false,
+            })
     }
 }
 

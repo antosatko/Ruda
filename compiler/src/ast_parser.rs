@@ -56,8 +56,8 @@ pub mod ast_parser {
         let name = loop {
             if let Tokens::Text(txt) = &tokens[*idx] {
                 *idx += 1;
-                break txt.to_string()
-        }
+                break txt.to_string();
+            }
             *idx += 1;
         };
         let mut parameters = Vec::with_capacity(tokens.len() / 100);
@@ -185,7 +185,8 @@ pub mod ast_parser {
 mod formater {
     use crate::{
         lexer::tokenizer::{/*Keywords,*/ deparse_token, Operators, Tokens},
-        lexing_preprocessor::{parse_err::Errors, lexing_preprocessor::LexingErr}, tree_walker::tree_walker::Line,
+        lexing_preprocessor::{lexing_preprocessor::LexingErr, parse_err::Errors},
+        tree_walker::tree_walker::Line,
     };
 
     pub fn refactor(
@@ -246,7 +247,10 @@ mod formater {
                                 num
                             } else {
                                 // syntax err: incorrect number
-                                errors.push(Errors::InvalidNumber(Line::from(lines[idx]), txt.to_string()));
+                                errors.push(Errors::InvalidNumber(
+                                    Line::from(lines[idx]),
+                                    txt.to_string(),
+                                ));
                                 return 1;
                             };
                             if let Tokens::Text(txt2) = &tokens[idx + 2] {
@@ -275,7 +279,10 @@ mod formater {
                                 if let Ok(num) = txt.parse::<usize>() {
                                     tokens[idx] = Tokens::Number(num as f64, 'i')
                                 } else {
-                                    errors.push(Errors::InvalidNumber(Line::from(lines[idx]), txt.to_string()));
+                                    errors.push(Errors::InvalidNumber(
+                                        Line::from(lines[idx]),
+                                        txt.to_string(),
+                                    ));
                                     // syntax err: incorrect number
                                 }
                             } else {
@@ -283,7 +290,10 @@ mod formater {
                                     tokens[idx] =
                                         Tokens::Number(num as f64, bytes[bytes.len() - 1] as char)
                                 } else {
-                                    errors.push(Errors::InvalidNumber(Line::from(lines[idx]), txt.to_string()));
+                                    errors.push(Errors::InvalidNumber(
+                                        Line::from(lines[idx]),
+                                        txt.to_string(),
+                                    ));
                                     // syntax err: incorrect number
                                 }
                             }

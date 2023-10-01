@@ -1,11 +1,20 @@
 use std::collections::HashMap;
 
-use crate::{intermediate::{self, AnalyzationError::ErrType}, lexer::tokenizer::{Tokens, self, Operators}, ast_parser::ast_parser::{generate_ast, Head, HeadParam}, tree_walker::tree_walker::{generate_tree, Node, Err, Line}, lexing_preprocessor::{lexing_preprocessor, parse_err::Errors}, expression_parser::{ValueType, get_args}};
+use crate::{
+    ast_parser::ast_parser::{generate_ast, Head, HeadParam},
+    expression_parser::{get_args, ValueType},
+    intermediate::{self, AnalyzationError::ErrType},
+    lexer::tokenizer::{self, Operators, Tokens},
+    lexing_preprocessor::{lexing_preprocessor, parse_err::Errors},
+    tree_walker::tree_walker::{generate_tree, Err, Line, Node},
+};
 use intermediate::dictionary::*;
 use lexing_preprocessor::*;
 
-
-pub fn load(string: &[u8], ast: &mut (HashMap<String, Head>, Vec<HeadParam>)) -> Result<Dictionary, String> {
+pub fn load(
+    string: &[u8],
+    ast: &mut (HashMap<String, Head>, Vec<HeadParam>),
+) -> Result<Dictionary, String> {
     let (mut tokens, mut lines, mut errs) = tokenizer::tokenize(string, true);
     let tree = match generate_tree(&tokens, ast, &lines) {
         Ok(tree) => tree,
@@ -29,7 +38,7 @@ pub fn load(string: &[u8], ast: &mut (HashMap<String, Head>, Vec<HeadParam>)) ->
                             if *field.0 == ident {
                                 errors.push(ErrType::StructVariantAssignedIdent(
                                     ident.to_string(),
-                                    field.1.line
+                                    field.1.line,
                                 ))
                             }
                         }
@@ -78,17 +87,17 @@ pub fn load(string: &[u8], ast: &mut (HashMap<String, Head>, Vec<HeadParam>)) ->
                             if *variant.0 == ident {
                                 errors.push(ErrType::EnumVariantAssignedIdent(
                                     ident.to_string(),
-                                    key.line
+                                    key.line,
                                 ))
                             }
                         }
                         if let Tokens::Number(num, _) = step_inside_val(key, "default").name {
                             variants.push((ident, num as usize));
-                        }else {
+                        } else {
                             // use last + 1
                             if let Some(last) = variants.last() {
                                 variants.push((ident, last.1 + 1));
-                            }else {
+                            } else {
                                 variants.push((ident, 0));
                             }
                         }
@@ -125,7 +134,10 @@ pub fn load(string: &[u8], ast: &mut (HashMap<String, Head>, Vec<HeadParam>)) ->
                                 // check if already exists
                                 for fun_ in &struct_.methods {
                                     if fun_.name == fun.name {
-                                        errors.push(ErrType::ConflictingNames(fun.name.to_string(), method.line))
+                                        errors.push(ErrType::ConflictingNames(
+                                            fun.name.to_string(),
+                                            method.line,
+                                        ))
                                     }
                                 }
                                 struct_.methods.push(fun);
@@ -143,7 +155,10 @@ pub fn load(string: &[u8], ast: &mut (HashMap<String, Head>, Vec<HeadParam>)) ->
                             "true" => ConstValue::Bool(true),
                             "false" => ConstValue::Bool(false),
                             _ => {
-                                errors.push(ErrType::InvalidConstant(Tokens::Text(bool.to_string()), val.line));
+                                errors.push(ErrType::InvalidConstant(
+                                    Tokens::Text(bool.to_string()),
+                                    val.line,
+                                ));
                                 ConstValue::Bool(false)
                             }
                         },
@@ -155,10 +170,7 @@ pub fn load(string: &[u8], ast: &mut (HashMap<String, Head>, Vec<HeadParam>)) ->
                             errors.push(ErrType::ConflictingNames(ident.to_string(), node.line))
                         }
                     }
-                    dictionary.consts.push(Const {
-                        name: ident,
-                        value,
-                    });
+                    dictionary.consts.push(Const { name: ident, value });
                 }
                 _ => {}
             }
@@ -184,7 +196,7 @@ fn from_tree(node: &Node) -> Result<Dictionary, String> {
 
 fn get_assign(node: &Node) -> usize {
     let node = step_inside_val(&node, "assign");
-    if let Tokens::Number(num , _) = step_inside_val(node, "num").name {
+    if let Tokens::Number(num, _) = step_inside_val(node, "num").name {
         return num as usize;
     }
     //println!("node: {:?}", node);
@@ -209,18 +221,22 @@ fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>) -> Function {
     }
     let mut return_type = if let Tokens::Text(txt) = &step_inside_val(node, "type").name {
         if txt == "type_specifier" {
-            get_type(step_inside_val(step_inside_val(node, "type"), "type"), errors)
-        }else {
+            get_type(
+                step_inside_val(step_inside_val(node, "type"), "type"),
+                errors,
+            )
+        } else {
             ShallowType::empty()
         }
-    }else {
+    } else {
         ShallowType::empty()
     };
-    let mut errorable = if let Tokens::Operator(Operators::Not) = step_inside_val(node, "errorable").name {
-        true
-    }else {
-        false
-    };
+    let mut errorable =
+        if let Tokens::Operator(Operators::Not) = step_inside_val(node, "errorable").name {
+            true
+        } else {
+            false
+        };
     // TODO: get args
     Function {
         name: get_ident(node),
@@ -233,11 +249,12 @@ fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>) -> Function {
 
 fn get_mem_loc(node: &Node) -> MemoryTypes {
     let node = step_inside_val(&node, "mem");
-    let mem = if let Tokens::Text(txt) = &step_inside_val(&step_inside_val(&node, "mem"), "mem").name {
-        txt.to_string()
-    } else {
-        unreachable!("you somehow managed to break the compiler, gj");
-    };
+    let mem =
+        if let Tokens::Text(txt) = &step_inside_val(&step_inside_val(&node, "mem"), "mem").name {
+            txt.to_string()
+        } else {
+            unreachable!("you somehow managed to break the compiler, gj");
+        };
     let loc = if let Tokens::Text(txt) = &step_inside_val(&node, "loc").name {
         txt.to_string()
     } else {
@@ -251,7 +268,7 @@ fn get_mem_loc(node: &Node) -> MemoryTypes {
             } else {
                 MemoryTypes::Register(Registers::G1)
             }
-        },
+        }
         _ => unreachable!("you somehow managed to break the compiler, gj"),
     }
 }
@@ -290,7 +307,7 @@ impl Registers {
             _ => {
                 errors.push(ErrType::InvalidRegister(s.to_string(), line));
                 None
-            },
+            }
         }
     }
 }

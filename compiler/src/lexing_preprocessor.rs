@@ -2,7 +2,10 @@ pub mod lexing_preprocessor {
 
     use std::time::SystemTime;
 
-    use crate::{lexer::tokenizer::{deparse_token, Operators, Tokens}, tree_walker::tree_walker::Line};
+    use crate::{
+        lexer::tokenizer::{deparse_token, Operators, Tokens},
+        tree_walker::tree_walker::Line,
+    };
 
     use super::parse_err::Errors;
     pub fn refactor(
@@ -27,7 +30,11 @@ pub mod lexing_preprocessor {
             Tokens::Text(txt) => {
                 let mut chars = txt.chars();
                 let first = chars.next();
-                let last = if let Some(last) = chars.last() {last} else {first.unwrap()};
+                let last = if let Some(last) = chars.last() {
+                    last
+                } else {
+                    first.unwrap()
+                };
                 if let Some(first) = first {
                     if first.is_ascii_digit() {
                         // float
@@ -36,7 +43,10 @@ pub mod lexing_preprocessor {
                                 num
                             } else {
                                 // syntax err: incorrect number
-                                errors.push(Errors::InvalidNumber(Line::from(lines[idx]), txt.to_string()));
+                                errors.push(Errors::InvalidNumber(
+                                    Line::from(lines[idx]),
+                                    txt.to_string(),
+                                ));
                                 return 1;
                             };
                             if let Tokens::Text(txt2) = &tokens[idx + 2] {
@@ -64,15 +74,20 @@ pub mod lexing_preprocessor {
                                 if let Ok(num) = txt.parse::<usize>() {
                                     tokens[idx] = Tokens::Number(num as f64, 'n')
                                 } else {
-                                    errors.push(Errors::InvalidNumber(Line::from(lines[idx]), txt.to_string()));
+                                    errors.push(Errors::InvalidNumber(
+                                        Line::from(lines[idx]),
+                                        txt.to_string(),
+                                    ));
                                     // syntax err: incorrect number
                                 }
                             } else {
                                 if let Ok(num) = txt[..txt.len() - 1].parse::<usize>() {
-                                    tokens[idx] =
-                                        Tokens::Number(num as f64, last)
+                                    tokens[idx] = Tokens::Number(num as f64, last)
                                 } else {
-                                    errors.push(Errors::InvalidNumber(Line::from(lines[idx]), txt.to_string()));
+                                    errors.push(Errors::InvalidNumber(
+                                        Line::from(lines[idx]),
+                                        txt.to_string(),
+                                    ));
                                     // syntax err: incorrect number
                                 }
                             }
@@ -240,12 +255,8 @@ pub mod lexing_preprocessor {
                     if let Tokens::Operator(eq) = tokens[idx + 1] {
                         if let Operators::Equal = eq {
                             match *bol {
-                                true => {
-                                    tokens[idx] = Tokens::Operator(Operators::LessEq)
-                                }
-                                false => {
-                                    tokens[idx] = Tokens::Operator(Operators::MoreEq)
-                                }
+                                true => tokens[idx] = Tokens::Operator(Operators::LessEq),
+                                false => tokens[idx] = Tokens::Operator(Operators::MoreEq),
                             }
                             remove(tokens, idx + 1);
                         }
@@ -253,12 +264,14 @@ pub mod lexing_preprocessor {
                 }
                 _ => {}
             },
-            _ => {
-            }
+            _ => {}
         }
         1
     }
-    fn clear(tokens: &Vec<Tokens>, lines: &Vec<(usize, usize)>) -> (Vec<Tokens>, Vec<(usize, usize)>) {
+    fn clear(
+        tokens: &Vec<Tokens>,
+        lines: &Vec<(usize, usize)>,
+    ) -> (Vec<Tokens>, Vec<(usize, usize)>) {
         let mut result = (Vec::new(), Vec::new());
         for (i, tok) in tokens.iter().enumerate() {
             if *tok != Tokens::Deleted {
@@ -286,7 +299,6 @@ pub mod lexing_preprocessor {
 
 pub mod parse_err {
     use crate::tree_walker::tree_walker::Line;
-
 
     #[derive(Debug)]
     pub enum Errors {

@@ -1,7 +1,7 @@
 pub mod tokenizer {
     use crate::lexing_preprocessor::{
-        parse_err::{self},
         lexing_preprocessor::refactor,
+        parse_err::{self},
     };
     const RESERVED_CHARS: &str = " +-*/=%;:,.({<[]>})&|!?\"'\\";
     pub fn tokenize(
@@ -11,7 +11,7 @@ pub mod tokenizer {
         let allocation_size = (file.len() as f64 * 0.7) as usize;
         let mut tokens: Vec<Tokens> = Vec::with_capacity(allocation_size);
         let mut text_pos: Vec<(usize, usize)> = Vec::with_capacity(allocation_size);
-        text_pos.push((0,0));
+        text_pos.push((0, 0));
         let mut errors: Vec<parse_err::Errors> = vec![];
 
         let mut i = 0;
@@ -76,13 +76,19 @@ pub mod tokenizer {
             "[" => Tokens::SquareBracket(false),
             "]" => Tokens::SquareBracket(true),
             " " => Tokens::Space,
-            _ => if is_whitespace(string) {Tokens::Whitespace(string.to_string())}else{Tokens::Text(string.to_string())},
+            _ => {
+                if is_whitespace(string) {
+                    Tokens::Whitespace(string.to_string())
+                } else {
+                    Tokens::Text(string.to_string())
+                }
+            }
         }
     }
     fn is_whitespace(str: &str) -> bool {
         for char in str.chars() {
-            if !char.is_whitespace(){
-                return false
+            if !char.is_whitespace() {
+                return false;
             }
         }
         true
@@ -130,7 +136,7 @@ pub mod tokenizer {
             if tokens_str.contains(*char as char) || (*char as char).is_whitespace() {
                 break;
             }
-            idx +=1;
+            idx += 1;
         }
         idx
     }
@@ -194,4 +200,3 @@ pub mod tokenizer {
         AngleBracket(bool),
     }
 }
-

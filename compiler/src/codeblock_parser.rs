@@ -1,17 +1,22 @@
+use crate::expression_parser::*;
+use crate::intermediate::dictionary::{
+    get_ident, get_type, step_inside_arr, step_inside_val, ShallowType,
+};
 use crate::intermediate::AnalyzationError::ErrType;
+use crate::lexer::tokenizer::*;
 use crate::tree_walker::tree_walker::Line;
 use crate::{expression_parser::*, tree_walker};
-use crate::intermediate::dictionary::{ShallowType, step_inside_arr, step_inside_val, get_ident, get_type};
-use crate::lexer::tokenizer::*;
-use crate::expression_parser::*;
 
-pub fn generate_tree(node: &tree_walker::tree_walker::Node, errors: &mut Vec<ErrType>) -> Vec<Nodes> {
+pub fn generate_tree(
+    node: &tree_walker::tree_walker::Node,
+    errors: &mut Vec<ErrType>,
+) -> Vec<Nodes> {
     if let Tokens::Text(txt) = &node.name {
         if txt != "code_block" {
             //errors.push(ErrType::NotCodeBlock);
             return Vec::new();
         }
-    }else {
+    } else {
         //errors.push(ErrType::NotCodeBlock);
         return Vec::new();
     }
@@ -25,14 +30,17 @@ pub fn generate_tree(node: &tree_walker::tree_walker::Node, errors: &mut Vec<Err
     nodes
 }
 
-pub fn node_from_node(node: &tree_walker::tree_walker::Node, errors: &mut Vec<ErrType>) -> Option<Nodes> {
+pub fn node_from_node(
+    node: &tree_walker::tree_walker::Node,
+    errors: &mut Vec<ErrType>,
+) -> Option<Nodes> {
     if let Tokens::Text(txt) = &node.name {
         match txt.as_str() {
             "KWReturn" => {
                 let expre = step_inside_val(&node, "expression");
-                let expr = if step_inside_arr(&expre, "nodes").len() > 0  {
+                let expr = if step_inside_arr(&expre, "nodes").len() > 0 {
                     Some(expr_into_tree(&expre, errors))
-                }else {
+                } else {
                     None
                 };
                 Some(Nodes::Return {
@@ -40,12 +48,8 @@ pub fn node_from_node(node: &tree_walker::tree_walker::Node, errors: &mut Vec<Er
                     line: node.line,
                 })
             }
-            "KWBreak" => Some(Nodes::Break{
-                line: node.line,
-            }),
-            "KWContinue" => Some(Nodes::Continue{
-                line: node.line,
-            }),
+            "KWBreak" => Some(Nodes::Break { line: node.line }),
+            "KWContinue" => Some(Nodes::Continue { line: node.line }),
             "KWLoop" => {
                 let body = step_inside_arr(&node, "body");
                 let mut nodes = Vec::new();
@@ -68,17 +72,15 @@ pub fn node_from_node(node: &tree_walker::tree_walker::Node, errors: &mut Vec<Er
                     line: node.line,
                 })
             }
-            "code_block" => {
-                Some(Nodes::Block {
-                    body: generate_tree(&node, errors),
-                    line: node.line,
-                })
-            }
+            "code_block" => Some(Nodes::Block {
+                body: generate_tree(&node, errors),
+                line: node.line,
+            }),
             "set" => {
                 let op = step_inside_val(&step_inside_val(&node, "operator"), "op");
                 let op = if let Tokens::Operator(op) = &op.name {
                     *op
-                }else {
+                } else {
                     errors.push(ErrType::NotOperator(node.line));
                     return None;
                 };
@@ -109,13 +111,19 @@ pub fn node_from_node(node: &tree_walker::tree_walker::Node, errors: &mut Vec<Er
                     let cond = step_inside_val(&node, "expression");
                     let cond = expr_into_tree(&cond, errors);
                     let body = generate_tree(step_inside_val(&node, "code"), errors);
-                    elif.push((cond, Nodes::Block { body, line: node.line }));
+                    elif.push((
+                        cond,
+                        Nodes::Block {
+                            body,
+                            line: node.line,
+                        },
+                    ));
                 }
                 let els = step_inside_val(&node, "else");
                 let els = if let Tokens::Text(txt) = &els.name {
                     if txt == "KWElse" {
                         Some(generate_tree(step_inside_val(&els, "code"), errors))
-                    }else {
+                    } else {
                         None
                     }
                 } else {
@@ -158,7 +166,7 @@ pub fn node_from_node(node: &tree_walker::tree_walker::Node, errors: &mut Vec<Er
                 let finally = if let Tokens::Text(txt) = &finally.name {
                     if txt == "KWFinally" {
                         Some(generate_tree(step_inside_val(&finally, "code"), errors))
-                    }else {
+                    } else {
                         None
                     }
                 } else {
@@ -173,17 +181,24 @@ pub fn node_from_node(node: &tree_walker::tree_walker::Node, errors: &mut Vec<Er
                     for node in kinds_path {
                         let mut kind = Vec::new();
                         for node in step_inside_arr(&node, "nodes") {
-                            let txt = if let Tokens::Text(txt) = &step_inside_val(node, "identifier").name {
+                            let txt = if let Tokens::Text(txt) =
+                                &step_inside_val(node, "identifier").name
+                            {
                                 txt
-                            }else {
+                            } else {
                                 return None;
                             };
                             kind.push(txt.clone());
                         }
                         kinds.push(kind);
                     }
-                    
-                    catch.push(Catch { ident, kinds, body, line: node.line });
+
+                    catch.push(Catch {
+                        ident,
+                        kinds,
+                        body,
+                        line: node.line,
+                    });
                 }
                 Some(Nodes::Try {
                     body,
@@ -200,11 +215,11 @@ pub fn node_from_node(node: &tree_walker::tree_walker::Node, errors: &mut Vec<Er
                 let mut default = None;
                 for node in step_inside_arr(&node, "nodes") {
                     let expr = step_inside_val(&node, "expression");
-                    
+
                     if let Tokens::Text(txt) = &step_inside_val(&expr, "ignore").name {
                         if txt == "_" {
                             default = Some(generate_tree(step_inside_val(&node, "code"), errors));
-                        }else {
+                        } else {
                             let expr = expr_into_tree(&expr, errors);
                             let bd = generate_tree(step_inside_val(&node, "code"), errors);
                             body.push((expr, bd));
@@ -231,7 +246,7 @@ pub fn node_from_node(node: &tree_walker::tree_walker::Node, errors: &mut Vec<Er
                 } else {
                     None
                 };
-                
+
                 let kind = step_inside_val(&node, "type");
                 let kind = if let Tokens::Text(txt) = &kind.name {
                     if txt == "type_specifier" {
@@ -242,7 +257,7 @@ pub fn node_from_node(node: &tree_walker::tree_walker::Node, errors: &mut Vec<Er
                 } else {
                     None
                 };
-                
+
                 Some(Nodes::Let {
                     ident,
                     expr,
@@ -251,9 +266,9 @@ pub fn node_from_node(node: &tree_walker::tree_walker::Node, errors: &mut Vec<Er
                 })
             }
 
-            _ => None
+            _ => None,
         }
-    }else {
+    } else {
         None
     }
 }
@@ -299,7 +314,7 @@ pub enum Nodes {
     Break {
         line: Line,
     },
-    Continue{
+    Continue {
         line: Line,
     },
     Loop {

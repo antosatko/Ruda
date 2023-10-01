@@ -463,6 +463,26 @@ pub mod dictionary {
                     errors.push(ErrType::ConflictingNames(ident.to_string(), node.line))
                 }
             }
+            "KWUse" => {
+                let mut path = Vec::new();
+                for part in step_inside_arr(&node, "path") {
+                    match &part.name {
+                        Tokens::Text(txt) => {
+                            path.push(PathPart::Identifier(txt.to_string()));
+                        }
+                        Tokens::Operator(Operators::Star) => {
+                            path.push(PathPart::Asterisk);
+                        }
+                        _ => {}
+                    }
+                }
+                let alias = try_get_ident(&node);
+                dictionary.uses.push(Use {
+                    path,
+                    alias,
+                    line: node.line,
+                });
+            }
             _ => {}
         }
     }
@@ -761,6 +781,7 @@ pub mod dictionary {
         pub implementations: Vec<Implementation>,
         pub traits: Vec<Trait>,
         pub errors: Vec<Error>,
+        pub uses: Vec<Use>,
     }
     impl Dictionary {
         pub fn find_const(&self, name: &str) -> Option<&Constant> {
@@ -846,6 +867,17 @@ pub mod dictionary {
         pub identifier: String,
         pub kind: ShallowType,
         pub line: Line,
+    }
+    #[derive(Debug, Clone)]
+    pub struct Use {
+        path: Vec<PathPart>,
+        alias: Option<String>,
+        line: Line,
+    }
+    #[derive(Debug, Clone)]
+    pub enum PathPart {
+        Identifier(String),
+        Asterisk,
     }
     #[derive(Debug, Clone)]
     pub struct Function {
@@ -1175,6 +1207,7 @@ pub mod dictionary {
                 implementations: vec![],
                 traits: vec![],
                 errors: vec![],
+                uses: vec![],
             }
         }
         pub fn index_of(&self, identifier: String) -> Option<usize> {
@@ -1273,16 +1306,10 @@ pub mod AnalyzationError {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
                 ErrType::EnumVariantAssignedNumber(num, line) => {
-                    write!(
-                        f,
-                        "enum variant assigned number {num} at {line}"
-                    )
+                    write!(f, "enum variant assigned number {num} at {line}")
                 }
                 ErrType::EnumVariantAssignedIdent(ident, line) => {
-                    write!(
-                        f,
-                        "enum variant assigned identifier {ident} at {line}"
-                    )
+                    write!(f, "enum variant assigned identifier {ident} at {line}")
                 }
                 ErrType::ConflictingNames(ident, line) => {
                     write!(f, "conflicting names {ident} at {line}")

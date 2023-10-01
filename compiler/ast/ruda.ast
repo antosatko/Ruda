@@ -27,13 +27,13 @@ use io.* // import everything from io
 use io.print // import only print from io
 use io.print as print // import print from io and rename it to print
 "
-KWUse [path alias
+KWUse [path identifier
 	"use" harderr="true"
 	ident ? set="path"
 		. ? back="1"
 	* ? set="path" end="true"
 	"as" ? 
-		ident ? set="alias"
+		ident ? set="identifier"
 	;?;
 
 

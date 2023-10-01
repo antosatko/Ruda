@@ -63,7 +63,7 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
         Ok(dictionaries) => dictionaries,
         Err(err) => {
             println!("Failed to load dictionaries.");
-            println!("Err: '{}':{}",err.1, err.0);
+            println!("Err: '{}':{}", err.1, err.0);
             return;
         }
     };

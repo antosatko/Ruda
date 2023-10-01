@@ -2,8 +2,12 @@ pub mod tree_walker {
     use std::collections::HashMap;
 
     use crate::ast_parser::ast_parser::{self, *};
-    use crate::lexer::tokenizer::{*, self};
-    pub fn generate_tree(tokens: &Vec<Tokens>, syntax: &mut (Tree, Vec<HeadParam>), lines: &Vec<(usize, usize)>) -> Result<(Node, HashMap<String, ArgNodeType>), (Err, Line)> {
+    use crate::lexer::tokenizer::{self, *};
+    pub fn generate_tree(
+        tokens: &Vec<Tokens>,
+        syntax: &mut (Tree, Vec<HeadParam>),
+        lines: &Vec<(usize, usize)>,
+    ) -> Result<(Node, HashMap<String, ArgNodeType>), (Err, Line)> {
         let mut idx = 0;
         let mut globals_data = HashMap::new();
         for global in &syntax.1 {
@@ -31,12 +35,10 @@ pub mod tree_walker {
             &mut idx,
             &String::from("entry"),
             &mut globals_data,
-            lines
+            lines,
         );
         match product {
-            Ok(product) => {
-                Ok((product, globals_data))
-            }
+            Ok(product) => Ok((product, globals_data)),
             Err(err) => {
                 // println!("{err:?}\nOriginated at line: {}, column: {}", lines[idx].1 + 1, lines[idx].0 + 1);
                 Err((err.0, Line::from(lines[idx])))
@@ -79,7 +81,7 @@ pub mod tree_walker {
         idx: &mut usize,
         id: &String,
         globals: &mut HashMap<String, ArgNodeType>,
-        lines: &Vec<(usize, usize)>
+        lines: &Vec<(usize, usize)>,
     ) -> Result<Node, (Err, bool)> {
         let mut result = Node {
             name: Tokens::Text(id.into()),
@@ -96,7 +98,7 @@ pub mod tree_walker {
             &mut result.nodes,
             &mut false,
             globals,
-            lines
+            lines,
         ) {
             Ok(_) => {
                 return Ok(result);
@@ -116,7 +118,7 @@ pub mod tree_walker {
         data: &mut HashMap<String, super::tree_walker::ArgNodeType>,
         harderr: &mut bool,
         globals: &mut HashMap<String, ArgNodeType>,
-        lines: &Vec<(usize, usize)>
+        lines: &Vec<(usize, usize)>,
     ) -> Result<Option<(usize, ReturnActions)>, (Err, bool)> {
         let mut node_idx = 0;
         let mut advance_tok;
@@ -186,12 +188,23 @@ pub mod tree_walker {
                     if let TokenOrNode::Node(ref nodede) = $token {
                         if let Some(ArgNodeType::Array(arr)) = nodede.nodes.get(arg) {
                             if arr.len() == 0 {
-                                Error!(Err::ExpectedOneOf(extract_tokens_range(&nodes, (maybes_start(&nodes, node_idx - 1), maybes_end(&nodes, node_idx))), tokens[*idx].clone()), true);
+                                Error!(
+                                    Err::ExpectedOneOf(
+                                        extract_tokens_range(
+                                            &nodes,
+                                            (
+                                                maybes_start(&nodes, node_idx - 1),
+                                                maybes_end(&nodes, node_idx)
+                                            )
+                                        ),
+                                        tokens[*idx].clone()
+                                    ),
+                                    true
+                                );
                             }
                         }
                     }
-                }
-                else if let Some(arg) = $args.get("set") {
+                } else if let Some(arg) = $args.get("set") {
                     // Split the argument by space
                     for arg_part in arg.split_whitespace() {
                         // Find place of arg_part
@@ -235,7 +248,17 @@ pub mod tree_walker {
         }
         macro_rules! ScopeEnter {
             ($node: expr, $freeze: expr) => {
-                match parse_scope(&tokens, &syntax, &params, idx, &$node.nodes, data, harderr, globals, lines) {
+                match parse_scope(
+                    &tokens,
+                    &syntax,
+                    &params,
+                    idx,
+                    &$node.nodes,
+                    data,
+                    harderr,
+                    globals,
+                    lines,
+                ) {
                     Ok(back) => match back {
                         Some(back) => match back.1 {
                             ReturnActions::Freeze => {
@@ -260,7 +283,15 @@ pub mod tree_walker {
         macro_rules! OpenStruct {
             ($ident: expr, $node: expr, $recoverable: expr) => {
                 let start_idx = *idx;
-                match parse_node(&tokens, &syntax, &$node.arguments, idx, &$ident.into(), globals, lines) {
+                match parse_node(
+                    &tokens,
+                    &syntax,
+                    &$node.arguments,
+                    idx,
+                    &$ident.into(),
+                    globals,
+                    lines,
+                ) {
                     Ok(nd) => {
                         ScopeEnter!(&$node, true);
                         ArgsCheck!(&$node.arguments, &$node.kind, TokenOrNode::Node(nd.clone()));
@@ -293,17 +324,29 @@ pub mod tree_walker {
                 if node_idx == 0 {
                     Error!(Err::Expected($node.clone(), tokens[*idx].clone()), true);
                 }
-                Error!(Err::ExpectedOneOf(extract_tokens_range(&nodes, (maybes_start(&nodes, node_idx - 1), maybes_end(&nodes, node_idx))), tokens[*idx].clone()), true);
-            }
+                Error!(
+                    Err::ExpectedOneOf(
+                        extract_tokens_range(
+                            &nodes,
+                            (
+                                maybes_start(&nodes, node_idx - 1),
+                                maybes_end(&nodes, node_idx)
+                            )
+                        ),
+                        tokens[*idx].clone()
+                    ),
+                    true
+                );
+            };
         }
         let endon = if let Some(arg) = params.get("endon") {
             Some(tokenizer::parse_token(arg))
-        }else {
+        } else {
             None
         };
         let endwith = if let Some(arg) = params.get("endwith") {
             Some(tokenizer::parse_token(arg))
-        }else {
+        } else {
             None
         };
         advance_tok = false;
@@ -378,23 +421,21 @@ pub mod tree_walker {
                             "end" => {
                                 return Ok(Some((0, ReturnActions::Chain)));
                             }
-                            "notempty" => {
-                                match node.arguments.get("nodes") {
-                                    Some(args) => {
-                                        for arg in args.split(" "){
-                                            if let Some(ArgNodeType::Array(arr)) = data.get(arg) {
-                                                if arr.len() == 0 {
-                                                    *harderr = true;
-                                                    Error!(node.kind);
-                                                }
+                            "notempty" => match node.arguments.get("nodes") {
+                                Some(args) => {
+                                    for arg in args.split(" ") {
+                                        if let Some(ArgNodeType::Array(arr)) = data.get(arg) {
+                                            if arr.len() == 0 {
+                                                *harderr = true;
+                                                Error!(node.kind);
                                             }
                                         }
                                     }
-                                    None => {
-                                        panic!("parameter doesnt exist.");
-                                    }
-                                } 
-                            }
+                                }
+                                None => {
+                                    panic!("parameter doesnt exist.");
+                                }
+                            },
                             _ => {}
                         }
                     }
@@ -408,7 +449,7 @@ pub mod tree_walker {
                         match params.get(arg.0) {
                             Some(param) => {
                                 if param != arg.1 {
-                                all_match = false;
+                                    all_match = false;
                                 }
                             }
                             None => {
@@ -427,29 +468,42 @@ pub mod tree_walker {
                 }
             }
         }
-        let advnc = if advance_tok {1usize} else {0};
+        let advnc = if advance_tok { 1usize } else { 0 };
         if let Some(ref endontok) = endwith {
             if tokens.len() > *idx && tokens[*idx - advnc] == *endontok {
                 *idx += 1;
                 return Ok(Some((0, ReturnActions::Chain)));
-            }else {
-                Error!(Err::WrongEndingToken((*endontok).clone(), tokens[*idx].clone()), true);
+            } else {
+                Error!(
+                    Err::WrongEndingToken((*endontok).clone(), tokens[*idx].clone()),
+                    true
+                );
             }
         }
         if let Some(ref endontok) = endon {
             if tokens.len() > *idx && tokens[*idx - advnc] == *endontok {
                 return Ok(Some((0, ReturnActions::Chain)));
-            }else {
-                Error!(Err::WrongEndingToken((*endontok).clone(), tokens[*idx].clone()), true);
+            } else {
+                Error!(
+                    Err::WrongEndingToken((*endontok).clone(), tokens[*idx].clone()),
+                    true
+                );
             }
         }
         Ok(Some((0, ReturnActions::Advance)))
     }
-    fn set(token_found: TokenOrNode, token_expected: &Tokens, place: &mut ArgNodeType, line: (usize, usize)) {
+    fn set(
+        token_found: TokenOrNode,
+        token_expected: &Tokens,
+        place: &mut ArgNodeType,
+        line: (usize, usize),
+    ) {
         match place {
             ArgNodeType::Array(arr) => match token_found {
                 TokenOrNode::Node(node) => arr.push(node),
-                TokenOrNode::Token(token) => arr.push(construct_token(&token, token_expected, line)),
+                TokenOrNode::Token(token) => {
+                    arr.push(construct_token(&token, token_expected, line))
+                }
             },
             ArgNodeType::Value(val) => match token_found {
                 TokenOrNode::Node(node) => *val = node,
@@ -461,7 +515,11 @@ pub mod tree_walker {
         Token(Tokens),
         Node(Node),
     }
-    fn construct_token(token_found: &Tokens, token_expected: &Tokens, line: (usize, usize)) -> Node {
+    fn construct_token(
+        token_found: &Tokens,
+        token_expected: &Tokens,
+        line: (usize, usize),
+    ) -> Node {
         match token_expected {
             Tokens::String(_) => Node {
                 name: token_found.clone(),
@@ -494,13 +552,21 @@ pub mod tree_walker {
                 }
                 "'float" => {
                     if let Tokens::Number(_, kind) = source_token {
-                        return if *kind == 'f' {CompareResult::Eq} else {CompareResult::NotEq};
+                        return if *kind == 'f' {
+                            CompareResult::Eq
+                        } else {
+                            CompareResult::NotEq
+                        };
                     }
                     return CompareResult::NotEq;
                 }
                 "'int" => {
                     if let Tokens::Number(_, kind) = source_token {
-                        return if *kind == 'i' {CompareResult::Eq} else {CompareResult::NotEq};
+                        return if *kind == 'i' {
+                            CompareResult::Eq
+                        } else {
+                            CompareResult::NotEq
+                        };
                     }
                     return CompareResult::NotEq;
                 }
@@ -564,10 +630,13 @@ pub mod tree_walker {
         match syntax[idx] {
             NodeType::Expect(_) => idx,
             NodeType::Maybe(_) => idx,
-            _=> idx + 1
+            _ => idx + 1,
         }
     }
-    fn extract_tokens_range(syntax: &Vec<ast_parser::NodeType>, range: (usize, usize)) -> Vec<Tokens> {
+    fn extract_tokens_range(
+        syntax: &Vec<ast_parser::NodeType>,
+        range: (usize, usize),
+    ) -> Vec<Tokens> {
         let mut result = Vec::new();
         for idx in range.0..range.1 {
             match &syntax[idx] {
@@ -577,8 +646,7 @@ pub mod tree_walker {
                 NodeType::Maybe(tok) => {
                     result.push(tok.kind.clone());
                 }
-                _ => {
-                }
+                _ => {}
             }
         }
         result
@@ -682,20 +750,20 @@ pub mod tree_walker {
     impl ArgNodeType {
         pub fn get_value(&self) -> &Node {
             if let Self::Value(val) = self {
-                return val
-            }else {
+                return val;
+            } else {
                 panic!()
             }
         }
         pub fn get_array(&self) -> &Vec<Node> {
             if let Self::Array(val) = self {
-                return val
-            }else {
+                return val;
+            } else {
                 panic!()
             }
         }
     }
-    pub fn fix_line(line:&(usize, usize)) -> (usize, usize) {
+    pub fn fix_line(line: &(usize, usize)) -> (usize, usize) {
         (line.0 + 1, line.1 + 1)
     }
 }

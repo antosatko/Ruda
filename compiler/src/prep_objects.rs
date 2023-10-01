@@ -9,6 +9,4 @@ pub fn prep((dictionaries, binaries): &mut (Dictionaries, Binaries)) -> Result<(
     Ok(())
 }
 
-pub enum PrepError {
-    
-}
+pub enum PrepError {}

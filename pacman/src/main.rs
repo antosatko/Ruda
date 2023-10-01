@@ -27,7 +27,11 @@ fn main() {
                 author.clone(),
             );
         }
-        Task::Run { profile, args, path } => {
+        Task::Run {
+            profile,
+            args,
+            path,
+        } => {
             build::run(&path, profile, args.clone());
         }
         Task::Build { profile, path } => {
@@ -43,7 +47,11 @@ fn main() {
             Some(url) => println!("locate {}", remote::path(url, version)),
             None => println!("locate {}", std::env::var("RUDA_PATH").unwrap()),
         },
-        Task::Restore { profile, path, compile } => {
+        Task::Restore {
+            profile,
+            path,
+            compile,
+        } => {
             build::restore(&path, profile, *compile);
         }
     }

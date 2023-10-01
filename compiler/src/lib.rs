@@ -2,12 +2,12 @@
 
 use crate::ast_parser::ast_parser::{generate_ast as gen_ast, Head, HeadParam};
 use crate::intermediate::AnalyzationError::ErrType;
-use crate::lexing_preprocessor::parse_err::Errors;
 use crate::lexer::tokenizer::Tokens;
+use crate::lexing_preprocessor::parse_err::Errors;
 use crate::tree_walker::tree_walker::generate_tree;
-use std::{env, fs::File, hint::black_box, io::Read, time::SystemTime, collections::HashMap};
+use std::{collections::HashMap, env, fs::File, hint::black_box, io::Read, time::SystemTime};
 
-use crate::{tree_walker::tree_walker::ArgNodeType, intermediate::AnalyzationError};
+use crate::{intermediate::AnalyzationError, tree_walker::tree_walker::ArgNodeType};
 
 mod ast_parser;
 mod lexer;
@@ -16,12 +16,11 @@ extern crate runtime;
 mod lexing_preprocessor;
 mod tree_walker;
 //mod writer;
+mod codeblock_parser;
 mod expression_parser;
 mod intermediate;
 mod libloader;
-mod codeblock_parser;
 mod prep_objects;
-
 
 pub fn tokenize(content: &str, formating: bool) -> (Vec<Tokens>, Vec<(usize, usize)>, Vec<Errors>) {
     use lexer::tokenizer::*;
@@ -32,7 +31,12 @@ pub fn tokenize(content: &str, formating: bool) -> (Vec<Tokens>, Vec<(usize, usi
 #[derive(Debug)]
 pub enum ErrorOrigin {
     LexingError(Vec<lexing_preprocessor::parse_err::Errors>),
-    ParsingError((tree_walker::tree_walker::Err, tree_walker::tree_walker::Line)),
+    ParsingError(
+        (
+            tree_walker::tree_walker::Err,
+            tree_walker::tree_walker::Line,
+        ),
+    ),
     CodeBlockParserError(Vec<lexing_preprocessor::parse_err::Errors>),
     IntermediateError(Vec<lexing_preprocessor::parse_err::Errors>),
     LibLoadError(Vec<lexing_preprocessor::parse_err::Errors>),
@@ -49,46 +53,46 @@ impl std::fmt::Display for ErrorOrigin {
                     write!(f, "{}\n", err)?;
                 }
                 Ok(())
-            },
+            }
             ErrorOrigin::ParsingError((err, line)) => {
                 write!(f, "Parsing error:\n")?;
                 write!(f, "{}\n", err)?;
                 write!(f, "Line: {}", line)?;
                 Ok(())
-            },
+            }
             ErrorOrigin::CodeBlockParserError(errs) => {
                 write!(f, "Code block parsing error:\n")?;
                 for err in errs {
                     write!(f, "{}\n", err)?;
                 }
                 Ok(())
-            },
+            }
             ErrorOrigin::IntermediateError(errs) => {
                 write!(f, "Intermediate error:\n")?;
                 for err in errs {
                     write!(f, "{}\n", err)?;
                 }
                 Ok(())
-            },
+            }
             ErrorOrigin::LibLoadError(errs) => {
                 write!(f, "Library loading error:\n")?;
                 for err in errs {
                     write!(f, "{}\n", err)?;
                 }
                 Ok(())
-            },
+            }
             ErrorOrigin::AnalyzationError(errs) => {
                 write!(f, "Analyzation error:\n")?;
                 for err in errs {
                     write!(f, "{}\n", err)?;
                 }
                 Ok(())
-            },
+            }
             ErrorOrigin::LinkingError(err) => {
                 write!(f, "Linking error:\n")?;
                 write!(f, "{:?}", err)?;
                 Ok(())
-            },
+            }
         }
     }
 }
@@ -101,7 +105,6 @@ pub enum LinkingError {
     CouldNotOpen(String, String),
 }
 
-
 pub type Dictionaries = HashMap<String, intermediate::dictionary::Dictionary>;
 
 pub fn read_source(root: &str, main: &str) -> Result<String, ErrorOrigin> {
@@ -111,18 +114,23 @@ pub fn read_source(root: &str, main: &str) -> Result<String, ErrorOrigin> {
     let mut file = match File::open(&path) {
         Ok(file) => file,
         Err(err) => {
-            return Err(ErrorOrigin::LinkingError(LinkingError::FileNotFound(path.to_str().unwrap().to_string(), err.to_string())));
+            return Err(ErrorOrigin::LinkingError(LinkingError::FileNotFound(
+                path.to_str().unwrap().to_string(),
+                err.to_string(),
+            )));
         }
     };
     match file.read_to_string(&mut string) {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(err) => {
-            return Err(ErrorOrigin::LinkingError(LinkingError::CouldNotOpen(path.to_str().unwrap().to_string(), err.to_string())));
+            return Err(ErrorOrigin::LinkingError(LinkingError::CouldNotOpen(
+                path.to_str().unwrap().to_string(),
+                err.to_string(),
+            )));
         }
     };
     Ok(string)
 }
-
 
 pub fn new_imports(imports: &mut Vec<String>, new: Vec<String>) {
     imports.extend(new);
@@ -130,11 +138,22 @@ pub fn new_imports(imports: &mut Vec<String>, new: Vec<String>) {
     imports.dedup();
 }
 
-pub fn build_dictionaries(main: &str, ast: &mut (HashMap<String, Head>, Vec<HeadParam>)) -> Result<Dictionaries, (ErrorOrigin, String)> {
+pub fn build_dictionaries(
+    main: &str,
+    ast: &mut (HashMap<String, Head>, Vec<HeadParam>),
+) -> Result<Dictionaries, (ErrorOrigin, String)> {
     // root is the directory of the main file
     let main_path = std::path::Path::new(main);
-    let main_ = main_path.file_name().expect("internal error 6. please contact the developer.").to_str().expect("internal error 5. please contact the developer.");
-    let root = main_path.parent().expect("internal error 0. please contact the developer.").to_str().expect("internal error 0. please contact the developer.");
+    let main_ = main_path
+        .file_name()
+        .expect("internal error 6. please contact the developer.")
+        .to_str()
+        .expect("internal error 5. please contact the developer.");
+    let root = main_path
+        .parent()
+        .expect("internal error 0. please contact the developer.")
+        .to_str()
+        .expect("internal error 0. please contact the developer.");
     let main = match read_source(root, main_) {
         Ok(main) => main,
         Err(err) => {
@@ -150,7 +169,7 @@ pub fn build_dictionaries(main: &str, ast: &mut (HashMap<String, Head>, Vec<Head
             }
             new_imports(&mut imports, res.2);
             dictionaries.insert(main_.to_string(), res.0);
-        },
+        }
         Err(err) => {
             return Err((err, root.to_string()));
         }
@@ -166,16 +185,19 @@ pub fn build_dictionaries(main: &str, ast: &mut (HashMap<String, Head>, Vec<Head
                         match build_dictionary(&main, ast) {
                             Ok(res) => {
                                 if res.1.len() > 0 {
-                                    return Err((ErrorOrigin::AnalyzationError(res.1), import.clone()))
+                                    return Err((
+                                        ErrorOrigin::AnalyzationError(res.1),
+                                        import.clone(),
+                                    ));
                                 }
                                 found_imports.extend(res.2);
                                 dictionaries.insert(import.clone(), res.0);
-                            },
+                            }
                             Err(err) => {
                                 return Err((err, import.to_string()));
                             }
                         };
-                    },
+                    }
                     Err(err) => {
                         return Err((err, import.to_string()));
                     }
@@ -199,19 +221,19 @@ pub fn build_dictionaries(main: &str, ast: &mut (HashMap<String, Head>, Vec<Head
             return Ok(dictionaries);
         }
     }
-
-    
 }
 
-
 /// returns all of the binaries as dictionaries in the order of the paths
-pub fn build_binaries(paths: &Vec<String>, ast: &mut (HashMap<String, Head>, Vec<HeadParam>)) -> Result<Vec<libloader::Dictionary>, String> {
+pub fn build_binaries(
+    paths: &Vec<String>,
+    ast: &mut (HashMap<String, Head>, Vec<HeadParam>),
+) -> Result<Vec<libloader::Dictionary>, String> {
     let mut binaries = Vec::new();
     for path in paths {
         match libload(&path, ast) {
             Ok(lib) => {
                 binaries.push(lib);
-            },
+            }
             Err(err) => {
                 return Err(err);
             }
@@ -221,16 +243,27 @@ pub fn build_binaries(paths: &Vec<String>, ast: &mut (HashMap<String, Head>, Vec
 }
 
 /// you cannot kill me in a way that matters
-pub fn build_dictionary(mut content: &str, ast: &mut (HashMap<String, ast_parser::ast_parser::Head>, Vec<ast_parser::ast_parser::HeadParam>)) -> Result<(intermediate::dictionary::Dictionary, Vec<ErrType>, Vec<String>), ErrorOrigin> {
+pub fn build_dictionary(
+    mut content: &str,
+    ast: &mut (
+        HashMap<String, ast_parser::ast_parser::Head>,
+        Vec<ast_parser::ast_parser::HeadParam>,
+    ),
+) -> Result<
+    (
+        intermediate::dictionary::Dictionary,
+        Vec<ErrType>,
+        Vec<String>,
+    ),
+    ErrorOrigin,
+> {
     let mut tokens = tokenize(&content, false);
     if tokens.2.len() > 0 {
         return Err(ErrorOrigin::LexingError(tokens.2));
     }
-    tokens.0 = if let Ok(toks) = lexing_preprocessor::lexing_preprocessor::refactor(
-        tokens.0,
-        tokens.1,
-        &mut tokens.2,
-    ) {
+    tokens.0 = if let Ok(toks) =
+        lexing_preprocessor::lexing_preprocessor::refactor(tokens.0, tokens.1, &mut tokens.2)
+    {
         tokens.1 = toks.1;
         toks.0
     } else {
@@ -250,7 +283,7 @@ pub fn build_dictionary(mut content: &str, ast: &mut (HashMap<String, ast_parser
                     }
                 }
             }
-            
+
             // println!("Imports: {:?}", imports);
 
             let mut dictionary = intermediate::dictionary::from_ast(&tree.nodes, &imports);
@@ -262,15 +295,20 @@ pub fn build_dictionary(mut content: &str, ast: &mut (HashMap<String, ast_parser
     }
 }
 
-pub fn libload(file: &str, ast: &mut (HashMap<String, Head>, Vec<HeadParam>)) -> Result<libloader::Dictionary, String> {
-    let lib = unsafe { match libloading::Library::new(file) {
-        Ok(lib) => lib,
-        Err(err) => {
-            return Err(format!("Failed to load library '{file}'. {}", err));
+pub fn libload(
+    file: &str,
+    ast: &mut (HashMap<String, Head>, Vec<HeadParam>),
+) -> Result<libloader::Dictionary, String> {
+    let lib = unsafe {
+        match libloading::Library::new(file) {
+            Ok(lib) => lib,
+            Err(err) => {
+                return Err(format!("Failed to load library '{file}'. {}", err));
+            }
         }
-    } };
+    };
     let register = unsafe {
-        match lib.get::<fn()->String>(b"register\0") {
+        match lib.get::<fn() -> String>(b"register\0") {
             Ok(register) => register,
             Err(err) => {
                 return Err(format!("Library is not correct format '{file}'. {}", err));
