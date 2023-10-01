@@ -52,12 +52,21 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
     let (ast, params, registry) = match generate_ast(&ruda_path) {
         Ok(ast) => (ast.ast, ast.params, ast.registry),
         Err(err) => {
-            println!("Failed to load AST.");
             println!("{}", err);
+            println!("Close all programs that use Ruda and try again.");
+            println!("If that doesn't help, try to reinstall Ruda.");
             return;
         }
     };
-    let mut dictionaries = build_dictionaries(&main_file, &mut (ast, params));
+    println!("AST generated.");
+    let dictionaries = match build_dictionaries(&main_file, &mut (ast, params)) {
+        Ok(dictionaries) => dictionaries,
+        Err(err) => {
+            println!("Failed to load dictionaries.");
+            println!("Err: '{}':{}",err.1, err.0);
+            return;
+        }
+    };
     println!("Dictionary generated.");
     println!("{:?}", dictionaries);
     let mut bin_paths = Vec::new();
@@ -78,7 +87,7 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
         bin_paths.push(lib_path.to_string());
         lib_names.push(lib_name.to_string());
     }
-    let mut binaries = match build_binaries(&bin_paths, &mut (registry, Vec::new())) {
+    let binaries = match build_binaries(&bin_paths, &mut (registry, Vec::new())) {
         Ok(binaries) => binaries,
         Err(err) => {
             println!("Failed to load binaries.");
@@ -86,15 +95,16 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
             return;
         }
     };
-    let mut binaries = {
+    let binaries = {
         let mut bins = HashMap::new();
-        for (lib_name, lib_path) in lib_names.iter().zip(binaries.iter_mut()) {
+        for (lib_name, lib_path) in lib_names.iter().zip(binaries.iter()) {
             bins.insert(lib_name.to_string(), lib_path);
         }
         bins
     };
     println!("Binaries generated.");
     println!("{:?}", binaries);
+    let mut objects = (dictionaries, binaries);
     // TODO: uncomment for prod
-     sum::write_sums(path, profile.0, &sum::sum(path, profile.0));
+    // sum::write_sums(path, profile.0, &sum::sum(path, profile.0));
 }

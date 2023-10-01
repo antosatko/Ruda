@@ -164,6 +164,11 @@ pub mod tokenizer {
         Deleted,
         EndOfFile,
     }
+    impl std::fmt::Display for Tokens {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", deparse_token(self))
+        }
+    }
     #[derive(Debug, PartialEq, Clone, Copy, Eq)]
     pub enum Operators {
         Plus,

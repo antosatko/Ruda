@@ -20,6 +20,7 @@ mod expression_parser;
 mod intermediate;
 mod libloader;
 mod codeblock_parser;
+mod prep_objects;
 
 
 pub fn tokenize(content: &str, formating: bool) -> (Vec<Tokens>, Vec<(usize, usize)>, Vec<Errors>) {
@@ -37,6 +38,59 @@ pub enum ErrorOrigin {
     LibLoadError(Vec<lexing_preprocessor::parse_err::Errors>),
     AnalyzationError(Vec<intermediate::AnalyzationError::ErrType>),
     LinkingError(LinkingError),
+}
+
+impl std::fmt::Display for ErrorOrigin {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ErrorOrigin::LexingError(errs) => {
+                write!(f, "Lexing error:\n")?;
+                for err in errs {
+                    write!(f, "{}\n", err)?;
+                }
+                Ok(())
+            },
+            ErrorOrigin::ParsingError((err, line)) => {
+                write!(f, "Parsing error:\n")?;
+                write!(f, "{}\n", err)?;
+                write!(f, "Line: {}", line)?;
+                Ok(())
+            },
+            ErrorOrigin::CodeBlockParserError(errs) => {
+                write!(f, "Code block parsing error:\n")?;
+                for err in errs {
+                    write!(f, "{}\n", err)?;
+                }
+                Ok(())
+            },
+            ErrorOrigin::IntermediateError(errs) => {
+                write!(f, "Intermediate error:\n")?;
+                for err in errs {
+                    write!(f, "{}\n", err)?;
+                }
+                Ok(())
+            },
+            ErrorOrigin::LibLoadError(errs) => {
+                write!(f, "Library loading error:\n")?;
+                for err in errs {
+                    write!(f, "{}\n", err)?;
+                }
+                Ok(())
+            },
+            ErrorOrigin::AnalyzationError(errs) => {
+                write!(f, "Analyzation error:\n")?;
+                for err in errs {
+                    write!(f, "{}\n", err)?;
+                }
+                Ok(())
+            },
+            ErrorOrigin::LinkingError(err) => {
+                write!(f, "Linking error:\n")?;
+                write!(f, "{:?}", err)?;
+                Ok(())
+            },
+        }
+    }
 }
 
 #[derive(Debug)]

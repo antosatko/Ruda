@@ -152,6 +152,19 @@ pub enum TreeTransformError {
     NotImplementedCuzLazy,
 }
 
+impl std::fmt::Display for TreeTransformError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TreeTransformError::NoValue(line) => write!(f, "No value for operator at line {}", line),
+            TreeTransformError::ExcessOperator(line) => {
+                write!(f, "Excess operator at line {}", line)
+            }
+            TreeTransformError::ExcessValue(line) => write!(f, "Excess value at line {}", line),
+            TreeTransformError::NotImplementedCuzLazy => write!(f, "Not implemented cuz lazy"),
+        }
+    }
+}
+
 pub fn transform_expr(nodes: &Vec<Node>, errors: &mut Vec<ErrType>) -> Vec<ValueType> {
     let mut result = vec![];
     for node in nodes {

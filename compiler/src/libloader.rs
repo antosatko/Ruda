@@ -143,7 +143,7 @@ pub fn load(string: &[u8], ast: &mut (HashMap<String, Head>, Vec<HeadParam>)) ->
                             "true" => ConstValue::Bool(true),
                             "false" => ConstValue::Bool(false),
                             _ => {
-                                errors.push(ErrType::InvalidConstant(Tokens::Text(bool.to_string())));
+                                errors.push(ErrType::InvalidConstant(Tokens::Text(bool.to_string()), val.line));
                                 ConstValue::Bool(false)
                             }
                         },

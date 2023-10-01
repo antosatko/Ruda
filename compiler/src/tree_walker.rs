@@ -608,6 +608,36 @@ pub mod tree_walker {
         WrongEndingToken(Tokens, Tokens),
         EmptyNodeParameter(String),
     }
+    impl std::fmt::Display for Err {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Err::Expected(expected, found) => {
+                    write!(f, "Expected {:?}, found {:?}", expected, found)
+                }
+                Err::ExpectedOneOf(expected, found) => {
+                    write!(f, "Expected one of {:?}, found {:?}", expected, found)
+                }
+                Err::Msg(msg) => {
+                    write!(f, "{}", msg)
+                }
+                Err::FileEnd => {
+                    write!(f, "Unexpected end of file")
+                }
+                Err::FileEndPeaceful => {
+                    write!(f, "End of file")
+                }
+                Err::Pass(msg) => {
+                    write!(f, "{}", msg)
+                }
+                Err::WrongEndingToken(expected, found) => {
+                    write!(f, "Expected {:?}, found {:?}", expected, found)
+                }
+                Err::EmptyNodeParameter(ident) => {
+                    write!(f, "Empty node parameter: {}", ident)
+                }
+            }
+        }
+    }
 
     #[derive(Clone, Copy)]
     pub struct Line {

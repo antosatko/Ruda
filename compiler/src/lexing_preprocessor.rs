@@ -297,4 +297,19 @@ pub mod parse_err {
         // character
         CharacterTooLong(Line, String),
     }
+    impl std::fmt::Display for Errors {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Errors::InvalidNumber(line, num) => {
+                    write!(f, "Invalid number: {} at line {}", num, line)
+                }
+                Errors::InvalidChar(line, chr) => {
+                    write!(f, "Invalid character: {} at line {}", chr, line)
+                }
+                Errors::CharacterTooLong(line, chr) => {
+                    write!(f, "Character too long: {} at line {}", chr, line)
+                }
+            }
+        }
+    }
 }

@@ -7,8 +7,12 @@ pub mod ast_parser {
     use crate::lexer::tokenizer::*;
     pub fn generate_ast(source_path: &str) -> Option<(Tree, Vec<HeadParam>)> {
         use std::fs;
-        let source =
-            fs::read_to_string(source_path).expect("Unexpected problem while opening AST file");
+        let source = match fs::read_to_string(source_path) {
+            Ok(source) => source,
+            Err(err) => {
+                return None;
+            }
+        };
         let (tokens, mut lines, mut errors) = tokenize(&source.as_bytes(), false);
         if let Ok(mut refactored) = refactor(tokens, &mut lines, &mut errors) {
             return Some(analize_tree(&mut refactored));

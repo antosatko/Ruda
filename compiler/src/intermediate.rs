@@ -4,14 +4,17 @@ pub mod dictionary {
         expression_parser::{self, get_args, ValueType},
         lexer::tokenizer::{Operators, Tokens},
         libloader,
-        tree_walker::tree_walker::{self, ArgNodeType, Err, Node, Line},
+        tree_walker::tree_walker::{self, ArgNodeType, Err, Line, Node},
     };
     use core::panic;
     use std::{collections::HashMap, fs::DirEntry, io::Read};
 
     use super::AnalyzationError::{self, ErrType};
 
-    pub fn from_ast(ast: &HashMap<String, tree_walker::ArgNodeType>, globals: &Vec<String>) -> (Dictionary, Vec<ErrType>) {
+    pub fn from_ast(
+        ast: &HashMap<String, tree_walker::ArgNodeType>,
+        globals: &Vec<String>,
+    ) -> (Dictionary, Vec<ErrType>) {
         let mut global_dict = Dictionary::new();
         let mut errors = Vec::new();
         if let Some(ArgNodeType::Array(entry)) = ast.get("nodes") {
@@ -41,7 +44,7 @@ pub mod dictionary {
                 // look if every constant has a value
                 for constant in &dictionary.constants {
                     if constant.real_value.is_none() {
-                    errors.push(ErrType::CannotInitializeConstant(
+                        errors.push(ErrType::CannotInitializeConstant(
                             constant.identifier.to_string(),
                         ))
                     }
@@ -49,7 +52,6 @@ pub mod dictionary {
                 break;
             }
         }
-        println!("final");
         for i in 0..dictionary.constants.len() {
             let constant = &dictionary.constants[i];
             if let Some(val) = analyze_const(&constant.value, dictionary, errors) {
@@ -58,14 +60,12 @@ pub mod dictionary {
         }
         if changes.len() > 0 {
             while let Some((i, val)) = changes.pop() {
-                println!("{} {:?}", i, val);
                 dictionary.constants[i].real_value = Some(val);
             }
         } else {
             // look if every constant has a value
             for constant in &dictionary.constants {
                 if constant.real_value.is_none() {
-                    println!("2: {} {:?}", constant.identifier, constant.value);
                     errors.push(ErrType::CannotInitializeConstant(
                         constant.identifier.to_string(),
                     ))
@@ -138,10 +138,10 @@ pub mod dictionary {
                 let right = if let Some(right) = &expression.right {
                     analyze_const(right, dictionary, errors)
                 } else {
-                    return None
+                    return None;
                 };
                 if right.is_none() {
-                    return None
+                    return None;
                 }
                 let right = right.unwrap();
                 let op = if let Some(op) = &expression.operator {
@@ -208,7 +208,7 @@ pub mod dictionary {
                     keys: vec![],
                     methods: vec![],
                     overloads: vec![],
-                    line: node.line
+                    line: node.line,
                 };
                 for enum_value in step_inside_arr(&node, "values") {
                     let n = if let Tokens::Number(n, _) = get_token(&enum_value, "default") {
@@ -223,8 +223,10 @@ pub mod dictionary {
                             errors.push(ErrType::EnumVariantAssignedNumber(n, enum_value.line))
                         }
                         if variant.0 == ident {
-                            errors
-                                .push(ErrType::EnumVariantAssignedIdent(ident.to_string(), enum_value.line))
+                            errors.push(ErrType::EnumVariantAssignedIdent(
+                                ident.to_string(),
+                                enum_value.line,
+                            ))
                         }
                     }
                     result.keys.push((ident, n, enum_value.line));
@@ -232,7 +234,10 @@ pub mod dictionary {
                 if dictionary.register_id(result.identifier.to_string(), IdentifierKinds::Enum) {
                     dictionary.enums.push(result);
                 } else {
-                    errors.push(ErrType::ConflictingNames(result.identifier.to_string(), node.line))
+                    errors.push(ErrType::ConflictingNames(
+                        result.identifier.to_string(),
+                        node.line,
+                    ))
                 }
             }
             "KWType" => {
@@ -245,7 +250,7 @@ pub mod dictionary {
                         overloads: vec![],
                         methods: vec![],
                         public: public(&node),
-                        line: node.line
+                        line: node.line,
                     })
                 } else {
                     errors.push(ErrType::ConflictingNames(name.to_string(), node.line))
@@ -260,7 +265,7 @@ pub mod dictionary {
                     public: public(&node),
                     memory_layout: Vec::new(),
                     ptrs: 0,
-                    line: node.line
+                    line: node.line,
                 };
                 for key in step_inside_arr(node, "keys") {
                     let ident = get_ident(&key);
@@ -268,7 +273,7 @@ pub mod dictionary {
                         if *field.0 == ident {
                             errors.push(ErrType::StructVariantAssignedIdent(
                                 ident.to_string(),
-                                field.1.line
+                                field.1.line,
                             ))
                         }
                     }
@@ -280,7 +285,10 @@ pub mod dictionary {
                 if dictionary.register_id(result.identifier.to_string(), IdentifierKinds::Struct) {
                     dictionary.structs.push(result);
                 } else {
-                    errors.push(ErrType::ConflictingNames(result.identifier.to_string(), node.line))
+                    errors.push(ErrType::ConflictingNames(
+                        result.identifier.to_string(),
+                        node.line,
+                    ))
                 }
             }
             "KWImport" => {
@@ -293,7 +301,7 @@ pub mod dictionary {
                 dictionary.imports.push(Import {
                     path,
                     alias,
-                    line: node.line
+                    line: node.line,
                 });
             }
             "KWFun" => {
@@ -327,7 +335,7 @@ pub mod dictionary {
                         kind,
                         identifier,
                         location: 0,
-                        line: node.line
+                        line: node.line,
                     })
                 } else {
                     errors.push(ErrType::ConflictingNames(identifier.to_string(), node.line))
@@ -345,7 +353,7 @@ pub mod dictionary {
                             errors,
                         ),
                         real_value: None,
-                        line: node.line
+                        line: node.line,
                     })
                 } else {
                     errors.push(ErrType::ConflictingNames(identifier.to_string(), node.line))
@@ -376,7 +384,7 @@ pub mod dictionary {
                     traits,
                     functions,
                     overloads,
-                    line: node.line
+                    line: node.line,
                 })
             }
             "KWTrait" => {
@@ -405,7 +413,7 @@ pub mod dictionary {
                         overloads,
                         traits,
                         public: is_pub,
-                        line: node.line
+                        line: node.line,
                     })
                 } else {
                     errors.push(ErrType::ConflictingNames(identifier.to_string(), node.line))
@@ -421,7 +429,7 @@ pub mod dictionary {
                     args.push(Arg {
                         identifier: ident,
                         kind,
-                        line: arg.line
+                        line: arg.line,
                     })
                 }
                 let mut fields = Vec::new();
@@ -449,7 +457,7 @@ pub mod dictionary {
                         args,
                         fields,
                         src_loc: 0,
-                        line: node.line
+                        line: node.line,
                     })
                 } else {
                     errors.push(ErrType::ConflictingNames(ident.to_string(), node.line))
@@ -498,7 +506,7 @@ pub mod dictionary {
             arg: Arg {
                 identifier: get_ident(&arg),
                 kind: get_type(step_inside_val(&arg, "type"), errors),
-                line: arg.line
+                line: arg.line,
             },
             stack_size: None,
             location: None,
@@ -506,7 +514,7 @@ pub mod dictionary {
             generics,
             public: public(&node),
             code,
-            line: node.line
+            line: node.line,
         }
     }
     pub fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>) -> Function {
@@ -526,7 +534,7 @@ pub mod dictionary {
             if let Tokens::Text(name) = &arg.name {
                 match name.as_str() {
                     "self_arg" => {
-                        args.push(Arg{
+                        args.push(Arg {
                             identifier: String::from("self"),
                             kind: ShallowType {
                                 is_fun: None,
@@ -534,22 +542,25 @@ pub mod dictionary {
                                 refs: count_refs(&arg),
                                 main: vec![String::from("Self")],
                                 generics: Vec::new(),
-                                line: arg.line
+                                line: arg.line,
                             },
-                            line: arg.line
+                            line: arg.line,
                         });
                     }
                     "arg" => {
                         let ident = get_ident(arg);
                         for arg in &args {
                             if arg.identifier == ident {
-                                errors.push(ErrType::ConflictingArgsName(ident.to_string(), arg.line));
+                                errors.push(ErrType::ConflictingArgsName(
+                                    ident.to_string(),
+                                    arg.line,
+                                ));
                             }
                         }
-                        args.push(Arg{
+                        args.push(Arg {
                             identifier: ident,
                             kind: get_type(step_inside_val(&arg, "type"), errors),
-                            line: arg.line
+                            line: arg.line,
                         });
                     }
                     _ => {
@@ -588,7 +599,7 @@ pub mod dictionary {
             generics,
             public: false,
             code,
-            line: node.line
+            line: node.line,
         }
     }
     pub fn public(node: &Node) -> bool {
@@ -681,7 +692,7 @@ pub mod dictionary {
             refs,
             main,
             generics: get_generics_expr(node, errors),
-            line: node.line
+            line: node.line,
         }
     }
     pub fn get_generics_expr(node: &Node, errors: &mut Vec<ErrType>) -> GenericExpr {
@@ -775,7 +786,7 @@ pub mod dictionary {
         // dependences
         pub traits: Vec<NestedIdent>,
         pub public: bool,
-        pub line: Line
+        pub line: Line,
     }
     #[derive(Debug, Clone)]
     pub enum IdentifierKinds {
@@ -787,6 +798,20 @@ pub mod dictionary {
         Namespace,
         Trait,
         Error,
+    }
+    impl std::fmt::Display for IdentifierKinds {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                IdentifierKinds::Function => write!(f, "function"),
+                IdentifierKinds::Type => write!(f, "type"),
+                IdentifierKinds::Enum => write!(f, "enum"),
+                IdentifierKinds::Struct => write!(f, "struct"),
+                IdentifierKinds::Variable => write!(f, "variable"),
+                IdentifierKinds::Namespace => write!(f, "namespace"),
+                IdentifierKinds::Trait => write!(f, "trait"),
+                IdentifierKinds::Error => write!(f, "error"),
+            }
+        }
     }
     #[derive(Debug)]
     pub struct TypeDef {
@@ -1021,7 +1046,7 @@ pub mod dictionary {
                     Operators::Not => *b = !*b,
                     _ => (),
                 },
-                _ => {},
+                _ => {}
             }
         }
     }
@@ -1103,7 +1128,7 @@ pub mod dictionary {
                 refs: 0,
                 main: vec![],
                 generics: vec![],
-                line: Line { line: 0, column: 0 }
+                line: Line { line: 0, column: 0 },
             }
         }
         pub fn cmp(&self, other: &Self, dict: &Dictionary) -> TypeComparison {
@@ -1231,7 +1256,7 @@ pub mod AnalyzationError {
         /// invalid_register | occurs when you try to use register that does not exist
         InvalidRegister(String, Line),
         /// invalid_constant | occurs when you try to use constant that is not supported in rust libraries
-        InvalidConstant(crate::lexer::tokenizer::Tokens),
+        InvalidConstant(crate::lexer::tokenizer::Tokens, Line),
         /// import_path | occurs when you try to import file that does not exist
         ImportPathDoesNotExist(String, Line),
         /// not_code_block | occurs when you try to use code block that is not code block (probably wont happen tho)
@@ -1242,5 +1267,63 @@ pub mod AnalyzationError {
         CannotInitializeConstant(String),
         /// missong_operator | occurs when expression expects operator but there is none
         MissingOperator(Line),
+    }
+
+    impl std::fmt::Display for ErrType {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                ErrType::EnumVariantAssignedNumber(num, line) => {
+                    write!(
+                        f,
+                        "enum variant assigned number {num} at {line}"
+                    )
+                }
+                ErrType::EnumVariantAssignedIdent(ident, line) => {
+                    write!(
+                        f,
+                        "enum variant assigned identifier {ident} at {line}"
+                    )
+                }
+                ErrType::ConflictingNames(ident, line) => {
+                    write!(f, "conflicting names {ident} at {line}")
+                }
+                ErrType::ConflictingArgsName(ident, line) => {
+                    write!(f, "conflicting args name {ident} at {line}")
+                }
+                ErrType::BadImpl(ident, kind, line) => {
+                    write!(f, "bad impl {ident} {kind} at {line}")
+                }
+                ErrType::NonExistentIdentifier(ident, line) => {
+                    write!(f, "non existent identifier {ident} at {line}")
+                }
+                ErrType::StructVariantAssignedIdent(ident, line) => {
+                    write!(f, "struct variant assigned identifier {ident} at {line}")
+                }
+                ErrType::TreeTransformError(err, line) => {
+                    write!(f, "tree transform error {err} at {line}")
+                }
+                ErrType::InvalidRegister(ident, line) => {
+                    write!(f, "invalid register {ident} at {line}")
+                }
+                ErrType::InvalidConstant(token, line) => {
+                    write!(f, "invalid constant {token} at {line}")
+                }
+                ErrType::ImportPathDoesNotExist(path, line) => {
+                    write!(f, "import path does not exist {path} at {line}")
+                }
+                ErrType::NotCodeBlock(line) => {
+                    write!(f, "not code block at {line}")
+                }
+                ErrType::NotOperator(line) => {
+                    write!(f, "not operator at {line}")
+                }
+                ErrType::CannotInitializeConstant(ident) => {
+                    write!(f, "cannot initialize constant {ident}")
+                }
+                ErrType::MissingOperator(line) => {
+                    write!(f, "missing operator at {line}")
+                }
+            }
+        }
     }
 }

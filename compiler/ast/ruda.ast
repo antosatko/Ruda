@@ -18,7 +18,24 @@ entry [nodes
 	KWTrait ? set="nodes" back="6"
 	KWEnum ? set="nodes" back="7"
 	KWError ? set="nodes" back="8"
+	KWUse ? set="nodes" back="9"
 	"'eof";
+
+
+"
+use io.* // import everything from io
+use io.print // import only print from io
+use io.print as print // import print from io and rename it to print
+"
+KWUse [path alias
+	"use" harderr="true"
+	ident ? set="path"
+		. ? back="1"
+	* ? set="path" end="true"
+	"as" ? 
+		ident ? set="alias"
+	;?;
+
 
 "
 // pretend that double quotes are single quotes

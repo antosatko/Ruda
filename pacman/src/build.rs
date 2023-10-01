@@ -18,8 +18,6 @@ pub fn run(path: &str, profile: &str, _args: Vec<String>) {
     compile::compile(path, profile);
 
     // todo: run
-
-    println!("config: {:#?}", config);
 }
 
 pub fn build(path: &str, profile: &str) {
@@ -35,8 +33,6 @@ pub fn build(path: &str, profile: &str) {
     build_deps(&profile.1, config._3rdparty as usize);
     // compile
     compile::compile(path, profile);
-
-    println!("config: {:#?}", config);
 }
 
 /// Build dependencies for a profile
