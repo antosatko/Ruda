@@ -43,5 +43,8 @@ fn main() {
             Some(url) => println!("locate {}", remote::path(url, version)),
             None => println!("locate {}", std::env::var("RUDA_PATH").unwrap()),
         },
+        Task::Restore { profile, path, compile } => {
+            build::restore(&path, profile, *compile);
+        }
     }
 }

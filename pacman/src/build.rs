@@ -90,3 +90,26 @@ pub fn build_deps(profile: &Profile, _3rdparty: usize) {
         }
     }
 }
+
+/// Restore a project if cannot compile correctly
+/// delete target directory
+pub fn restore(path: &str, profile: &str, compile: bool) {
+    let config = config::read(path);
+    let profile = match config.profile.get(profile) {
+        Some(prof) => (profile, prof),
+        None => {
+            println!("Profile \"{}\" not found", profile);
+            std::process::exit(1);
+        }
+    };
+    // delete target directory
+    let profile_path = std::path::Path::new(path).join("target").join(profile.0);
+    if profile_path.exists() {
+        std::fs::remove_dir_all(&profile_path).unwrap();
+    }
+    // compile
+    if compile {
+        build_deps(&profile.1, profile.1._3rdparty as usize);
+        compile::compile(path, profile);
+    }
+}

@@ -87,6 +87,20 @@ pub enum Task {
         #[clap(name = "version", short, long, default_value = "latest")]
         version: String,
     },
+    /// Restore a project if cannot compile correctly
+    Restore {
+        /// Profile to use
+        #[clap(name = "profile", short, long, default_value = "default")]
+        profile: String,
+
+        /// compile the project after restoring
+        #[clap(name = "compile", short, long)]
+        compile: bool,
+
+        /// Path to project
+        #[clap(name = "path", default_value = ".")]
+        path: String,
+    },
 }
 
 #[derive(Debug, ValueEnum, Clone)]

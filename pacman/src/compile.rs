@@ -96,5 +96,5 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
     println!("Binaries generated.");
     println!("{:?}", binaries);
     // TODO: uncomment for prod
-    // sum::write_sums(path, profile.0, &sum::sum(path, profile.0));
+     sum::write_sums(path, profile.0, &sum::sum(path, profile.0));
 }
