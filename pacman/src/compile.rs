@@ -1,6 +1,8 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, process::id};
 
 use crate::{config, sum};
+
+use compiler::prep_objects::Context;
 
 pub fn compile(path: &str, profile: (&str, &config::Profile)) {
     // determine if we have to compile for current profile
@@ -87,7 +89,7 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
         bin_paths.push(lib_path.to_string());
         lib_names.push(lib_name.to_string());
     }
-    let binaries = match build_binaries(&bin_paths, &mut (registry, Vec::new())) {
+    let mut binaries = match build_binaries(&bin_paths, &mut (registry, Vec::new())) {
         Ok(binaries) => binaries,
         Err(err) => {
             println!("Failed to load binaries.");
@@ -97,14 +99,25 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
     };
     let binaries = {
         let mut bins = HashMap::new();
-        for (lib_name, lib_path) in lib_names.iter().zip(binaries.iter()) {
-            bins.insert(lib_name.to_string(), lib_path);
+        for (idx, libname) in lib_names.iter().enumerate() {
+            bins.insert(libname.to_string(), binaries.remove(0));
         }
         bins
     };
     println!("Binaries generated.");
     println!("{:?}", binaries);
-    let mut objects = (dictionaries, binaries);
+    let mut context = Context::new(dictionaries, binaries);
+    match prep_objects::prep(&mut context) {
+        Ok(_) => {
+            println!("Objects prepared.");
+            println!("{:?}", context.destruct());
+        },
+        Err(err) => {
+            println!("Failed to prepare objects.");
+            // TODO: println!("{}", err);
+            return;
+        }
+    }
     // TODO: uncomment for prod
     // sum::write_sums(path, profile.0, &sum::sum(path, profile.0));
 }

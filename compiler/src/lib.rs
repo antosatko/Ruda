@@ -20,7 +20,7 @@ mod codeblock_parser;
 mod expression_parser;
 mod intermediate;
 mod libloader;
-mod prep_objects;
+pub mod prep_objects;
 
 pub fn tokenize(content: &str, formating: bool) -> (Vec<Tokens>, Vec<(usize, usize)>, Vec<Errors>) {
     use lexer::tokenizer::*;
