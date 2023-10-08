@@ -51,6 +51,10 @@ impl Context {
                 },
                 fun_table: vec![],
                 runtime_args: vec![],
+                user_data: UserDataContainer {
+                    data: vec![],
+                    garbage: vec![],
+                },
             },
             code: Code {
                 data: vec![],
@@ -196,13 +200,17 @@ impl Context {
                         }
                         PointerTypes::Char(loc) => {
                             if let Types::Char(chr) = self.memory.registers[value_reg] {
-                                self.memory.strings.pool[u_size].replace_range(loc..loc + 1, &chr.to_string());
+                                self.memory.strings.pool[u_size]
+                                    .replace_range(loc..loc + 1, &chr.to_string());
                             } else {
                                 return self.panic_rt(ErrTypes::Expected(
                                     Types::Char('a'),
                                     self.memory.registers[value_reg],
                                 ));
                             }
+                        }
+                        PointerTypes::UserData => {
+                            return self.panic_rt(ErrTypes::CannotReadUserdata);
                         }
                     }
                 } else {
@@ -235,8 +243,12 @@ impl Context {
                             ));
                         }
                         PointerTypes::Char(idx) => {
-                            self.memory.registers[cash_reg] =
-                                Types::Char(self.memory.strings.pool[u_size].chars().nth(idx).unwrap());
+                            self.memory.registers[cash_reg] = Types::Char(
+                                self.memory.strings.pool[u_size].chars().nth(idx).unwrap(),
+                            );
+                        }
+                        PointerTypes::UserData => {
+                            return self.panic_rt(ErrTypes::CannotReadUserdata);
                         }
                     }
                 } else {
@@ -284,6 +296,9 @@ impl Context {
                                 self.memory.registers[POINTER_REG] =
                                     Types::Pointer(u_size, PointerTypes::Char(index));
                             }
+                            PointerTypes::UserData => {
+                                return self.panic_rt(ErrTypes::CannotReadUserdata);
+                            }
                         }
                     } else {
                         return self.panic_rt(ErrTypes::WrongTypeOperation(
@@ -325,6 +340,9 @@ impl Context {
                         PointerTypes::String => {
                             self.memory.registers[POINTER_REG] =
                                 Types::Pointer(u_size, PointerTypes::Char(index));
+                        }
+                        PointerTypes::UserData => {
+                            return self.panic_rt(ErrTypes::CannotReadUserdata);
                         }
                     }
                 } else {
@@ -818,13 +836,17 @@ impl Context {
                     for i in 0..len {
                         let value = match kind {
                             PointerTypes::Object => self.memory.heap.data[u_size][i],
-                            PointerTypes::String => {
-                                Types::Pointer(u_size, PointerTypes::String)
-                            }
+                            PointerTypes::String => Types::Pointer(u_size, PointerTypes::String),
                             PointerTypes::Stack => self.memory.stack.data[u_size + i],
                             PointerTypes::Heap(idx) => self.memory.heap.data[u_size][i + idx],
-                            PointerTypes::Char(idx) => {
-                                Types::Char(self.memory.strings.pool[u_size].chars().nth(i + idx).unwrap())
+                            PointerTypes::Char(idx) => Types::Char(
+                                self.memory.strings.pool[u_size]
+                                    .chars()
+                                    .nth(i + idx)
+                                    .unwrap(),
+                            ),
+                            PointerTypes::UserData => {
+                                return self.panic_rt(ErrTypes::CannotReadUserdata);
                             }
                         };
                         match new_ptr.1 {
@@ -832,7 +854,8 @@ impl Context {
                                 self.memory.heap.data[new_ptr.0][i] = value;
                             }
                             PointerTypes::String => {
-                                self.memory.strings.pool[new_ptr.0].replace_range(i..i + 1, &value.get_char().to_string());
+                                self.memory.strings.pool[new_ptr.0]
+                                    .replace_range(i..i + 1, &value.get_char().to_string());
                             }
                             PointerTypes::Stack => {
                                 self.memory.stack.data[new_ptr.0 + i] = value;
@@ -841,7 +864,13 @@ impl Context {
                                 self.memory.heap.data[new_ptr.0][idx + i] = value;
                             }
                             PointerTypes::Char(idx) => {
-                                self.memory.strings.pool[new_ptr.0].replace_range(idx + i..idx + i + 1, &value.get_char().to_string());
+                                self.memory.strings.pool[new_ptr.0].replace_range(
+                                    idx + i..idx + i + 1,
+                                    &value.get_char().to_string(),
+                                );
+                            }
+                            PointerTypes::UserData => {
+                                return self.panic_rt(ErrTypes::CannotReadUserdata);
                             }
                         }
                     }
@@ -852,7 +881,7 @@ impl Context {
                     ));
                 }
             }
-            // TODO: optimize 
+            // TODO: optimize
             // - dont match on each iteration
             TRng(val, len) => {
                 let value = self.memory.registers[val];
@@ -873,6 +902,9 @@ impl Context {
                             }
                             PointerTypes::String => {
                                 todo!()
+                            }
+                            PointerTypes::UserData => {
+                                return self.panic_rt(ErrTypes::CannotReadUserdata);
                             }
                         }
                     }
@@ -1129,6 +1161,11 @@ pub mod runtime_types {
         pub gc: GarbageCollector,
         pub fun_table: Vec<FunSpec>,
         pub runtime_args: Vec<String>,
+        pub user_data: UserDataContainer,
+    }
+    pub struct UserDataContainer {
+        pub data: Vec<Box<dyn user_data::UserData>>,
+        pub garbage: Vec<usize>,
     }
     pub struct GarbageCollector {
         pub sweeps_count: usize,
@@ -1269,16 +1306,19 @@ pub mod runtime_types {
                 }
                 PointerTypes::Char(idx) => {
                     if let Types::Char(chr) = value {
-                        self.strings.pool[loc].replace_range(*idx..=*idx+1, &chr.to_string());
+                        self.strings.pool[loc].replace_range(*idx..=*idx + 1, &chr.to_string());
                     } else {
                         return Err(ErrTypes::Expected(Types::Char('a'), *value));
                     }
+                }
+                PointerTypes::UserData => {
+                    return Err(ErrTypes::CannotReadUserdata);
                 }
             }
             Ok(())
         }
         /// writes value to pointer with index
-        /// 
+        ///
         /// btw this needs rewrite asap TODO: rewrite this pls pslspplsplssplsp
         pub fn write_idx(
             &mut self,
@@ -1296,44 +1336,41 @@ pub mod runtime_types {
         pub fn index(&self, ptr: Types, idx: usize) -> Types {
             if let Types::Pointer(u_size, kind) = ptr {
                 return match kind {
-                    PointerTypes::Stack => {
-                        self.stack.data[u_size + idx].clone()
-                    }
-                    PointerTypes::Heap(loc) => {
-                        self.heap.data[u_size][loc + idx].clone()
-                    }
-                    PointerTypes::Object => {
-                        self.heap.data[u_size][idx].clone()
-                    }
-                    PointerTypes::String => {
-                        Types::Char(self.strings.pool[u_size].chars().next().expect("tried to get char that may not exist"))
-                    }
-                    PointerTypes::Char(loc) => {
-                        Types::Char(self.strings.pool[u_size].chars().nth(loc + idx).expect("tried to get char that may not exist"))
-                    }
-                }
+                    PointerTypes::Stack => self.stack.data[u_size + idx].clone(),
+                    PointerTypes::Heap(loc) => self.heap.data[u_size][loc + idx].clone(),
+                    PointerTypes::Object => self.heap.data[u_size][idx].clone(),
+                    PointerTypes::String => Types::Char(
+                        self.strings.pool[u_size]
+                            .chars()
+                            .next()
+                            .expect("tried to get char that may not exist"),
+                    ),
+                    PointerTypes::Char(loc) => Types::Char(
+                        self.strings.pool[u_size]
+                            .chars()
+                            .nth(loc + idx)
+                            .expect("tried to get char that may not exist"),
+                    ),
+                    PointerTypes::UserData => Types::Void,
+                };
             }
             Types::Void
         }
         pub fn get(&self, ptr: Types) -> Types {
             if let Types::Pointer(u_size, kind) = ptr {
                 return match kind {
-                    PointerTypes::Stack => {
-                        self.stack.data[u_size].clone()
-                    }
-                    PointerTypes::Heap(loc) => {
-                        self.heap.data[u_size][loc].clone()
-                    }
-                    PointerTypes::Object => {
-                        self.heap.data[u_size][0].clone()
-                    }
-                    PointerTypes::String => {
-                        ptr
-                    }
-                    PointerTypes::Char(c) => {
-                        Types::Char(self.strings.pool[u_size].chars().nth(c).expect("tried to get char that may not exist"))
-                    }
-                }
+                    PointerTypes::Stack => self.stack.data[u_size].clone(),
+                    PointerTypes::Heap(loc) => self.heap.data[u_size][loc].clone(),
+                    PointerTypes::Object => self.heap.data[u_size][0].clone(),
+                    PointerTypes::String => ptr,
+                    PointerTypes::Char(c) => Types::Char(
+                        self.strings.pool[u_size]
+                            .chars()
+                            .nth(c)
+                            .expect("tried to get char that may not exist"),
+                    ),
+                    PointerTypes::UserData => Types::Void,
+                };
             }
             Types::Void
         }
@@ -1502,6 +1539,33 @@ pub mod runtime_types {
                 + std::mem::size_of_val(&self.non_primitives)
         }
     }
+    impl UserDataContainer {
+        pub fn new() -> Self {
+            Self {
+                data: Vec::new(),
+                garbage: Vec::new(),
+            }
+        }
+        pub fn push(&mut self, data: Box<dyn user_data::UserData>) -> usize {
+            if let Some(idx) = self.garbage.pop() {
+                self.data[idx] = data;
+                idx
+            } else {
+                self.data.push(data);
+                self.data.len() - 1
+            }
+        }
+        pub fn remove(&mut self, idx: usize) -> Option<Box<dyn user_data::UserData>> {
+            if idx >= self.data.len() {
+                return None;
+            }
+            self.garbage.push(idx);
+            Some(std::mem::replace(
+                &mut self.data[idx],
+                Box::new(user_data::Null),
+            ))
+        }
+    }
     pub type Libs = Vec<Box<dyn Library + Send>>;
     pub struct Stack {
         pub data: Vec<Types>,
@@ -1610,7 +1674,7 @@ pub mod runtime_types {
     }
     pub struct PublicData<'a> {
         pub memory: &'a mut Memory,
-        pub code: &'a mut Code,
+        pub code: &'a Code,
         pub break_code: &'a mut Option<usize>,
         pub exit_code: &'a mut ExitCodes,
     }
@@ -1713,6 +1777,7 @@ pub mod runtime_types {
                     PointerTypes::Object => mem.heap.data[u_size][0].to_string(),
                     PointerTypes::Stack => mem.stack.data[u_size].to_string(),
                     PointerTypes::String => mem.strings.to_string(u_size),
+                    PointerTypes::UserData => mem.user_data.data[u_size].name(),
                 },
                 Types::Function(val) => mem.fun_table[val].name.to_string(),
                 Types::Void => "void".to_string(),
@@ -1770,7 +1835,9 @@ pub mod runtime_types {
         /// first index is trait id, second is method id
         pub methods: HashMap<usize, Vec<usize>>,
     }
-    use std::{clone, collections::HashMap, fmt, hash::Hash, rc::Rc, sync::Arc, ops::Index};
+    use std::{clone, collections::HashMap, fmt, hash::Hash, ops::Index, rc::Rc, sync::Arc};
+
+    use crate::user_data;
 
     use super::{
         lib::Library,
@@ -1857,6 +1924,11 @@ pub mod runtime_types {
         /// location and index in string pool
         /// may expire any time
         Char(usize),
+        /// user data
+        ///
+        /// location in user data pool
+        /// may expire any time if parent library drops it
+        UserData,
     }
     impl PointerTypes {
         pub fn is_object(&self) -> bool {
@@ -1889,6 +1961,7 @@ pub mod runtime_types {
                 PointerTypes::Stack => write!(f, "Stack"),
                 PointerTypes::String => write!(f, "String"),
                 PointerTypes::Char(n) => write!(f, "Stack({n})"),
+                PointerTypes::UserData => write!(f, "UserData"),
             }
         }
     }
@@ -2093,6 +2166,7 @@ pub mod runtime_error {
         CatchOwerflow,
         MethodNotFound,
         Message(String),
+        CannotReadUserdata,
     }
     fn gen_message(header: String, line: Option<(usize, usize)>, err_no: u8) -> String {
         return if let Some(line) = line {
@@ -2127,11 +2201,14 @@ pub mod runtime_error {
             ErrTypes::CatchOwerflow => (format!("Catch overflow"), 6),
             ErrTypes::MethodNotFound => (format!("Method not found"), 7),
             ErrTypes::Message(msg) => (msg.clone(), 8),
+            ErrTypes::CannotReadUserdata => (format!("Cannot use userdata"), 9),
         };
         let message = gen_message(data.0, line, data.1);
         message
     }
 }
+
+/// public interface for the library to be used by the interpreter and the compiler
 pub mod lib {
     use crate::{runtime_error::*, runtime_types::*};
 
@@ -2139,5 +2216,54 @@ pub mod lib {
     pub trait Library {
         /// calls a function from the library with the given id and arguments and returns the result
         fn call(&mut self, id: usize, mem: PublicData) -> Result<Types, ErrTypes>;
+    }
+}
+
+pub mod user_data {
+    /// Library defined data that lives inside the interpreter and can be accessed by any library
+    pub trait UserData {
+        /// return the name of the object
+        fn name(&self) -> String;
+        /// returns the id of the object
+        fn id(&self) -> usize;
+        /// returns the id of the library
+        fn lib_id(&self) -> usize;
+        /// describes how to aproach the object by the garbage collector
+        fn gc_method(&self) -> &GcMethod;
+        /// cleans up the object for garbage collection
+        fn cleanup(&mut self);
+    }
+
+    /// describes how to aproach the object by the garbage collector
+    pub enum GcMethod {
+        /// object is not garbage collected
+        None,
+        /// object can be safely deleted when it is no longer needed
+        Gc,
+        /// object is deleted by the library when it is no longer needed
+        Library {
+            /// function id
+            fn_id: usize,
+        },
+        /// garbage collector runs cleanup function when it is no longer needed and then deletes the object
+        Own,
+    }
+
+    /// null object
+    pub struct Null;
+    impl UserData for Null {
+        fn id(&self) -> usize {
+            0
+        }
+        fn lib_id(&self) -> usize {
+            0
+        }
+        fn gc_method(&self) -> &GcMethod {
+            &GcMethod::None
+        }
+        fn cleanup(&mut self) {}
+        fn name(&self) -> String {
+            "EmptyUserData".to_string()
+        }
     }
 }

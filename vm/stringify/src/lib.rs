@@ -651,6 +651,7 @@ fn ptr_type_into_str(t: &PointerTypes) -> String {
         PointerTypes::Stack => s(2),
         PointerTypes::Char(n) => s(3) + &b256str(*n, 8),
         PointerTypes::Heap(n) => s(4) + &b256str(*n, 8),
+        PointerTypes::UserData => s(5),
     }
 }
 
@@ -662,6 +663,7 @@ fn read_ptr_type(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> Pointe
         2 => PointerTypes::Stack,
         3 => PointerTypes::Char(read_number(chars, 8)),
         4 => PointerTypes::Heap(read_number(chars, 8)),
+        5 => PointerTypes::UserData,
         _ => panic!("Unknown pointer type the program will not continue"),
     }
 }
