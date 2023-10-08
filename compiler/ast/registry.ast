@@ -6,7 +6,15 @@ entry [nodes
 	KWTrait ? set="nodes" back="4"
 	KWEnum ? set="nodes" back="5"
 	KWConst ? set="nodes" back="6"
+	KWUserdata ? set="nodes" back="7"
 	"'eof";
+
+KWUserdata identifier assign generics
+	"userdata" harderr="true"
+	ident set="identifier"
+	generic_decl ? set="generics"
+	assign set="assign"
+	; ?;
 
 generic_expr [types
 	< harderr="true"

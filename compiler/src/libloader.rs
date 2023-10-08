@@ -172,6 +172,31 @@ pub fn load(
                     }
                     dictionary.consts.push(Const { name: ident, value });
                 }
+                "KWUserdata" => {
+                    let ident = get_ident(&node);
+                    let assign = get_assign(&node);
+                    let generics = {
+                        let gen = &step_inside_val(&node, "generics");
+                        match &gen.name {
+                            Tokens::Text(txt) => match txt.as_str() {
+                                "'none" => Vec::new(),
+                                _ => get_generics_decl(gen, &mut errors),
+                            },
+                            _ => unreachable!("you somehow managed to break the compiler, gj"),
+                        }  
+                    };
+                    // check if already exists
+                    for ud in &dictionary.user_data {
+                        if ud.name == ident {
+                            errors.push(ErrType::ConflictingNames(ident.to_string(), node.line))
+                        }
+                    }
+                    dictionary.user_data.push(UserData {
+                        name: ident,
+                        assign,
+                        generics,
+                    });
+                }
                 _ => {}
             }
         } else {
@@ -320,6 +345,7 @@ pub struct Dictionary {
     pub types: Vec<Type>,
     pub consts: Vec<Const>,
     pub traits: Vec<Trait>,
+    pub user_data: Vec<UserData>,
 }
 
 impl Dictionary {
@@ -331,8 +357,16 @@ impl Dictionary {
             types: Vec::new(),
             consts: Vec::new(),
             traits: Vec::new(),
+            user_data: Vec::new(),
         }
     }
+}
+
+#[derive(Debug)]
+pub struct UserData {
+    pub name: String,
+    pub assign: usize,
+    pub generics: Vec<GenericDecl>,
 }
 
 #[derive(Debug)]

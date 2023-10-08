@@ -13,19 +13,15 @@ extern crate runtime;
 use std::io::Write;
 
 use runtime::runtime_types::*;
+use runtime::user_data::UserData;
 use runtime::*;
 
 pub struct Foo {
-    file_handles: Vec<Option<std::fs::File>>,
     _id: usize,
 }
 
 impl lib::Library for Foo {
-    fn call(
-        &mut self,
-        id: usize,
-        mem: PublicData,
-    ) -> Result<Types, runtime_error::ErrTypes> {
+    fn call(&mut self, id: usize, mem: PublicData) -> Result<Types, runtime_error::ErrTypes> {
         let m = mem.memory;
         match id {
             // std::file_read
@@ -166,8 +162,8 @@ impl lib::Library for Foo {
                         }
                         Ok(file) => file,
                     };
-                    self.file_handles.push(Some(file));
-                    return Ok(Types::Usize(self.file_handles.len() - 1));
+                    let idx = m.user_data.push(Box::new(FileH::new(file, self._id)));
+                    return Ok(Types::Pointer(idx, PointerTypes::UserData));
                 } else {
                     return Err(runtime_error::ErrTypes::Message(
                         "Invalid argument".to_owned(),
@@ -178,21 +174,18 @@ impl lib::Library for Foo {
             // takes index of file handle
             // returns bool
             4 => {
-                if let Types::Usize(u_size) = m.registers[runtime_types::POINTER_REG] {
-                    if u_size >= self.file_handles.len() {
-                        return Err(runtime_error::ErrTypes::Message(
-                            "Invalid file handle".to_owned(),
-                        ));
-                    }
-                    if self.file_handles[u_size].is_none() {
-                        return Err(runtime_error::ErrTypes::Message(
-                            "File handle already closed".to_owned(),
-                        ));
-                    }
-                    self.file_handles[u_size] = None;
+                if let Types::Pointer(u_size, PointerTypes::UserData) =
+                    m.registers[runtime_types::POINTER_REG]
+                {
+                    let any = &mut m.user_data.data[u_size];
+                    let file = match FileH::from_ud(any) {
+                        Ok(file) => file,
+                        Err(why) => return Err(why),
+                    };
+                    file.cleanup();
                 } else {
                     return Err(runtime_error::ErrTypes::Message(format!(
-                        "File handle must be usize, got {:#}",
+                        "Expected File handle, got {:#}",
                         m.registers[runtime_types::POINTER_REG]
                     )));
                 }
@@ -202,20 +195,16 @@ impl lib::Library for Foo {
             // returns string
             5 => {
                 use std::io::prelude::*;
-                if let Types::Usize(u_size) = m.registers[runtime_types::POINTER_REG] {
-                    if u_size >= self.file_handles.len() {
-                        return Err(runtime_error::ErrTypes::Message(
-                            "Invalid file handle".to_owned(),
-                        ));
-                    }
-                    if self.file_handles[u_size].is_none() {
-                        return Err(runtime_error::ErrTypes::Message(
-                            "File handle already closed".to_owned(),
-                        ));
-                    }
-                    let mut file = self.file_handles[u_size].as_ref().unwrap();
+                if let Types::Pointer(u_size, PointerTypes::UserData) =
+                    m.registers[runtime_types::POINTER_REG]
+                {
+                    let any = &mut m.user_data.data[u_size];
+                    let file = match FileH::from_ud(any) {
+                        Ok(file) => file,
+                        Err(why) => return Err(why),
+                    };
                     let mut contents = String::new();
-                    match file.read_to_string(&mut contents) {
+                    match file.handle.read_to_string(&mut contents) {
                         Err(why) => {
                             return Err(runtime_error::ErrTypes::Message(format!(
                                 "Couldn't read file: {}",
@@ -224,14 +213,14 @@ impl lib::Library for Foo {
                         }
                         Ok(_) => (),
                     }
-                    m.strings.pool.push(contents.chars().collect());
+                    m.strings.pool.push(contents);
                     return Ok(Types::Pointer(
                         m.strings.pool.len() - 1,
                         PointerTypes::String,
                     ));
                 } else {
                     return Err(runtime_error::ErrTypes::Message(format!(
-                        "File handle must be usize, got {:#}",
+                        "Expected file handle, got {:#}",
                         m.registers[runtime_types::POINTER_REG]
                     )));
                 }
@@ -240,24 +229,19 @@ impl lib::Library for Foo {
             // takes index of file handle
             // writes to file from register 1
             6 => {
-                use std::io::prelude::*;
-                if let Types::Usize(u_size) = m.registers[runtime_types::POINTER_REG] {
-                    if u_size >= self.file_handles.len() {
-                        return Err(runtime_error::ErrTypes::Message(
-                            "Invalid file handle".to_owned(),
-                        ));
-                    }
-                    if self.file_handles[u_size].is_none() {
-                        return Err(runtime_error::ErrTypes::Message(
-                            "File handle already closed".to_owned(),
-                        ));
-                    }
-                    let mut file = self.file_handles[u_size].as_ref().unwrap();
+                if let Types::Pointer(u_size, PointerTypes::UserData) =
+                    m.registers[runtime_types::POINTER_REG]
+                {
+                    let any = &mut m.user_data.data[u_size];
+                    let file = match FileH::from_ud(any) {
+                        Ok(file) => file,
+                        Err(why) => return Err(why),
+                    };
                     if let Types::Pointer(u_size, PointerTypes::String) =
                         m.registers[runtime_types::GENERAL_REG1]
                     {
                         let string = m.strings.to_string(u_size);
-                        match file.write_all(string.as_bytes()) {
+                        match file.handle.write_all(string.as_bytes()) {
                             Err(why) => {
                                 return Err(runtime_error::ErrTypes::Message(format!(
                                     "Couldn't write to file: {}",
@@ -274,7 +258,7 @@ impl lib::Library for Foo {
                     }
                 } else {
                     return Err(runtime_error::ErrTypes::Message(format!(
-                        "File handle must be usize, got {:#}",
+                        "Expected file handle, got {:#}",
                         m.registers[runtime_types::POINTER_REG]
                     )));
                 }
@@ -284,23 +268,19 @@ impl lib::Library for Foo {
             // appends to file from register 1
             7 => {
                 use std::io::prelude::*;
-                if let Types::Usize(u_size) = m.registers[runtime_types::POINTER_REG] {
-                    if u_size >= self.file_handles.len() {
-                        return Err(runtime_error::ErrTypes::Message(
-                            "Invalid file handle".to_owned(),
-                        ));
-                    }
-                    if self.file_handles[u_size].is_none() {
-                        return Err(runtime_error::ErrTypes::Message(
-                            "File handle already closed".to_owned(),
-                        ));
-                    }
-                    let mut file = self.file_handles[u_size].as_ref().unwrap();
+                if let Types::Pointer(u_size, PointerTypes::UserData) =
+                    m.registers[runtime_types::POINTER_REG]
+                {
+                    let any = &mut m.user_data.data[u_size];
+                    let file = match FileH::from_ud(any) {
+                        Ok(file) => file,
+                        Err(why) => return Err(why),
+                    };
                     if let Types::Pointer(u_size, PointerTypes::String) =
                         m.registers[runtime_types::GENERAL_REG1]
                     {
                         let string = m.strings.to_string(u_size);
-                        match file.write_all(string.as_bytes()) {
+                        match file.handle.write_all(string.as_bytes()) {
                             Err(why) => {
                                 return Err(runtime_error::ErrTypes::Message(format!(
                                     "Couldn't write to file: {}",
@@ -317,7 +297,7 @@ impl lib::Library for Foo {
                     }
                 } else {
                     return Err(runtime_error::ErrTypes::Message(format!(
-                        "File handle must be usize, got {:#}",
+                        "Expected file handle, got {:#}",
                         m.registers[runtime_types::POINTER_REG]
                     )));
                 }
@@ -332,14 +312,8 @@ impl lib::Library for Foo {
 
 #[no_mangle]
 fn register() -> String {
-    
-    
-    
-    
-    
-    
     r#"
-    type File = usize > 0i
+    userdata File > 0i
     
     impl File {
         fun read(&self=reg.ptr): string > 5i
@@ -353,13 +327,64 @@ fn register() -> String {
     fun fileAppend(fileName=reg.ptr: string, data=reg.G1: string)! > 2i
     fun fileOpen(fileName=reg.ptr: string)!: File > 3i
 
-    "#.to_string()
+    "#
+    .to_string()
 }
 
 #[no_mangle]
 pub fn init(_ctx: &mut Context, my_id: usize) -> Box<dyn lib::Library> {
-    return Box::new(Foo {
-        file_handles: Vec::new(),
-        _id: my_id,
-    });
+    return Box::new(Foo { _id: my_id });
+}
+
+struct FileH {
+    handle: std::fs::File,
+    id: usize,
+    lib_id: usize,
+    gc_method: user_data::GcMethod,
+    name: String,
+}
+
+use std::any::Any;
+impl FileH {
+    const ASSIGN_ID: usize = 0;
+
+    fn new(file: std::fs::File, lib_id: usize) -> Self {
+        Self {
+            handle: file,
+            lib_id,
+            name: "File".to_owned(),
+            id: Self::ASSIGN_ID + lib_id,
+            gc_method: user_data::GcMethod::Own,
+        }
+    }
+    fn from_ud(ud: &mut dyn Any) -> Result<&mut Self, runtime_error::ErrTypes> {
+        match ud.downcast_mut::<Self>() {
+            Some(file) => Ok(file),
+            None => Err(runtime_error::ErrTypes::Message(
+                "Invalid userdata type".to_owned(),
+            )),
+        }
+    }
+}
+
+impl UserData for FileH {
+    fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    fn id(&self) -> usize {
+        self.id
+    }
+
+    fn lib_id(&self) -> usize {
+        self.lib_id
+    }
+
+    fn gc_method(&self) -> &user_data::GcMethod {
+        &self.gc_method
+    }
+
+    fn cleanup(&mut self) {
+        self.handle = std::fs::File::open("/dev/null").unwrap();
+    }
 }
