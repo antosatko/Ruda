@@ -21,6 +21,7 @@ mod expression_parser;
 mod intermediate;
 mod libloader;
 pub mod prep_objects;
+pub mod codegen;
 
 pub fn tokenize(content: &str, formating: bool) -> (Vec<Tokens>, Vec<(usize, usize)>, Vec<Errors>) {
     use lexer::tokenizer::*;

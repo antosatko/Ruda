@@ -2135,51 +2135,6 @@ pub mod runtime_error {
 pub mod lib {
     use crate::{runtime_error::*, runtime_types::*};
 
-    /// all of this will be used by the compiler to generate the code
-    pub struct RegisterData {
-        pub consts: Vec<(String, Types)>,
-        pub enums: Vec<(String, Vec<(String, Types)>)>,
-        /// structs, funtions, implements, traits
-        pub rest: String,
-    }
-
-    impl RegisterData {
-        pub fn new() -> Self {
-            Self {
-                consts: Vec::new(),
-                enums: Vec::new(),
-                rest: String::new(),
-            }
-        }
-        pub fn add_const(mut self, name: String, kind: Types) -> Self {
-            self.consts.push((name, kind));
-            self
-        }
-        pub fn add_consts(mut self, consts: Vec<(String, Types)>) -> Self {
-            self.consts.extend(consts);
-            self
-        }
-        pub fn add_enum(mut self, name: String, variants: Vec<(String, Types)>) -> Self {
-            self.enums.push((name, variants));
-            self
-        }
-        pub fn add_enums(mut self, enums: Vec<(String, Vec<(String, Types)>)>) -> Self {
-            self.enums.extend(enums);
-            self
-        }
-        pub fn set_rest(mut self, rest: String) -> Self {
-            self.rest = rest;
-            self
-        }
-        pub fn add_rest(mut self, rest: String) -> Self {
-            self.rest.push_str(&rest);
-            self
-        }
-        pub fn build(self) -> Self {
-            self
-        }
-    }
-
     /// public interface for the library to be used by the interpreter and the compiler
     pub trait Library {
         /// calls a function from the library with the given id and arguments and returns the result

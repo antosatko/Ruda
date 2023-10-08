@@ -75,7 +75,7 @@ fn main() {
             use test::test::*;
             let mut ctx = Context::new();
             report = test_init(None, &mut ctx);
-            let stringified = stringify::stringify(&ctx);
+            let stringified = stringify::stringify(&ctx, None);
             // write to file
             std::fs::write("test.rdbin", stringified).unwrap();
             ctx

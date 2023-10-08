@@ -2,6 +2,7 @@ use crate::compile;
 use crate::config;
 use crate::config::Profile;
 use crate::remote;
+use crate::run;
 
 pub fn run(path: &str, profile: &str, _args: Vec<String>) {
     let config = config::read(path);
@@ -12,12 +13,17 @@ pub fn run(path: &str, profile: &str, _args: Vec<String>) {
             std::process::exit(1);
         }
     };
+    if let config::ProjectKind::Lib = profile.1.kind {
+        println!("Cannot run a library");
+        std::process::exit(1);
+    }
     // build dependencies
     build_deps(&profile.1, profile.1._3rdparty as usize);
     // compile
     compile::compile(path, profile);
 
-    // todo: run
+    // run
+    run::run(path, &profile, &_args);
 }
 
 pub fn build(path: &str, profile: &str) {
@@ -89,7 +95,7 @@ pub fn build_deps(profile: &Profile, _3rdparty: usize) {
 
 /// Restore a project if cannot compile correctly
 /// delete target directory
-pub fn restore(path: &str, profile: &str, compile: bool) {
+pub fn restore(path: &str, profile: &str, compile: bool, run: bool) {
     let config = config::read(path);
     let profile = match config.profile.get(profile) {
         Some(prof) => (profile, prof),
@@ -107,5 +113,29 @@ pub fn restore(path: &str, profile: &str, compile: bool) {
     if compile {
         build_deps(&profile.1, profile.1._3rdparty as usize);
         compile::compile(path, profile);
+        if run {
+            run::run(path, &profile, &vec![]);
+        }
     }
+}
+
+
+pub fn path_to_exe(path: &str, profile: &(&str, &Profile)) -> String {
+    if let config::ProjectKind::Lib = profile.1.kind {
+        println!("Executable not found. Cannot run a library");
+        std::process::exit(1);
+    }
+    let path = std::path::Path::new(path).join("target").join(profile.0).join("out.rdbin");
+    if !path.exists() {
+        println!("Executable not found. Compile the project first.");
+        std::process::exit(1);
+    }
+    let path = match path.to_str() {
+        Some(path) => path,
+        None => {
+            println!("Failed to convert path to string.");
+            return "".to_string();
+        }
+    };
+    path.to_string()
 }

@@ -51,7 +51,7 @@ impl lib::Library for Foo {
                     println!("{}", string);
                 } else {
                     return Err(runtime_error::ErrTypes::Message(
-                        "Invalid argument".to_owned(),
+                        format!("Invalid argument {:?}", m.registers[runtime_types::POINTER_REG]),
                     ));
                 }
             }

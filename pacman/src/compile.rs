@@ -111,13 +111,32 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
         Ok(_) => {
             println!("Objects prepared.");
             println!("{:?}", context.destruct());
-        },
+        }
         Err(err) => {
             println!("Failed to prepare objects.");
             // TODO: println!("{}", err);
             return;
         }
     }
+
+    let executable = match codegen::gen(&mut context) {
+        Ok(ctx) => {
+            let code = codegen::stringify(&ctx, &Vec::new());
+            code
+        }
+        Err(err) => {
+            println!("Failed to generate code.");
+            return;
+        }
+    };
+
+
+    {
+        let mut path = std::path::Path::new(path).join("target").join(profile.0);
+        path = path.join("out.rdbin");
+        std::fs::write(path, executable).unwrap();
+    }
+
     // TODO: uncomment for prod
-    // sum::write_sums(path, profile.0, &sum::sum(path, profile.0));
+    sum::write_sums(path, profile.0, &sum::sum(path, profile.0));
 }

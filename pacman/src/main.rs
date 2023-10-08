@@ -5,6 +5,7 @@ mod config;
 mod init;
 mod remote;
 mod sum;
+mod run;
 
 use args::Task;
 use clap::Parser;
@@ -51,8 +52,9 @@ fn main() {
             profile,
             path,
             compile,
+            run,
         } => {
-            build::restore(&path, profile, *compile);
+            build::restore(&path, profile, *compile, *run);
         }
     }
 }

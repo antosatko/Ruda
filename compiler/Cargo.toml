@@ -9,6 +9,7 @@ edition = "2021"
 runtime = { path = "../vm/runtime" }
 snailquote = "0.3.1"
 libloading = "0.7.0"
+stringify ={ path = "../vm/stringify" }
 
 [profile.dev]
 opt-level = 3

@@ -10,7 +10,6 @@
  */
 extern crate runtime;
 
-use runtime::lib::RegisterData;
 use runtime::runtime_types::*;
 use runtime::*;
 

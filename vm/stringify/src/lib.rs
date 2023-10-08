@@ -45,7 +45,7 @@ pub enum LibOwner {
     Installed(String, String),
 }
 
-pub fn stringify(ctx: &Context) -> String {
+pub fn stringify(ctx: &Context, shlibs: Option<&Vec<ShLib>>) -> String {
     let mut res = String::new();
     // write magic number
     res.push_str(MAGIC_NUMBER);
@@ -84,7 +84,15 @@ pub fn stringify(ctx: &Context) -> String {
         fun_spec_into_string(fun_spec, &mut res);
     }
     // write length of paragraph in 8 bytes (number of shared libraries)
-    res.push_str(&b256str(0, 8));
+    match shlibs {
+        Some(shlibs) => {
+            res.push_str(&b256str(shlibs.len(), 8));
+            for shlib in shlibs.iter() {
+                lib_into_string(shlib, &mut res);
+            }
+        }
+        None => res.push_str(&b256str(0, 8)),
+    }
     res
 }
 

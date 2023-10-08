@@ -15,6 +15,7 @@ dependencies = [
  "libloading",
  "runtime",
  "snailquote",
+ "stringify",
 ]
 
 [[package]]
@@ -57,6 +58,14 @@ checksum = "ec62a949bda7f15800481a711909f946e1204f2460f89210eaf7f57730f88f86"
 dependencies = [
  "thiserror",
  "unicode_categories",
+]
+
+[[package]]
+name = "stringify"
+version = "0.1.0"
+dependencies = [
+ "libloading",
+ "runtime",
 ]
 
 [[package]]

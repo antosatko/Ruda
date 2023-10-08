@@ -38,13 +38,13 @@ pub enum Task {
         #[clap(name = "profile", short, long, default_value = "default")]
         profile: String,
 
-        /// Runtime arguments for the VM
-        #[clap(name = "args", last = true)]
-        args: Vec<String>,
-
         /// Path to project
         #[clap(name = "path", default_value = ".")]
         path: String,
+
+        /// Runtime arguments for the VM
+        #[clap(name = "args", last = true)]
+        args: Vec<String>,
     },
     /// Build a project from source
     Build {
@@ -96,6 +96,10 @@ pub enum Task {
         /// compile the project after restoring
         #[clap(name = "compile", short, long)]
         compile: bool,
+
+        /// run the project after restoring
+        #[clap(name = "run", short, long)]
+        run: bool,
 
         /// Path to project
         #[clap(name = "path", default_value = ".")]
