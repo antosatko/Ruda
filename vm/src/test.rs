@@ -597,14 +597,16 @@ pub mod test {
                     Rdc(0, POINTER_REG),
                     // file handle
                     Cal(2, 3),
-                    // write to file
-                    Rdc(1, GENERAL_REG1),
                     Move(RETURN_REG, POINTER_REG),
+                    Move(RETURN_REG, GENERAL_REG2), // save file handle
                         // read from file
                         Cal(2, 5),
                         // print it
-                        Move(RETURN_REG, GENERAL_REG1),
+                        Move(RETURN_REG, POINTER_REG),
                         Cal(0, 1),
+                    // write to file
+                    Move(GENERAL_REG2, POINTER_REG),
+                    Rdc(1, GENERAL_REG1),
                     Cal(2, 6),
                     End,
                 ];

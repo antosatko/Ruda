@@ -214,9 +214,8 @@ impl lib::Library for Foo {
                         }
                         Ok(_) => (),
                     }
-                    let idx = m.strings.from_str(&contents);
                     return Ok(Types::Pointer(
-                        idx,
+                        m.strings.from_str(&contents),
                         PointerTypes::String,
                     ));
                 } else {
@@ -238,6 +237,7 @@ impl lib::Library for Foo {
                         Ok(file) => file,
                         Err(why) => return Err(why),
                     };
+                    println!("file: {:#?}", file.handle);
                     if let Types::Pointer(u_size, PointerTypes::String) =
                         m.registers[runtime_types::GENERAL_REG1]
                     {
@@ -358,7 +358,7 @@ impl FileH {
             gc_method: user_data::GcMethod::Gc,
         }
     }
-    fn from_ud(ud: &mut Box<dyn UserData>) -> Result<&mut Self, runtime_error::ErrTypes> {
+    fn from_ud(ud: &dyn UserData) -> Result<&mut Self, runtime_error::ErrTypes> {
         return ud
             .as_any_mut()
             .downcast_mut::<Self>()
