@@ -1490,12 +1490,9 @@ pub mod runtime_types {
             }
         }
         pub fn gc_mark_unoptimized(&mut self) -> (Vec<bool>, Vec<bool>, Vec<bool>) {
-            let mut marked_obj = Vec::new();
-            let mut marked_str = Vec::new();
-            let mut marked_ud = Vec::new();
-            marked_obj.resize(self.heap.data.len(), true);
-            marked_str.resize(self.strings.pool.len(), true);
-            marked_ud.resize(self.user_data.data.len(), true);
+            let mut marked_obj = vec![true; self.heap.data.len()];
+            let mut marked_str = vec![true; self.strings.pool.len()];
+            let mut marked_ud = vec![true; self.user_data.data.len()];
             self.gc_mark_registers(&mut marked_obj, &mut marked_str, &mut marked_ud);
             self.gc_mark_range(
                 (0, self.stack.data.len()),
@@ -1507,11 +1504,9 @@ pub mod runtime_types {
         }
         pub fn gc_mark(&mut self) -> (Vec<bool>, Vec<bool>, Vec<bool>) {
             let mut call_stack_idx = 1;
-            let mut marked = Vec::new();
-            let mut marked_str = Vec::new();
-            let mut marked_ud = Vec::new();
-            marked.resize(self.heap.data.len(), true);
-            marked_str.resize(self.strings.pool.len(), true);
+            let mut marked = vec![false; self.heap.data.len()];
+            let mut marked_str =  vec![false; self.strings.pool.len()];
+            let mut marked_ud = vec![false; self.user_data.data.len()];
             self.gc_mark_registers(&mut marked, &mut marked_str, &mut marked_ud);
             while call_stack_idx <= self.stack.ptr {
                 let cs = self.stack.call_stack[call_stack_idx];
