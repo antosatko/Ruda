@@ -4,7 +4,7 @@ pub mod test {
     use crate::runtime::runtime_types::{Context, Instructions::*, Types::*, *};
     use libloading::Library;
 
-    const ID: usize = 12;
+    const ID: usize = 13;
     pub fn test_init(id: Option<usize>, context: &mut Context) -> bool {
         let test_id = if let Some(num) = id { num } else { ID };
         println!("Running test {test_id}");
@@ -575,6 +575,38 @@ pub mod test {
                     Cal(3, 0),
                     Cal(3, 1),
                     End, 
+                ];
+                true
+            }
+            // filesystem test
+            13 => {
+                context.set_libs(load_libs(vec!["io", "string", "fs", "algo"]));
+                context.memory.strings.pool = vec![
+                    "./file.txt".to_string(),
+                    "Hello file!".to_string(),
+                ];
+                context.memory.stack.data = vec![
+                    Pointer(0, PointerTypes::String),
+                    Pointer(1, PointerTypes::String),
+                ];
+                context.memory.heap.data = vec![
+
+                ];
+                context.code.data = vec![
+                    // filename
+                    Rdc(0, POINTER_REG),
+                    // file handle
+                    Cal(2, 3),
+                    // write to file
+                    Rdc(1, GENERAL_REG1),
+                    Move(RETURN_REG, POINTER_REG),
+                        // read from file
+                        Cal(2, 5),
+                        // print it
+                        Move(RETURN_REG, GENERAL_REG1),
+                        Cal(0, 1),
+                    Cal(2, 6),
+                    End,
                 ];
                 true
             }

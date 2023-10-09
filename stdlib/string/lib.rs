@@ -30,9 +30,9 @@ impl lib::Library for String {
                     if let Types::Pointer(u_size2, PointerTypes::String) = m.registers[GENERAL_REG1]
                     {
                         let mut new_string = m.strings.to_string(u_size);
-                        new_string.push_str(&m.strings.to_string(u_size2));
+                        new_string.push_str(m.strings.to_str(u_size2));
                         return Ok(Types::Pointer(
-                            m.strings.from_string(new_string),
+                            m.strings.from_str(&new_string),
                             PointerTypes::String,
                         ));
                     } else {
@@ -50,9 +50,9 @@ impl lib::Library for String {
             1 => {
                 // take a string pointer from registers and trim it returning a new string pointer
                 if let Types::Pointer(u_size, PointerTypes::String) = m.registers[POINTER_REG] {
-                    let new_string = m.strings.to_string(u_size).trim().to_owned();
+                    let new_string = m.strings.to_str(u_size).trim().to_owned();
                     return Ok(Types::Pointer(
-                        m.strings.from_string(new_string),
+                        m.strings.from_str(&new_string),
                         PointerTypes::String,
                     ));
                 } else {
@@ -69,7 +69,7 @@ impl lib::Library for String {
                     if let Types::Pointer(u_size2, PointerTypes::String) = m.registers[GENERAL_REG1]
                     {
                         let new_string = m.strings.to_string(u_size);
-                        let split_string = m.strings.to_string(u_size2);
+                        let split_string = m.strings.to_str(u_size2);
                         let split: Vec<&str> = new_string.split(&split_string).collect();
                         let obj = m.allocate_obj(split.len() + 1);
                         // set the first element to the length of the array

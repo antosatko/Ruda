@@ -986,7 +986,7 @@ impl Context {
                 self.memory.registers[POINTER_REG] = Types::Pointer(
                     self.memory
                         .strings
-                        .from_string(self.memory.registers[reg].to_str(&self.memory)),
+                        .from_str(&self.memory.registers[reg].to_str(&self.memory)),
                     PointerTypes::String,
                 );
                 self.next_line();
@@ -1683,34 +1683,14 @@ pub mod runtime_types {
                 self.pool.len() - 1
             }
         }
-        pub fn from_string(&mut self, str: String) -> usize {
-            // either push a new string or occupy a deleted string
-            if let Some(loc) = self.garbage.pop() {
-                self.pool[loc] = str.chars().collect();
-                loc
-            } else {
-                self.pool.push(str.chars().collect());
-                self.pool.len() - 1
-            }
-        }
+        /// Creates a new string from a &str and returns the location of the string
         pub fn from_str(&mut self, str: &str) -> usize {
             // either push a new string or occupy a deleted string
             if let Some(loc) = self.garbage.pop() {
-                self.pool[loc] = str.chars().collect();
+                self.pool[loc] = str.to_string();
                 loc
             } else {
-                self.pool.push(str.chars().collect());
-                self.pool.len() - 1
-            }
-        }
-        ///  Creates a new copied string and returns the location of the string
-        pub fn from(&mut self, str: String) -> usize {
-            // either push a new string or occupy a deleted string
-            if let Some(loc) = self.garbage.pop() {
-                self.pool[loc] = str;
-                loc
-            } else {
-                self.pool.push(str);
+                self.pool.push(str.to_string());
                 self.pool.len() - 1
             }
         }
@@ -1732,17 +1712,20 @@ pub mod runtime_types {
         pub fn concat(&mut self, left: usize, right: usize) -> usize {
             let mut temp = self.pool[left].clone();
             temp.push_str(&self.pool[right]);
-            self.from(temp)
+            self.from_str(&temp)
         }
         pub fn push_string_array(&mut self, arr: Vec<&str>) -> Vec<usize> {
             let mut temp = Vec::with_capacity(arr.len());
             for str in arr {
-                temp.push(self.from_string(str.to_owned()));
+                temp.push(self.from_str(str));
             }
             temp
         }
         pub fn to_string(&self, loc: usize) -> String {
             self.pool[loc].clone()
+        }
+        pub fn to_str(&self, loc: usize) -> &str {
+            &self.pool[loc]
         }
     }
     pub struct Code {
@@ -2321,6 +2304,10 @@ pub mod user_data {
         fn gc_method(&self) -> &GcMethod;
         /// cleans up the object for garbage collection
         fn cleanup(&mut self);
+        /// returns the object as any
+        fn as_any(&self) -> &dyn std::any::Any;
+        /// returns the object as any mut
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
     }
 
     /// describes how to aproach the object by the garbage collector
@@ -2348,6 +2335,12 @@ pub mod user_data {
         fn cleanup(&mut self) {}
         fn name(&self) -> String {
             "EmptyUserData".to_string()
+        }
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+            self
         }
     }
 }

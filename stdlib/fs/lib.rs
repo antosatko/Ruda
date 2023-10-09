@@ -10,7 +10,8 @@
  */
 extern crate runtime;
 
-use std::io::Write;
+use std::fs::File;
+use std::io::{Write, Read};
 
 use runtime::runtime_types::*;
 use runtime::user_data::UserData;
@@ -213,9 +214,9 @@ impl lib::Library for Foo {
                         }
                         Ok(_) => (),
                     }
-                    m.strings.pool.push(contents);
+                    let idx = m.strings.from_str(&contents);
                     return Ok(Types::Pointer(
-                        m.strings.pool.len() - 1,
+                        idx,
                         PointerTypes::String,
                     ));
                 } else {
@@ -354,16 +355,16 @@ impl FileH {
             lib_id,
             name: "File".to_owned(),
             id: Self::ASSIGN_ID + lib_id,
-            gc_method: user_data::GcMethod::Own,
+            gc_method: user_data::GcMethod::Gc,
         }
     }
-    fn from_ud(ud: &mut dyn Any) -> Result<&mut Self, runtime_error::ErrTypes> {
-        match ud.downcast_mut::<Self>() {
-            Some(file) => Ok(file),
-            None => Err(runtime_error::ErrTypes::Message(
+    fn from_ud(ud: &mut Box<dyn UserData>) -> Result<&mut Self, runtime_error::ErrTypes> {
+        return ud
+            .as_any_mut()
+            .downcast_mut::<Self>()
+            .ok_or(runtime_error::ErrTypes::Message(
                 "Invalid userdata type".to_owned(),
-            )),
-        }
+            ));
     }
 }
 
@@ -385,6 +386,12 @@ impl UserData for FileH {
     }
 
     fn cleanup(&mut self) {
-        self.handle = std::fs::File::open("/dev/null").unwrap();
+        
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
     }
 }

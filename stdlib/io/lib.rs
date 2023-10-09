@@ -85,7 +85,7 @@ impl lib::Library for Foo {
                 // iterate over the args
                 for (i, arg) in args.iter().enumerate() {
                     // push the string to the string pool
-                    let str = m.strings.from(arg.to_string().chars().collect());
+                    let str = m.strings.from_str(&arg);
                     // set the element in the array to the index of the string in the string pool
                     m.heap.data[obj][i + 1] = Types::Pointer(str, PointerTypes::String);
                 }
@@ -104,7 +104,7 @@ impl lib::Library for Foo {
                 // iterate over the args
                 for (i, arg) in args.iter().enumerate() {
                     // push the string to the string pool
-                    let str = m.strings.from(arg.to_string().chars().collect());
+                    let str = m.strings.from_str(&arg);
                     // set the element in the array to the index of the string in the string pool
                     m.heap.data[obj][i + 1] = Types::Pointer(str, PointerTypes::String);
                 }
