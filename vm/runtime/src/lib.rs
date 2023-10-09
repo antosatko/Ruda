@@ -1236,6 +1236,24 @@ pub mod runtime_types {
                 }
             }
         }
+        pub fn last_ud(&mut self) -> usize {
+            if self.user_data.data.is_empty() {
+                return 0;
+            }
+            // find first object that is garbage and following objects are garbage and dont remove any objects from garbage
+            let mut i = self.user_data.data.len() - 1;
+            loop {
+                // if object is garbage and all objects after it are garbage then return i + 1
+                if self.user_data.garbage.iter().any(|e| *e == i) {
+                    if i == 0 {
+                        return 0;
+                    }
+                    i -= 1;
+                } else {
+                    return i + 1;
+                }
+            }
+        }
         pub fn deallocate_string(&mut self, idx: usize) -> bool {
             if idx >= self.strings.pool.len() {
                 return false;
@@ -1389,13 +1407,16 @@ pub mod runtime_types {
             let marked = self.gc_mark_unoptimized();
             self.gc_sweep_marked(marked);
         }
-        pub fn gc_sweep_marked(&mut self, marked: (Vec<bool>, Vec<bool>)) {
+        pub fn gc_sweep_marked(&mut self, marked: (Vec<bool>, Vec<bool>, Vec<bool>)) {
             self.gc_sweep_marked_obj(marked.0);
             self.gc_sweep_marked_string(marked.1);
+            self.gc_sweep_marked_ud(marked.2);
             let last = self.last_string();
             self.strings.pool.truncate(last);
             let last = self.last_obj();
             self.heap.data.truncate(last);
+            let last = self.last_ud();
+            self.user_data.data.truncate(last);
         }
         pub fn gc_sweep_marked_obj(&mut self, marked: Vec<bool>) {
             if let Some(idx) = marked.iter().rposition(|x| !*x) {
@@ -1444,22 +1465,54 @@ pub mod runtime_types {
                 }
             }
         }
-        pub fn gc_mark_unoptimized(&mut self) -> (Vec<bool>, Vec<bool>) {
+        pub fn gc_sweep_marked_ud(&mut self, marked: Vec<bool>) {
+            // find first ud that is garbage and following uds are garbage and then remove them from garbage
+            if let Some(idx) = marked.iter().rposition(|x| !*x) {
+                self.gc.memory_swept += std::mem::size_of_val(&self.user_data.data[idx..]);
+                self.user_data.data.truncate(idx + 1);
+            } else {
+                self.gc.memory_swept += std::mem::size_of_val(&self.user_data.data);
+                self.user_data.data.clear();
+                return;
+            }
+            // remove all uds that are marked
+            for (i, mark) in marked.iter().enumerate() {
+                if i == self.user_data.data.len() {
+                    continue;
+                }
+                if *mark {
+                    self.gc.memory_swept += std::mem::size_of_val(&self.user_data.data[i]);
+                    self.user_data.data[i].cleanup();
+                    if !self.user_data.garbage.contains(&i) {
+                        self.user_data.garbage.push(i);
+                    }
+                }
+            }
+        }
+        pub fn gc_mark_unoptimized(&mut self) -> (Vec<bool>, Vec<bool>, Vec<bool>) {
             let mut marked_obj = Vec::new();
             let mut marked_str = Vec::new();
+            let mut marked_ud = Vec::new();
             marked_obj.resize(self.heap.data.len(), true);
             marked_str.resize(self.strings.pool.len(), true);
-            self.gc_mark_registers(&mut marked_obj, &mut marked_str);
-            self.gc_mark_range((0, self.stack.data.len()), &mut marked_obj, &mut marked_str);
-            (marked_obj, marked_str)
+            marked_ud.resize(self.user_data.data.len(), true);
+            self.gc_mark_registers(&mut marked_obj, &mut marked_str, &mut marked_ud);
+            self.gc_mark_range(
+                (0, self.stack.data.len()),
+                &mut marked_obj,
+                &mut marked_str,
+                &mut marked_ud,
+            );
+            (marked_obj, marked_str, marked_ud)
         }
-        pub fn gc_mark(&mut self) -> (Vec<bool>, Vec<bool>) {
+        pub fn gc_mark(&mut self) -> (Vec<bool>, Vec<bool>, Vec<bool>) {
             let mut call_stack_idx = 1;
             let mut marked = Vec::new();
             let mut marked_str = Vec::new();
+            let mut marked_ud = Vec::new();
             marked.resize(self.heap.data.len(), true);
             marked_str.resize(self.strings.pool.len(), true);
-            self.gc_mark_registers(&mut marked, &mut marked_str);
+            self.gc_mark_registers(&mut marked, &mut marked_str, &mut marked_ud);
             while call_stack_idx <= self.stack.ptr {
                 let cs = self.stack.call_stack[call_stack_idx];
                 let prev_cs = self.stack.call_stack[call_stack_idx - 1];
@@ -1467,10 +1520,11 @@ pub mod runtime_types {
                     (prev_cs.end, prev_cs.end + cs.pointers_len),
                     &mut marked,
                     &mut marked_str,
+                    &mut marked_ud,
                 );
                 call_stack_idx += 1;
             }
-            (marked, marked_str)
+            (marked, marked_str, marked_ud)
         }
         pub fn gc_mark_obj(
             &mut self,
@@ -1499,30 +1553,71 @@ pub mod runtime_types {
         pub fn gc_mark_string(&mut self, str_idx: usize, marked: &mut Vec<bool>) {
             marked[str_idx] = false;
         }
+        pub fn gc_mark_ud(&mut self, ud_idx: usize, marked: &mut Vec<bool>) {
+            use user_data::GcMethod;
+            match self.user_data.data[ud_idx].gc_method().clone() {
+                GcMethod::None => {}
+                GcMethod::Gc => {
+                    marked[ud_idx] = false;
+                }
+                GcMethod::Own => {
+                    self.user_data.data[ud_idx].cleanup();
+                    marked[ud_idx] = false;
+                }
+            }
+        }
         pub fn gc_mark_range(
             &mut self,
             range: (usize, usize),
             marked_obj: &mut Vec<bool>,
             marked_string: &mut Vec<bool>,
+            marked_ud: &mut Vec<bool>,
         ) {
             for idx in range.0..range.1 {
-                if let Types::Pointer(u_size, PointerTypes::Heap(_)) = self.stack.data[idx] {
-                    self.gc_mark_obj(u_size, marked_obj, marked_string);
-                } else if let Types::Pointer(u_size, PointerTypes::Object) = self.stack.data[idx] {
-                    self.gc_mark_obj(u_size, marked_obj, marked_string);
-                } else if let Types::Pointer(u_size, PointerTypes::String) = self.stack.data[idx] {
-                    self.gc_mark_string(u_size, marked_string);
+                match self.stack.data[idx] {
+                    Types::Pointer(u_size, PointerTypes::Heap(_)) => {
+                        self.gc_mark_obj(u_size, marked_obj, marked_string);
+                    }
+                    Types::Pointer(u_size, PointerTypes::Object) => {
+                        self.gc_mark_obj(u_size, marked_obj, marked_string);
+                    }
+                    Types::Pointer(u_size, PointerTypes::String) => {
+                        self.gc_mark_string(u_size, marked_string);
+                    }
+                    Types::Pointer(u_size, PointerTypes::Char(_)) => {
+                        self.gc_mark_string(u_size, marked_string);
+                    }
+                    Types::Pointer(u_size, PointerTypes::UserData) => {
+                        self.gc_mark_ud(u_size, marked_ud);
+                    }
+                    _ => {}
                 }
             }
         }
-        pub fn gc_mark_registers(&mut self, marked: &mut Vec<bool>, marked_str: &mut Vec<bool>) {
+        pub fn gc_mark_registers(
+            &mut self,
+            marked: &mut Vec<bool>,
+            marked_str: &mut Vec<bool>,
+            marked_ud: &mut Vec<bool>,
+        ) {
             for reg in self.registers {
-                if let Types::Pointer(u_size, PointerTypes::Heap(_)) = reg {
-                    self.gc_mark_obj(u_size, marked, marked_str);
-                } else if let Types::Pointer(u_size, PointerTypes::Object) = reg {
-                    self.gc_mark_obj(u_size, marked, marked_str);
-                } else if let Types::Pointer(u_size, PointerTypes::String) = reg {
-                    self.gc_mark_string(u_size, marked_str);
+                match reg {
+                    Types::Pointer(u_size, PointerTypes::Heap(_)) => {
+                        self.gc_mark_obj(u_size, marked, marked_str);
+                    }
+                    Types::Pointer(u_size, PointerTypes::Object) => {
+                        self.gc_mark_obj(u_size, marked, marked_str);
+                    }
+                    Types::Pointer(u_size, PointerTypes::String) => {
+                        self.gc_mark_string(u_size, marked_str);
+                    }
+                    Types::Pointer(u_size, PointerTypes::Char(_)) => {
+                        self.gc_mark_string(u_size, marked_str);
+                    }
+                    Types::Pointer(u_size, PointerTypes::UserData) => {
+                        self.gc_mark_ud(u_size, marked_ud);
+                    }
+                    _ => {}
                 }
             }
         }
@@ -2135,7 +2230,6 @@ pub mod runtime_types {
                 Instructions::DelCatch => "DeleteCatch",
                 Instructions::NPType(_, _) => "NonPrimitiveType",
                 Instructions::StrNew => "StringNew",
-                //Instructions::StrCpy(_) => "StringCopy",
                 Instructions::Dalc => "Deallocate",
                 Instructions::IntoStr(_) => "IntoString",
                 Instructions::ResD(_) => "ReserveDynamic",
@@ -2240,11 +2334,6 @@ pub mod user_data {
         None,
         /// object can be safely deleted when it is no longer needed
         Gc,
-        /// object is deleted by the library when it is no longer needed
-        Library {
-            /// function id
-            fn_id: usize,
-        },
         /// garbage collector runs cleanup function when it is no longer needed and then deletes the object
         Own,
     }
