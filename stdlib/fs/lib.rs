@@ -65,7 +65,6 @@ impl lib::Library for Foo {
             }
             // std::file_write
             1 => {
-                use std::fs::File;
                 use std::io::prelude::*;
                 if let Types::Pointer(u_size, PointerTypes::String) =
                     m.registers[runtime_types::POINTER_REG]
@@ -149,12 +148,11 @@ impl lib::Library for Foo {
             // std::file_open
             // returns index of file handle
             3 => {
-                use std::fs::File;
                 if let Types::Pointer(u_size, PointerTypes::String) =
                     m.registers[runtime_types::POINTER_REG]
                 {
                     let string = m.strings.to_string(u_size);
-                    let file = match File::open(string) {
+                    let file = match File::options().read(true).write(true).create(true).open(string) {
                         Err(why) => {
                             return Err(runtime_error::ErrTypes::Message(format!(
                                 "Couldn't open file: {}",
@@ -179,7 +177,7 @@ impl lib::Library for Foo {
                     m.registers[runtime_types::POINTER_REG]
                 {
                     let any = &mut m.user_data.data[u_size];
-                    let file = match FileH::from_ud(any) {
+                    let file = match FileH::from_ud(any.as_mut()) {
                         Ok(file) => file,
                         Err(why) => return Err(why),
                     };
@@ -200,7 +198,7 @@ impl lib::Library for Foo {
                     m.registers[runtime_types::POINTER_REG]
                 {
                     let any = &mut m.user_data.data[u_size];
-                    let file = match FileH::from_ud(any) {
+                    let file = match FileH::from_ud(any.as_mut()) {
                         Ok(file) => file,
                         Err(why) => return Err(why),
                     };
@@ -233,11 +231,10 @@ impl lib::Library for Foo {
                     m.registers[runtime_types::POINTER_REG]
                 {
                     let any = &mut m.user_data.data[u_size];
-                    let file = match FileH::from_ud(any) {
+                    let file = match FileH::from_ud(any.as_mut()) {
                         Ok(file) => file,
                         Err(why) => return Err(why),
                     };
-                    println!("file: {:#?}", file.handle);
                     if let Types::Pointer(u_size, PointerTypes::String) =
                         m.registers[runtime_types::GENERAL_REG1]
                     {
@@ -273,7 +270,7 @@ impl lib::Library for Foo {
                     m.registers[runtime_types::POINTER_REG]
                 {
                     let any = &mut m.user_data.data[u_size];
-                    let file = match FileH::from_ud(any) {
+                    let file = match FileH::from_ud(any.as_mut()) {
                         Ok(file) => file,
                         Err(why) => return Err(why),
                     };
@@ -358,7 +355,7 @@ impl FileH {
             gc_method: user_data::GcMethod::Gc,
         }
     }
-    fn from_ud(ud: &dyn UserData) -> Result<&mut Self, runtime_error::ErrTypes> {
+    fn from_ud(ud: &mut dyn UserData) -> Result<&mut Self, runtime_error::ErrTypes> {
         return ud
             .as_any_mut()
             .downcast_mut::<Self>()
