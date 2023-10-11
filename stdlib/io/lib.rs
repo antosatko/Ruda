@@ -16,7 +16,6 @@ use runtime::runtime_types::*;
 use runtime::*;
 
 pub struct Foo {
-    file_handles: Vec<Option<std::fs::File>>,
     _id: usize,
 }
 
@@ -135,7 +134,6 @@ fn register() -> String {
 #[no_mangle]
 pub fn init(_ctx: &mut Context, my_id: usize) -> Box<dyn lib::Library> {
     return Box::new(Foo {
-        file_handles: Vec::new(),
         _id: my_id,
     });
 }

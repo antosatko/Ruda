@@ -11,7 +11,7 @@
 extern crate runtime;
 
 use std::fs::File;
-use std::io::{Write, Read};
+use std::io::Write;
 
 use runtime::runtime_types::*;
 use runtime::user_data::UserData;
@@ -27,7 +27,6 @@ impl lib::Library for Foo {
         match id {
             // std::file_read
             0 => {
-                use std::fs::File;
                 use std::io::prelude::*;
                 if let Types::Pointer(u_size, PointerTypes::String) =
                     m.registers[runtime_types::POINTER_REG]
@@ -342,7 +341,6 @@ struct FileH {
     name: String,
 }
 
-use std::any::Any;
 impl FileH {
     const ASSIGN_ID: usize = 0;
 
@@ -366,8 +364,8 @@ impl FileH {
 }
 
 impl UserData for FileH {
-    fn name(&self) -> String {
-        self.name.clone()
+    fn label(&self) -> &str {
+        &self.name
     }
 
     fn id(&self) -> usize {

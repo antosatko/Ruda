@@ -1505,7 +1505,7 @@ pub mod runtime_types {
         pub fn gc_mark(&mut self) -> (Vec<bool>, Vec<bool>, Vec<bool>) {
             let mut call_stack_idx = 1;
             let mut marked = vec![false; self.heap.data.len()];
-            let mut marked_str =  vec![false; self.strings.pool.len()];
+            let mut marked_str = vec![false; self.strings.pool.len()];
             let mut marked_ud = vec![false; self.user_data.data.len()];
             self.gc_mark_registers(&mut marked, &mut marked_str, &mut marked_ud);
             while call_stack_idx <= self.stack.ptr {
@@ -1550,7 +1550,7 @@ pub mod runtime_types {
         }
         pub fn gc_mark_ud(&mut self, ud_idx: usize, marked: &mut Vec<bool>) {
             use user_data::GcMethod;
-            match self.user_data.data[ud_idx].gc_method().clone() {
+            match self.user_data.data[ud_idx].gc_method() {
                 GcMethod::None => {}
                 GcMethod::Gc => {
                     marked[ud_idx] = false;
@@ -1732,6 +1732,8 @@ pub mod runtime_types {
         pub data: Vec<Instructions>,
         pub ptr: usize,
     }
+    /// a structure that holds information about a function
+    /// this is used to call dynamic methods
     #[derive(Debug)]
     pub struct FunSpec {
         pub name: String,
@@ -1740,21 +1742,21 @@ pub mod runtime_types {
         pub stack_size: Option<(usize, usize)>,
         pub loc: usize,
     }
+    /// a structure that holds information about the placement of a value in memory
     #[derive(Debug)]
     pub enum MemoryLoc {
         Stack(usize),
         Register(usize),
     }
+    /// a structure exposed to the linked libraries
     pub struct PublicData<'a> {
         pub memory: &'a mut Memory,
+        /// Instructions
+        ///
+        /// It is read only, for security reasons
         pub code: &'a Code,
         pub break_code: &'a mut Option<usize>,
         pub exit_code: &'a mut ExitCodes,
-    }
-    #[derive(Debug, Clone)]
-    pub struct Garbage {
-        pub heap: Vec<usize>,
-        pub string_pool: Vec<usize>,
     }
     #[derive(Debug, Copy, Clone)]
     pub struct Catches {
@@ -1780,10 +1782,22 @@ pub mod runtime_types {
             self.catches_ptr = n;
         }
     }
+    /// a structure that holds information about the location of each catch
     #[derive(Debug, Copy, Clone)]
     pub struct Catch {
+        /// location of the catch
+        ///
+        /// does not need to be exact, for example
+        /// if there is more than one catch in a function,
+        /// then the location of the catch can be the end of those catches
+        ///
+        /// therefor the location of the catch is the location of the last catch
         pub code_ptr: usize,
+        /// location of the stack the catch was created in
         pub cs_ptr: usize,
+        /// Describes the type of the catch
+        ///
+        /// If the catch is a catch all, then the type is None
         pub id: Option<usize>,
     }
     /// indicates why program exited
@@ -1799,12 +1813,6 @@ pub mod runtime_types {
         Internal(runtime_error::ErrTypes),
         /// program got signal to break from the outside
         OuterBreak,
-    }
-    /// a structure used to register data on heap
-    #[derive(Clone, Debug)]
-    pub struct HeapRegistry {
-        pub idx: usize,
-        pub generation: u8,
     }
     const TYPES_SIZE: usize = std::mem::size_of::<Types>();
     #[derive(Clone, Copy, Debug)]
@@ -1845,12 +1853,16 @@ pub mod runtime_types {
                 Types::NonPrimitive(kind) => kind.to_string(),
                 Types::Usize(val) => val.to_string(),
                 Types::Pointer(u_size, val) => match val {
-                    PointerTypes::Char(chr) => chr.to_string(),
-                    PointerTypes::Heap(idx) => mem.heap.data[u_size][idx].to_string(),
-                    PointerTypes::Object => mem.heap.data[u_size][0].to_string(),
-                    PointerTypes::Stack => mem.stack.data[u_size].to_string(),
-                    PointerTypes::String => mem.strings.to_string(u_size),
-                    PointerTypes::UserData => mem.user_data.data[u_size].name(),
+                    PointerTypes::Char(chr) => format!("Ptr<String, {}, {}>", u_size, chr),
+                    PointerTypes::Heap(idx) => format!("Ptr<Heap, {}, {}>", u_size, idx),
+                    PointerTypes::Object => format!("Ptr<Heap, {}>", u_size),
+                    PointerTypes::Stack => format!("Ptr<Stack, {}>", u_size),
+                    PointerTypes::String => format!("Ptr<String, {}>", u_size),
+                    PointerTypes::UserData => format!(
+                        "Ptr<UserData, {}, {}>",
+                        u_size,
+                        mem.user_data.data[u_size].label()
+                    ),
                 },
                 Types::Function(val) => mem.fun_table[val].name.to_string(),
                 Types::Void => "void".to_string(),
@@ -1898,6 +1910,8 @@ pub mod runtime_types {
         Array,
         Struct,
     }
+    /// a structure used to store non-primitive types
+    /// this is basically a VTable
     #[derive(Debug, Clone)]
     pub struct NonPrimitiveType {
         pub name: String,
@@ -2229,15 +2243,25 @@ pub mod runtime_error {
     use super::runtime_types::*;
     #[derive(Debug, Clone)]
     pub enum ErrTypes {
+        /// Operation failed: Cross-type operation {var1:+}, {var2:+}
         CrossTypeOperation(Types, Types, Instructions),
+        /// Operation failed: Wrong-type operation {var1:+}
         WrongTypeOperation(Types, Instructions),
+        /// Invalid Type: {typ:#} must be of type '{operation:#}'
         InvalidType(Types, Types),
+        /// Wrong type: Expected {exp:#}, found {found:#}
         Expected(Types, Types),
+        /// Cast error: Can not implicitly cast type {type1:#} into type {type2:#}
         ImplicitCast(Types, Types),
+        /// Stack overflow
         StackOverflow,
+        /// Catch overflow
         CatchOwerflow,
+        /// Method not found
         MethodNotFound,
+        /// custom error message
         Message(String),
+        /// Cannot use userdata
         CannotReadUserdata,
     }
     fn gen_message(header: String, line: Option<(usize, usize)>, err_no: u8) -> String {
@@ -2293,19 +2317,80 @@ pub mod lib {
 
 pub mod user_data {
     /// Library defined data that lives inside the interpreter and can be accessed by any library
+    ///
+    /// To see, how to access this data, see doc string for fn as_any or fn as_any_mut
     pub trait UserData {
-        /// return the name of the object
-        fn name(&self) -> String;
+        /// return the label of the object
+        /// this is used for debugging
+        fn label(&self) -> &str;
         /// returns the id of the object
+        /// this is useful for shared objects between libraries
         fn id(&self) -> usize;
         /// returns the id of the library
+        /// this is used for debugging
         fn lib_id(&self) -> usize;
         /// describes how to aproach the object by the garbage collector
         fn gc_method(&self) -> &GcMethod;
         /// cleans up the object for garbage collection
+        /// thanks to Rust this is not needed for most objects
         fn cleanup(&mut self);
         /// returns the object as any
+        ///
+        /// this method is used to downcast the object to its original type
+        ///
+        /// example:
+        ///
+        /// ```rust
+        /// use runtime::user_data::*;
+        ///
+        /// struct MyStruct {
+        ///    data: usize,
+        /// }
+        ///
+        /// impl UserData for MyStruct {
+        ///   // ...
+        ///    fn as_any(&self) -> &dyn std::any::Any {
+        ///       self
+        ///   }
+        /// }
+        ///
+        /// fn main() {
+        ///   // runtime stores objects as Box<dyn UserData>
+        ///   let my_struct: Box<dyn UserData> = Box::new(MyStruct { data: 0 });
+        ///
+        ///  // downcast to MyStruct
+        ///  let my_struct: &MyStruct = my_struct.as_any().downcast_ref::<MyStruct>().unwrap();
+        /// }
+        /// ```
         fn as_any(&self) -> &dyn std::any::Any;
+        /// returns the object as any mut
+        ///
+        /// this method is used to downcast the object to its original type
+        ///
+        /// example:
+        ///
+        /// ```rust
+        /// use runtime::user_data::*;
+        ///
+        /// struct MyStruct {
+        ///   data: usize,
+        /// }
+        ///
+        /// impl UserData for MyStruct {
+        ///  // ...
+        ///  fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        ///    self
+        ///  }
+        /// }
+        ///
+        /// fn main() {
+        ///  // runtime stores objects as Box<dyn UserData>
+        ///  let mut my_struct: Box<dyn UserData> = Box::new(MyStruct { data: 0 });
+        ///
+        ///  // downcast to MyStruct
+        ///  let my_struct: &mut MyStruct = my_struct.as_any_mut().downcast_mut::<MyStruct>().unwrap();
+        /// }
+        /// ```
         fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
     }
 
@@ -2332,8 +2417,8 @@ pub mod user_data {
             &GcMethod::None
         }
         fn cleanup(&mut self) {}
-        fn name(&self) -> String {
-            "EmptyUserData".to_string()
+        fn label(&self) -> &str {
+            "EmptyUserData"
         }
         fn as_any(&self) -> &dyn std::any::Any {
             self

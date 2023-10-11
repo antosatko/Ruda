@@ -10,8 +10,6 @@
  */
 extern crate runtime;
 
-use std::io::Write;
-
 use runtime::runtime_types::*;
 use runtime::*;
 
@@ -24,7 +22,7 @@ impl lib::Library for DynLib {
         id: usize,
         mem: PublicData,
     ) -> Result<Types, runtime_error::ErrTypes> {
-        let m = mem.memory;
+        let _m = mem.memory;
         match id {
             0 => {
 
@@ -43,6 +41,6 @@ fn register() -> String {
 }
 
 #[no_mangle]
-pub fn init(_ctx: &mut Context, my_id: usize) -> Box<dyn lib::Library> {
+pub fn init(_ctx: &mut Context, _my_id: usize) -> Box<dyn lib::Library> {
     return Box::new(DynLib {});
 }
