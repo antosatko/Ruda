@@ -33,7 +33,7 @@ fn main() {
             println!("AST loaded.");
             let parsed_tree = build_dictionaries(&file, &mut (ast, params));
             match &parsed_tree {
-                Ok(tree) => {
+                Ok(_tree) => {
                     println!("Dictionary generated.");
                 }
                 Err(err) => {
