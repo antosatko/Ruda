@@ -160,18 +160,18 @@ impl Context {
         }
         use Instructions::*;
         match self.code.data[self.code.ptr] {
-            Wr(stack_offset, register) => {
+            Write(stack_offset, register) => {
                 let end = self.stack_end();
                 self.memory.stack.data[end - stack_offset] = self.memory.registers[register];
                 self.next_line();
             }
-            Rd(stack_offset, reg) => {
+            Read(stack_offset, reg) => {
                 // print stack offset and end
                 let end = self.stack_end();
                 self.memory.registers[reg] = self.memory.stack.data[end - stack_offset];
                 self.next_line();
             }
-            Wrp(value_reg) => {
+            WritePtr(value_reg) => {
                 if let Types::Pointer(u_size, kind) = self.memory.registers[POINTER_REG] {
                     match kind {
                         PointerTypes::Stack => {
@@ -221,7 +221,7 @@ impl Context {
                 }
                 self.next_line();
             }
-            Rdp(cash_reg) => {
+            ReadPtr(cash_reg) => {
                 if let Types::Pointer(u_size, kind) = self.memory.registers[POINTER_REG] {
                     match kind {
                         PointerTypes::Stack => {
@@ -259,7 +259,7 @@ impl Context {
                 }
                 self.next_line();
             }
-            Rdc(stack_pos, reg) => {
+            ReadConst(stack_pos, reg) => {
                 self.memory.registers[reg] = self.memory.stack.data[stack_pos];
                 self.next_line();
             }
@@ -268,7 +268,7 @@ impl Context {
                     Types::Pointer(self.stack_end() - stack_offset, PointerTypes::Stack);
                 self.next_line();
             }
-            Idx(index_reg) => {
+            Index(index_reg) => {
                 if let Types::Pointer(u_size, kind) = self.memory.registers[POINTER_REG] {
                     if let Types::Usize(index) = self.memory.registers[index_reg] {
                         match kind {
@@ -314,7 +314,7 @@ impl Context {
                 }
                 self.next_line();
             }
-            IdxK(index) => {
+            IndexStatic(index) => {
                 if let Types::Pointer(u_size, kind) = self.memory.registers[POINTER_REG] {
                     match kind {
                         PointerTypes::Object => {
@@ -353,7 +353,7 @@ impl Context {
                 }
                 self.next_line();
             }
-            Alc(size_reg) => {
+            Allocate(size_reg) => {
                 if let Types::Usize(size) = self.memory.registers[size_reg] {
                     self.memory.registers[POINTER_REG] =
                         Types::Pointer(self.memory.allocate_obj(size), PointerTypes::Object);
@@ -365,12 +365,12 @@ impl Context {
                 }
                 self.next_line();
             }
-            AlcS(size) => {
+            AllocateStatic(size) => {
                 self.memory.registers[POINTER_REG] =
                     Types::Pointer(self.memory.allocate_obj(size), PointerTypes::Object);
                 self.next_line();
             }
-            RAlc(size_reg) => {
+            Reallocate(size_reg) => {
                 if let Types::Pointer(u_size, ptr_type) = self.memory.registers[POINTER_REG] {
                     match ptr_type {
                         PointerTypes::Object => {
@@ -410,7 +410,7 @@ impl Context {
                 }
                 self.next_line();
             }
-            Dalc => {
+            Deallocate => {
                 if let Types::Pointer(u_size, ptr_type) = self.memory.registers[POINTER_REG] {
                     match ptr_type {
                         PointerTypes::Object => {
@@ -449,7 +449,7 @@ impl Context {
                 self.memory.stack.call_stack[self.memory.stack.ptr].code_ptr = self.code.ptr;
                 self.code.ptr = pos;
             }
-            Gotop => {
+            GotoPtr => {
                 if let Types::Function(u_size) = self.memory.registers[CODE_PTR_REG] {
                     self.code.ptr = self.memory.fun_table[u_size].loc;
                 } else {
@@ -459,7 +459,7 @@ impl Context {
                     ));
                 }
             }
-            ResD(reg_id) => {
+            DynReserve(reg_id) => {
                 if let Types::Function(u_size) = self.memory.registers[reg_id] {
                     if let Some((size, pointers_len)) = self.memory.fun_table[u_size].stack_size {
                         let end = self.stack_end() + size;
@@ -489,7 +489,7 @@ impl Context {
                 }
                 self.next_line();
             }
-            ArgD(id_reg, arg_num, value_reg) => {
+            DynArgument(id_reg, arg_num, value_reg) => {
                 if let Types::Function(u_size) = self.memory.registers[id_reg] {
                     let where_to = &self.memory.fun_table[u_size].params[arg_num];
                     match where_to {
@@ -509,7 +509,7 @@ impl Context {
                 }
                 self.next_line();
             }
-            Brnc(pos1, pos2) => {
+            Branch(pos1, pos2) => {
                 if let Types::Bool(bool) = self.memory.registers[GENERAL_REG1] {
                     self.code.ptr = if bool { pos1 } else { pos2 };
                 } else {
@@ -519,7 +519,7 @@ impl Context {
                     ));
                 }
             }
-            Ret => {
+            Return => {
                 self.code.ptr = self.memory.stack.call_stack[self.memory.stack.ptr].code_ptr;
                 self.memory.stack.ptr -= 1;
                 self.next_line();
@@ -528,14 +528,14 @@ impl Context {
                 self.code.ptr = self.memory.stack.call_stack[self.memory.stack.ptr].code_ptr;
                 self.next_line();
             }
-            Ufrz => {
+            Unfreeze => {
                 for i in 0..FREEZED_REG_SIZE {
                     self.memory.registers[i] =
                         self.memory.stack.call_stack[self.memory.stack.ptr].reg_freeze[i]
                 }
                 self.next_line();
             }
-            Res(size, pointers_len) => {
+            ReserveStack(size, pointers_len) => {
                 let end = self.stack_end() + size;
                 self.memory.stack.ptr += 1;
                 if self.memory.stack.ptr >= self.memory.stack.call_stack.len() {
@@ -553,7 +553,7 @@ impl Context {
                 }
                 self.next_line();
             }
-            Frz => {
+            Freeze => {
                 self.memory.stack.call_stack[self.memory.stack.ptr]
                     .reg_freeze
                     .clone_from_slice(&self.memory.registers[..3]);
@@ -764,7 +764,7 @@ impl Context {
                 }
                 self.next_line();
             }
-            Mtd(obj, trt, method) => {
+            DynMethod(obj, trt, method) => {
                 if let Types::NonPrimitive(id) = self.memory.registers[obj] {
                     if let Some(method) = self.memory.non_primitives[id]
                         .methods
@@ -823,13 +823,13 @@ impl Context {
                 self.next_line()
             }
             // todo optimize
-            CpRng(original, new, len) => {
+            CopyRange(original, new, len) => {
                 let new_ptr = if let Types::Pointer(u_size, kind) = self.memory.registers[new] {
                     (u_size, kind)
                 } else {
                     return self.panic_rt(ErrTypes::WrongTypeOperation(
                         self.memory.registers[new],
-                        CpRng(0, 0, 0),
+                        CopyRange(0, 0, 0),
                     ));
                 };
                 if let Types::Pointer(u_size, kind) = self.memory.registers[original] {
@@ -877,13 +877,13 @@ impl Context {
                 } else {
                     return self.panic_rt(ErrTypes::WrongTypeOperation(
                         self.memory.registers[original],
-                        CpRng(0, 0, 0),
+                        CopyRange(0, 0, 0),
                     ));
                 }
             }
             // TODO: optimize
             // - dont match on each iteration
-            TRng(val, len) => {
+            FillRange(val, len) => {
                 let value = self.memory.registers[val];
                 if let Types::Pointer(u_size, kind) = self.memory.registers[POINTER_REG] {
                     for i in 0..len {
@@ -918,7 +918,7 @@ impl Context {
                 );
                 self.next_line();
             }
-            NPType(np_reg, id) => {
+            NonPrimitiveType(np_reg, id) => {
                 if let Types::NonPrimitive(id_dyn) = self.memory.registers[np_reg] {
                     self.memory.registers[GENERAL_REG3] = Types::Bool(id == id_dyn);
                 } else {
@@ -961,8 +961,8 @@ impl Context {
                 }
                 self.next_line()
             }
-            DelCatch => {
-                self.catches.pop();
+            DeleteCatch(n) => {
+                self.catches.truncate(self.catches.cache.len() - n);
                 self.next_line()
             }
             /*StrCpy(reg) => {
@@ -2059,37 +2059,37 @@ pub mod runtime_types {
         /// Debug: reg | prints value of reg(<reg>)
         Debug(usize),
         /// Write: stack_offset reg | moves value from reg(0) to stack(stack_end - <stack_offset>)
-        Wr(usize, usize),
+        Write(usize, usize),
         /// Read: stack_offset reg | reads value from stack(stack_end - <stack_offset>) to its reg(<reg>)
-        Rd(usize, usize),
+        Read(usize, usize),
         /// WritePointer: value_reg | moves value from reg(<value_reg>) to stack(<pointer>)
-        Wrp(usize),
+        WritePtr(usize),
         /// ReadPointer: reg | reads value from reg(pointer_reg) to its reg(<reg>)
-        Rdp(usize),
+        ReadPtr(usize),
         /// ReadConstant: stack_pos reg | reads value from stack(<stack_pos>) to its reg(<reg>)
-        Rdc(usize, usize),
+        ReadConst(usize, usize),
         /// Pointer: stack_pos | stores pointer to stack(stack_end - <stack_offset>) in reg(0)
         Ptr(usize),
         /// Index: idx | gets pointer from reg(<pointer>) repairs it and adds reg(<idx>)
-        Idx(usize),
+        Index(usize),
         /// Allocate: size_reg pointers_len | reserves <size> on heap and stores location in registers(<reg>)
-        Alc(usize),
+        Allocate(usize),
         /// Reallocate: size_reg | resizes heap(<reg>) for <size>; additional space is filled with null
-        RAlc(usize),
+        Reallocate(usize),
         /// Free: | frees heap(<reg>)
-        Dalc,
+        Deallocate,
         /// Goto: pos | moves code_pointer to <pos>
         Goto(usize),
         /// GotoCodePtr: pos_reg | moves code pointer to reg(<reg>)
-        Gotop,
+        GotoPtr,
         /// Branch: pos1 pos2 | if reg(0), goto <pos1> else goto <pos2>
-        Brnc(usize, usize),
+        Branch(usize, usize),
         /// Return: | moves code_pointer to the last position in callstack and moves callstack back
-        Ret,
+        Return,
         /// Unfreeze | returns registers to their last freezed state
-        Ufrz,
+        Unfreeze,
         /// Reserve: size ptrs | reserves <size> on stack and advances callstack, also saves number of pointers for faster memory sweeps
-        Res(usize, usize),
+        ReserveStack(usize, usize),
         /// Swap: reg1 reg2   | swaps <reg1> and <reg2>
         Swap(usize, usize),
         /// Add | reg(0) is set to the result of operation: reg(0) + reg(1)
@@ -2128,7 +2128,7 @@ pub mod runtime_types {
         /// Jump: pos | moves code_pointer to <pos> and saves current code ptr
         Jump(usize),
         /// Freeze | freezes registers on callstack
-        Frz,
+        Freeze,
         /// Back | returns to last code ptr
         Back,
         /// Move: reg1 reg2 | moves value of reg1 to reg2
@@ -2137,55 +2137,55 @@ pub mod runtime_types {
         Sweep,
         /// Sweep unoptimized | sweeps memory, deallocating all unaccesable objects, this instruction is here only to help me test GC since it doesnt require any code structure
         SweepUnoptimized,
-        /// Allocate size: size | allocates new object with size known at compile time and returns pointer to reg(0)
-        AlcS(usize),
-        /// Index known: index | indexing operation where index is known at compile time (generally for structures but can be also used for arrays or single values on heap)
-        IdxK(usize),
-        /// To range: val_reg len | takes pointer at reg(POINTER_REG) as a starting point and fills len to the right with value on reg(value_reg)
-        TRng(usize, usize),
+        /// Allocate static: size | allocates new object with size known at compile time and returns pointer to reg(0)
+        AllocateStatic(usize),
+        /// Index static: index | indexing operation where index is known at compile time (generally for structures but can be also used for arrays or single values on heap)
+        IndexStatic(usize),
+        /// Fill range: val_reg len | takes pointer at reg(POINTER_REG) as a starting point and fills len to the right with value on reg(value_reg)
+        FillRange(usize, usize),
         /// Copy range: original_ptr new_ptr len | copies range starting at reg(original_ptr) with size len to reg(new_ptr)
-        CpRng(usize, usize, usize),
+        CopyRange(usize, usize, usize),
         /// Break: code | program exits with a break code, indicating that it should be resumed at some point
         Break(usize),
         /// Method: struct trait method | takes struct and calls method on it, assuming it implements trait  
-        Mtd(usize, usize, usize),
+        DynMethod(usize, usize, usize),
         /// Panic | program enters panic mode, returning from all stacks until exception is caught
         Panic,
         /// Catch | catches an error and returns program to normal mode, cached if read in normal mode
         Catch,
         /// Catch ID: id | same as normal catch but responds only to exception with same id
         CatchId(usize),
-        /// Delete catch | deletes one catch instruction from cache
-        DelCatch,
+        /// Delete catch | deletes specified amount of catches from stack
+        DeleteCatch(usize),
         /// Non-primitive type: np_reg ID | compares reg(np_reg).id assuming it belongs to Non-primitive type with ID
-        NPType(usize, usize),
+        NonPrimitiveType(usize, usize),
         /// String new | creates new string and stores pointer in reg(POINTER_REGISTER)
         StrNew,
         /// Into string: val_reg | converts value on reg(value_reg) to string and stores pointer in reg(POINTER_REG)
         IntoStr(usize),
         /// Reserve dynamic: id_reg | prepares memory for anonymous function call (may allocate size on stack) based on fun_table(id_reg).stack_size
-        ResD(usize),
+        DynReserve(usize),
         /// Argument dynamic: id_reg arg_num value_reg | pushes arguments to destination(stack or registers) based on fun_table(id_reg).params
-        ArgD(usize, usize, usize),
+        DynArgument(usize, usize, usize),
     }
     impl fmt::Display for Instructions {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
             let str = match *self {
                 Instructions::Add(_, _, _) => "Addition",
-                Instructions::Alc(_) => "Allocation",
-                Instructions::AlcS(_) => "Allocation",
+                Instructions::Allocate(_) => "Allocation",
+                Instructions::AllocateStatic(_) => "Allocation",
                 Instructions::And(_, _, _) => "And",
-                Instructions::Brnc(_, _) => "Branch",
+                Instructions::Branch(_, _) => "Branch",
                 Instructions::Cal(_, _) => "Call",
                 Instructions::Debug(_) => "Debug",
                 Instructions::Div(_, _, _) => "Division",
                 Instructions::End => "End",
                 Instructions::Equ(_, _, _) => "Equality",
                 Instructions::Goto(_) => "GoTo",
-                Instructions::Gotop => "GoToDyn",
+                Instructions::GotoPtr => "GoToDyn",
                 Instructions::Grt(_, _, _) => "Greater",
-                Instructions::Idx(_) => "Indexing",
-                Instructions::IdxK(_) => "Indexing",
+                Instructions::Index(_) => "Indexing",
+                Instructions::IndexStatic(_) => "Indexing",
                 Instructions::Less(_, _, _) => "Lesser",
                 Instructions::Mod(_, _, _) => "Modulus",
                 Instructions::Swap(_, _) => "Swap",
@@ -2193,39 +2193,39 @@ pub mod runtime_types {
                 Instructions::Not(_, _) => "Not",
                 Instructions::Or(_, _, _) => "Or",
                 Instructions::Ptr(_) => "StackPointer",
-                Instructions::RAlc(_) => "Reallocation",
-                Instructions::Ufrz => "Unfreeze",
-                Instructions::Rd(_, _) => "Read",
-                Instructions::Rdc(_, _) => "ReadConst",
-                Instructions::Rdp(_) => "Dereference",
-                Instructions::Res(_, _) => "Reserve",
-                Instructions::Ret => "Return",
+                Instructions::Reallocate(_) => "Reallocation",
+                Instructions::Unfreeze => "Unfreeze",
+                Instructions::Read(_, _) => "Read",
+                Instructions::ReadConst(_, _) => "ReadConst",
+                Instructions::ReadPtr(_) => "Dereference",
+                Instructions::ReserveStack(_, _) => "Reserve",
+                Instructions::Return => "Return",
                 Instructions::Sub(_, _, _) => "Subtract",
-                Instructions::Wr(_, _) => "Write",
-                Instructions::Wrp(_) => "WriteRef",
+                Instructions::Write(_, _) => "Write",
+                Instructions::WritePtr(_) => "WriteRef",
                 Instructions::Cast(_, _) => "Casting",
                 Instructions::Len(_) => "Length",
                 Instructions::Type(_, _) => "TypeOf",
                 Instructions::Jump(_) => "Jump",
-                Instructions::Frz => "Freeze",
+                Instructions::Freeze => "Freeze",
                 Instructions::Back => "Back",
                 Instructions::Move(_, _) => "Move",
                 Instructions::Sweep => "Sweep",
                 Instructions::SweepUnoptimized => "SweepUnoptimized",
-                Instructions::TRng(_, _) => "ToRange",
-                Instructions::CpRng(_, _, _) => "CopyRange",
-                Instructions::Mtd(_, _, _) => "Method",
+                Instructions::FillRange(_, _) => "ToRange",
+                Instructions::CopyRange(_, _, _) => "CopyRange",
+                Instructions::DynMethod(_, _, _) => "Method",
                 Instructions::Break(_) => "Break",
                 Instructions::Panic => "Panic",
                 Instructions::Catch => "Catch",
                 Instructions::CatchId(_) => "Catch",
-                Instructions::DelCatch => "DeleteCatch",
-                Instructions::NPType(_, _) => "NonPrimitiveType",
+                Instructions::DeleteCatch(_) => "DeleteCatch",
+                Instructions::NonPrimitiveType(_, _) => "NonPrimitiveType",
                 Instructions::StrNew => "StringNew",
-                Instructions::Dalc => "Deallocate",
+                Instructions::Deallocate => "Deallocate",
                 Instructions::IntoStr(_) => "IntoString",
-                Instructions::ResD(_) => "ReserveDynamic",
-                Instructions::ArgD(_, _, _) => "ArgumentDynamic",
+                Instructions::DynReserve(_) => "ReserveDynamic",
+                Instructions::DynArgument(_, _, _) => "ArgumentDynamic",
             };
             write!(f, "{str}")
         }

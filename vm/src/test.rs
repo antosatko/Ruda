@@ -26,27 +26,27 @@ pub mod test {
                 ];
                 context.code.data = vec![
                     // stack
-                    Res(3, 0),
+                    ReserveStack(3, 0),
                     // allocating size Usize(5)
-                    Rd(1, 0),
-                    Alc(0),
+                    Read(1, 0),
+                    Allocate(0),
                     // writing pointer on stack
-                    Wr(2, 0),
+                    Write(2, 0),
                     // writing to pointer
                     Swap(0, POINTER_REG),
-                    Rd(3, 0), // value
-                    Wrp(0),
+                    Read(3, 0), // value
+                    WritePtr(0),
                     // writing to pointer[Usize(3)]
-                    Rdc(4, 0), // index
-                    Idx(0),
-                    Rdc(3, 0), // value
-                    Wrp(0),
+                    ReadConst(4, 0), // index
+                    Index(0),
+                    ReadConst(3, 0), // value
+                    WritePtr(0),
                     // resizing to Usize(4)
-                    Rdc(5, 0),          // size
-                    Rd(2, POINTER_REG), // pointer
-                    RAlc(0),
+                    ReadConst(5, 0),          // size
+                    Read(2, POINTER_REG), // pointer
+                    Reallocate(0),
                     // free
-                    //Dalc,
+                    //Deallocate,
                     End,
                 ];
                 true
@@ -63,42 +63,42 @@ pub mod test {
                     Int(1),  // step
                 ];
                 context.code.data = vec![
-                    Res(7, 0), // main stack
+                    ReserveStack(7, 0), // main stack
                     Goto(15),  // skip function declaration to the main code
                     // function swap stack[bool, (ptr, ptr), tmp] -> bool
                     // write tmp value of pointer1
-                    Rd(3, POINTER_REG),
-                    Rdp(0),
-                    Wr(1, 0),
+                    Read(3, POINTER_REG),
+                    ReadPtr(0),
+                    Write(1, 0),
                     // write pointer2 to pointer1
-                    Rd(2, POINTER_REG),
-                    Rdp(0), // value of pointer2
-                    Rd(3, POINTER_REG),
-                    Wrp(0),
+                    Read(2, POINTER_REG),
+                    ReadPtr(0), // value of pointer2
+                    Read(3, POINTER_REG),
+                    WritePtr(0),
                     // write tmp on pointer2
-                    Rd(1, 0),
-                    Rd(2, POINTER_REG),
-                    Wrp(0),
-                    // return true
-                    Rdc(2, RETURN_REG),
-                    Ufrz,
-                    Ret,
+                    Read(1, 0),
+                    Read(2, POINTER_REG),
+                    WritePtr(0),
+                    // Returnurn true
+                    ReadConst(2, RETURN_REG),
+                    Unfreeze,
+                    Return,
                     // calling
-                    Rd(1 + 3, GENERAL_REG1),
-                    Res(4, 0), // function args stack
-                    Frz,
+                    Read(1 + 3, GENERAL_REG1),
+                    ReserveStack(4, 0), // function args stack
+                    Freeze,
                     Ptr(3 + 4 + 3),
-                    Wr(3, GENERAL_REG1),
+                    Write(3, GENERAL_REG1),
                     Ptr(4 + 4 + 3),
-                    Wr(2, GENERAL_REG1),
+                    Write(2, GENERAL_REG1),
                     Jump(2),
-                    Rd(3, GENERAL_REG1),
-                    Rd(1, GENERAL_REG2),
+                    Read(3, GENERAL_REG1),
+                    Read(1, GENERAL_REG2),
                     Add(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1),
-                    Wr(3, GENERAL_REG1),
-                    Rd(2, GENERAL_REG2),
+                    Write(3, GENERAL_REG1),
+                    Read(2, GENERAL_REG2),
                     Less(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1),
-                    Brnc(15, 30),
+                    Branch(15, 30),
                     End,
                 ];
                 true
@@ -108,24 +108,24 @@ pub mod test {
                 context.memory.stack.data = vec![
                     Int(3),     // value 1
                     Int(7),     // value 2
-                    Bool(true), // return value
+                    Bool(true), // Returnurn value
                     Int(0),     // index
                     Int(50),    // max
                     Int(1),     // step
                 ];
                 context.code.data = vec![
-                    Res(6, 0),
+                    ReserveStack(6, 0),
                     Goto(10),
                     // function swap registers[gen3: ptr, ptr:ptr]
-                    Rdp(GENERAL_REG1), // load first value
+                    ReadPtr(GENERAL_REG1), // load first value
                     // load second value
                     Swap(GENERAL_REG3, POINTER_REG),
-                    Rdp(GENERAL_REG2),
-                    Wrp(GENERAL_REG1), // write first value
+                    ReadPtr(GENERAL_REG2),
+                    WritePtr(GENERAL_REG1), // write first value
                     // write second value
                     Swap(GENERAL_REG3, POINTER_REG),
-                    Wrp(GENERAL_REG2),
-                    Rdc(2, RETURN_REG), // return value
+                    WritePtr(GENERAL_REG2),
+                    ReadConst(2, RETURN_REG), // Returnurn value
                     Back,
                     // calling
                     Ptr(2 + 3),
@@ -133,13 +133,13 @@ pub mod test {
                     Ptr(3 + 3),
                     Swap(GENERAL_REG1, POINTER_REG),
                     Jump(2),
-                    Rd(3, GENERAL_REG1),
-                    Rd(1, GENERAL_REG2),
+                    Read(3, GENERAL_REG1),
+                    Read(1, GENERAL_REG2),
                     Add(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1),
-                    Wr(3, GENERAL_REG1),
-                    Rd(2, GENERAL_REG2),
+                    Write(3, GENERAL_REG1),
+                    Read(2, GENERAL_REG2),
                     Less(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1),
-                    Brnc(10, 22),
+                    Branch(10, 22),
                     End,
                 ];
                 true
@@ -155,26 +155,26 @@ pub mod test {
                     Null,     // placeholder for heap pointer
                 ];
                 context.code.data = vec![
-                    Res(6, 1),
-                    Rdc(1, GENERAL_REG2), // size
-                    Alc(GENERAL_REG2),
+                    ReserveStack(6, 1),
+                    ReadConst(1, GENERAL_REG2), // size
+                    Allocate(GENERAL_REG2),
                     Move(GENERAL_REG1, POINTER_REG),
-                    Rd(4, GENERAL_REG1),
-                    Rd(3, GENERAL_REG2),
+                    Read(4, GENERAL_REG1),
+                    Read(3, GENERAL_REG2),
                     Add(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1),
-                    Wr(4, GENERAL_REG1),
-                    Rd(2, GENERAL_REG2),
+                    Write(4, GENERAL_REG1),
+                    Read(2, GENERAL_REG2),
                     Less(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1),
-                    Res(0, 0),
-                    Brnc(1, 12),
+                    ReserveStack(0, 0),
+                    Branch(1, 12),
                     Debug(POINTER_REG),
-                    Rdc(1, GENERAL_REG2), // size
-                    Rdc(1, GENERAL_REG1), // size
+                    ReadConst(1, GENERAL_REG2), // size
+                    ReadConst(1, GENERAL_REG1), // size
                     SweepUnoptimized,
-                    Alc(GENERAL_REG2),
+                    Allocate(GENERAL_REG2),
                     Sub(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1),
-                    Idx(GENERAL_REG1),
-                    Wrp(GENERAL_REG2),
+                    Index(GENERAL_REG1),
+                    WritePtr(GENERAL_REG2),
                     End,
                 ];
                 true
@@ -182,33 +182,33 @@ pub mod test {
             5 => {
                 context.memory.stack.data = vec![Usize(1), Null, Int(70)];
                 context.code.data = vec![
-                    Res(3, 0),
-                    Rd(3, GENERAL_REG1),
-                    Alc(GENERAL_REG1),
-                    Wr(2, GENERAL_REG1),
-                    Rd(3, GENERAL_REG1),
-                    Rd(3, GENERAL_REG2),
+                    ReserveStack(3, 0),
+                    Read(3, GENERAL_REG1),
+                    Allocate(GENERAL_REG1),
+                    Write(2, GENERAL_REG1),
+                    Read(3, GENERAL_REG1),
+                    Read(3, GENERAL_REG2),
                     Add(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1),
-                    Rd(2, POINTER_REG),
-                    RAlc(GENERAL_REG1),
-                    Idx(GENERAL_REG2),
-                    Wrp(GENERAL_REG1),
-                    Alc(GENERAL_REG2),
+                    Read(2, POINTER_REG),
+                    Reallocate(GENERAL_REG1),
+                    Index(GENERAL_REG2),
+                    WritePtr(GENERAL_REG1),
+                    Allocate(GENERAL_REG2),
                     Move(GENERAL_REG1, GENERAL_REG3),
                     Move(GENERAL_REG1, POINTER_REG),
-                    Rd(3, GENERAL_REG1),
+                    Read(3, GENERAL_REG1),
                     Sub(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1),
-                    Idx(GENERAL_REG1),
-                    Rdp(GENERAL_REG1),
+                    Index(GENERAL_REG1),
+                    ReadPtr(GENERAL_REG1),
                     Debug(GENERAL_REG1),
-                    Rd(2, POINTER_REG),
-                    //Dalc,
+                    Read(2, POINTER_REG),
+                    //Deallocate,
                     Move(GENERAL_REG3, POINTER_REG),
-                    Rd(3, GENERAL_REG1),
+                    Read(3, GENERAL_REG1),
                     Sub(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1),
-                    Idx(GENERAL_REG1),
-                    Rd(1, GENERAL_REG1),
-                    Wrp(GENERAL_REG1),
+                    Index(GENERAL_REG1),
+                    Read(1, GENERAL_REG1),
+                    WritePtr(GENERAL_REG1),
                     End,
                 ];
                 true
@@ -217,14 +217,14 @@ pub mod test {
             6 => {
                 context.memory.stack.data = vec![Usize(1), Null, Int(70), Usize(0)];
                 context.code.data = vec![
-                    Res(3, 0),
-                    Rdc(0, GENERAL_REG1),
-                    Alc(GENERAL_REG1),
-                    Wr(2, POINTER_REG),
-                    Rdc(3, GENERAL_REG1),
-                    Idx(GENERAL_REG1),
-                    Rd(1, GENERAL_REG1),
-                    Wrp(GENERAL_REG1),
+                    ReserveStack(3, 0),
+                    ReadConst(0, GENERAL_REG1),
+                    Allocate(GENERAL_REG1),
+                    Write(2, POINTER_REG),
+                    ReadConst(3, GENERAL_REG1),
+                    Index(GENERAL_REG1),
+                    Read(1, GENERAL_REG1),
+                    WritePtr(GENERAL_REG1),
                     End,
                 ];
                 true
@@ -240,7 +240,7 @@ pub mod test {
                 ];
                 context.memory.non_primitives = vec![
                     // struct Person, 3 fields, name, age, height, id = 0
-                    NonPrimitiveType {
+                    runtime::runtime_types::NonPrimitiveType {
                         name: "Person".to_string(),
                         kind: NonPrimitiveTypes::Struct,
                         // name, age, height (includes header)
@@ -267,30 +267,30 @@ pub mod test {
                     Types::Pointer(5, PointerTypes::String),
                 ];
                 context.code.data = vec![
-                    Rdc(0, GENERAL_REG1),
+                    ReadConst(0, GENERAL_REG1),
                     //StdOut(GENERAL_REG1),
-                    Rdc(1, GENERAL_REG1),
+                    ReadConst(1, GENERAL_REG1),
                     //StdOut(GENERAL_REG1),
-                    Rdc(0, GENERAL_REG1),
+                    ReadConst(0, GENERAL_REG1),
                     Move(GENERAL_REG1, POINTER_REG),
                     Len(GENERAL_REG1),
                     Debug(GENERAL_REG1),
-                    Rdc(2, POINTER_REG),
+                    ReadConst(2, POINTER_REG),
                     // pointer to struct Person
-                    Rdc(3, POINTER_REG),
-                    // use idxk to get name
-                    IdxK(1),
-                    Rdp(POINTER_REG),
+                    ReadConst(3, POINTER_REG),
+                    // use IndexStatic to get name
+                    IndexStatic(1),
+                    ReadPtr(POINTER_REG),
                     // concat with ", his height is: "
-                    Rdc(4, GENERAL_REG1),
+                    ReadConst(4, GENERAL_REG1),
                     //StrCat(GENERAL_REG1),
                     // store in general reg 3 for later use
                     Move(POINTER_REG, GENERAL_REG3),
-                    // use idxk to get height
+                    // use IndexStatic to get height
                     // first get pointer to struct Person
-                    Rdc(3, POINTER_REG),
-                    IdxK(3),
-                    Rdp(GENERAL_REG1),
+                    ReadConst(3, POINTER_REG),
+                    IndexStatic(3),
+                    ReadPtr(GENERAL_REG1),
                     // convert to string
                     IntoStr(GENERAL_REG1),
                     // swap with concatenated string
@@ -307,12 +307,12 @@ pub mod test {
             8 => {
                 // trait 0
                 // implements methods
-                // 0: drive (takes self, returns nothing)
-                // 1: stop (takes self, returns int)
+                // 0: drive (takes self, Returnurns nothing)
+                // 1: stop (takes self, Returnurns int)
 
                 context.memory.non_primitives = vec![
                     // struct car, 3 fields, brand name, is for sports, speed, id = 0
-                    NonPrimitiveType {
+                    runtime::runtime_types::NonPrimitiveType {
                         name: "Car".to_string(),
                         kind: NonPrimitiveTypes::Struct,
                         // brand name, is for sports, speed (includes header)
@@ -322,7 +322,7 @@ pub mod test {
                         methods: HashMap::from_iter(vec![(0, vec![9, 19])]),
                     },
                     // struct motorcycle, 3 fields, brand name, model, speed, id = 1
-                    NonPrimitiveType {
+                    runtime::runtime_types::NonPrimitiveType {
                         name: "Motorcycle".to_string(),
                         kind: NonPrimitiveTypes::Struct,
                         // brand name, model, speed (includes header)
@@ -378,37 +378,37 @@ pub mod test {
                 context.code.data = vec![
                     // allocate memory on stack for every initialized variable
                     // this marks the entry point of the program
-                    Res(10, 0),
+                    ReserveStack(10, 0),
                     // first get pointer to car
                     Ptr(10),
                     // then get car struct from stack
-                    Rd(10, GENERAL_REG2),
+                    Read(10, GENERAL_REG2),
                     // call drive
                     // reserve stack space for arguments
-                    Res(1, 0),
+                    ReserveStack(1, 0),
                     // first argument is self
                     // note: values are pushed in reverse order and indexing starts from 1
-                    Wr(1, GENERAL_REG1),
-                    Mtd(GENERAL_REG2, 0, 0),
-                    // return registers to their original values
-                    Ufrz,
+                    Write(1, GENERAL_REG1),
+                    DynMethod(GENERAL_REG2, 0, 0),
+                    // Returnurn registers to their original values
+                    Unfreeze,
                     SweepUnoptimized,
                     End,
                     // method drive for car
                     // prints "I am driving with BMW at 200 km/h"
                     // methods have 1 argument, self
-                    // method return if it is for sports
-                    // so we have to read it from the stack using Rd(stack_offset + 1, reg)
+                    // method Returnurn if it is for sports
+                    // so we have to read it from the stack using Read(stack_offset + 1, reg)
                     // rest of the methods will remain undeclared because they are take too long to write for human
-                    Rd(1, POINTER_REG),
+                    Read(1, POINTER_REG),
                     // get brand name
-                    IdxK(1),
-                    Rdp(GENERAL_REG1),
+                    IndexStatic(1),
+                    ReadPtr(GENERAL_REG1),
                     // get speed
                     // first get pointer to struct Car
-                    Rd(1, POINTER_REG),
-                    IdxK(3),
-                    Rdp(GENERAL_REG2),
+                    Read(1, POINTER_REG),
+                    IndexStatic(3),
+                    ReadPtr(GENERAL_REG2),
                     // convert to string
                     IntoStr(GENERAL_REG2),
                     // what do we have now?
@@ -419,26 +419,26 @@ pub mod test {
                     Move(POINTER_REG, GENERAL_REG2),
                     // cocnatenate what we have so far so we save space in registers
                     // get pointer to "I am driving with"
-                    Rdc(9, POINTER_REG),
+                    ReadConst(9, POINTER_REG),
                     //StrCat(GENERAL_REG1),
                     // concatenate with " at "
-                    Rdc(11, GENERAL_REG1),
+                    ReadConst(11, GENERAL_REG1),
                     //StrCat(GENERAL_REG1),
                     // concatenate with speed
                     //StrCat(GENERAL_REG2),
                     // concatenate with " km/h"
-                    Rdc(12, GENERAL_REG1),
+                    ReadConst(12, GENERAL_REG1),
                     //StrCat(GENERAL_REG1),
                     //StdOut(POINTER_REG),
-                    // load return value into return register
-                    Rd(1, POINTER_REG),
-                    IdxK(2),
-                    Rdp(RETURN_REG),
-                    Ret,
+                    // load Returnurn value into Returnurn register
+                    Read(1, POINTER_REG),
+                    IndexStatic(2),
+                    ReadPtr(RETURN_REG),
+                    Return,
                     // method stop for car
-                    Rdc(1, GENERAL_REG1),
+                    ReadConst(1, GENERAL_REG1),
                     //StdOut(GENERAL_REG1),
-                    Ret,
+                    Return,
                 ];
                 true
             }
@@ -458,21 +458,21 @@ pub mod test {
                     Types::Pointer(3, PointerTypes::String),
                 ];
                 context.code.data = vec![
-                    Rdc(0, POINTER_REG),
+                    ReadConst(0, POINTER_REG),
                     Cal(0, 1),
                     Cal(0, 2),
                     Move(RETURN_REG, GENERAL_REG1),
                     // print it back
-                    Rdc(1, POINTER_REG),
+                    ReadConst(1, POINTER_REG),
                     Cal(0, 0),
                     Swap(GENERAL_REG1, POINTER_REG),
                     Cal(0, 0),
                     // append to file
                     Move(RETURN_REG, GENERAL_REG1),
-                    Rdc(3, POINTER_REG),
+                    ReadConst(3, POINTER_REG),
                     Cal(0, 5),
                     // load file
-                    Rdc(2, POINTER_REG),
+                    ReadConst(2, POINTER_REG),
                     Cal(0, 3),
                     // print file contents
                     Move(RETURN_REG, POINTER_REG),
@@ -498,35 +498,35 @@ pub mod test {
                     Types::Null,     // len
                 ];
                 context.code.data = vec![
-                    Res(4, 0),
+                    ReserveStack(4, 0),
                     // get args
                     Cal(0, 4),
-                    Wr(4, RETURN_REG),
+                    Write(4, RETURN_REG),
                     Move(RETURN_REG, GENERAL_REG1),
                     Len(RETURN_REG),
-                    Wr(1, RETURN_REG),
+                    Write(1, RETURN_REG),
                     // loop starts here
                     // get idx
-                    Rd(3, GENERAL_REG1),
+                    Read(3, GENERAL_REG1),
                     // get len
-                    Rd(1, GENERAL_REG2),
+                    Read(1, GENERAL_REG2),
                     // compare
                     Less(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1),
-                    Brnc(10 /* another round */, 20 /* end of loop */),
+                    Branch(10 /* another round */, 20 /* end of loop */),
                     // loop body
                     // get idx
-                    Rd(3, GENERAL_REG1),
+                    Read(3, GENERAL_REG1),
                     // get arg
-                    Rd(4, POINTER_REG),
-                    Idx(GENERAL_REG1),
-                    Rdp(POINTER_REG),
+                    Read(4, POINTER_REG),
+                    Index(GENERAL_REG1),
+                    ReadPtr(POINTER_REG),
                     // print arg
                     Cal(0, 1),
                     // increment idx
-                    Rd(3, GENERAL_REG1),
-                    Rd(2, GENERAL_REG2),
+                    Read(3, GENERAL_REG1),
+                    Read(2, GENERAL_REG2),
                     Add(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1),
-                    Wr(3, GENERAL_REG1),
+                    Write(3, GENERAL_REG1),
                     // loop ends here
                     Goto(6),
                     End,
@@ -570,8 +570,8 @@ pub mod test {
 
                 ];
                 context.code.data = vec![
-                    Rdc(0, GENERAL_REG1),
-                    Rdc(1, POINTER_REG),
+                    ReadConst(0, GENERAL_REG1),
+                    ReadConst(1, POINTER_REG),
                     Cal(3, 0),
                     Cal(3, 1),
                     End, 
@@ -594,7 +594,7 @@ pub mod test {
                 ];
                 context.code.data = vec![
                     // filename
-                    Rdc(0, POINTER_REG),
+                    ReadConst(0, POINTER_REG),
                     // file handle
                     Cal(2, 3),
                     Move(RETURN_REG, POINTER_REG),
@@ -606,7 +606,7 @@ pub mod test {
                         Cal(0, 1),
                     // write to file
                     Move(GENERAL_REG2, POINTER_REG),
-                    Rdc(1, GENERAL_REG1),
+                    ReadConst(1, GENERAL_REG1),
                     Cal(2, 6),
                     End,
                 ];
@@ -645,7 +645,7 @@ pub mod test {
         drop(libs);
         result
     }
-    // Returns path to standard library
+    // Returnurns path to standard library
     pub fn std_path(lib: &str) -> String {
         let mut std = env::var("RUDA_PATH").expect("RUDA_PATH not set, please set it to the path of the Ruda directory");
         

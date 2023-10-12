@@ -14,7 +14,7 @@ pub fn gen(context: &mut Context) -> Result<runtime::runtime_types::Context, Cod
     {
         use runtime::runtime_types::Instructions;
         let instrs = vec![
-            Instructions::Rdc(0, 6),
+            Instructions::ReadConst(0, 6),
             Instructions::Cal(0, 1),
         ];
         code.extend(instrs);

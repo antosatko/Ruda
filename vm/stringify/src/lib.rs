@@ -353,13 +353,13 @@ pub fn read_non_prim(str: &mut std::iter::Peekable<std::str::Chars<'_>>) -> NonP
     let len = read_number(str, 8);
     let name = read_str(str);
     let pointers = read_number(str, 8);
-    let mtds_len = read_number(str, 8);
-    let mut methods = HashMap::with_capacity(mtds_len);
-    for _ in 0..mtds_len {
+    let methods_len = read_number(str, 8);
+    let mut methods = HashMap::with_capacity(methods_len);
+    for _ in 0..methods_len {
         let trt = read_number(str, 8);
-        let mtds_len = read_number(str, 8);
-        let mut mtds = Vec::with_capacity(mtds_len);
-        for _ in 0..mtds_len {
+        let methods_len = read_number(str, 8);
+        let mut mtds = Vec::with_capacity(methods_len);
+        for _ in 0..methods_len {
             mtds.push(read_number(str, 8));
         }
         methods.insert(trt, mtds);
@@ -419,22 +419,22 @@ fn read_number(str: &mut std::iter::Peekable<std::str::Chars<'_>>, len: usize) -
 pub fn byte_into_string(byte: Instructions, str: &mut String) {
     let append = match byte {
         Instructions::Debug(n) => s(0) + &b256str(n, 1),
-        Instructions::Wr(n1, n2) => s(1) + &b256str(n1, 4) + &b256str(n2, 1),
-        Instructions::Rd(n1, n2) => s(2) + &b256str(n1, 4) + &b256str(n2, 1),
-        Instructions::Wrp(n) => s(3) + &b256str(n, 1),
-        Instructions::Rdp(n) => s(4) + &b256str(n, 1),
-        Instructions::Rdc(n1, n2) => s(5) + &b256str(n1, 4) + &b256str(n2, 1),
+        Instructions::Write(n1, n2) => s(1) + &b256str(n1, 4) + &b256str(n2, 1),
+        Instructions::Read(n1, n2) => s(2) + &b256str(n1, 4) + &b256str(n2, 1),
+        Instructions::WritePtr(n) => s(3) + &b256str(n, 1),
+        Instructions::ReadPtr(n) => s(4) + &b256str(n, 1),
+        Instructions::ReadConst(n1, n2) => s(5) + &b256str(n1, 4) + &b256str(n2, 1),
         Instructions::Ptr(n) => s(6) + &b256str(n, 4),
-        Instructions::Idx(n) => s(7) + &b256str(n, 4),
-        Instructions::Alc(n) => s(8) + &b256str(n, 1),
-        Instructions::RAlc(n) => s(9) + &b256str(n, 1),
-        Instructions::Dalc => s(10),
+        Instructions::Index(n) => s(7) + &b256str(n, 4),
+        Instructions::Allocate(n) => s(8) + &b256str(n, 1),
+        Instructions::Reallocate(n) => s(9) + &b256str(n, 1),
+        Instructions::Deallocate => s(10),
         Instructions::Goto(n) => s(11) + &b256str(n, 4),
-        Instructions::Gotop => s(12),
-        Instructions::Brnc(n1, n2) => s(13) + &b256str(n1, 4) + &b256str(n2, 4),
-        Instructions::Ret => s(14),
-        Instructions::Ufrz => s(15),
-        Instructions::Res(n1, n2) => s(16) + &b256str(n1, 4) + &b256str(n2, 4),
+        Instructions::GotoPtr => s(12),
+        Instructions::Branch(n1, n2) => s(13) + &b256str(n1, 4) + &b256str(n2, 4),
+        Instructions::Return => s(14),
+        Instructions::Unfreeze => s(15),
+        Instructions::ReserveStack(n1, n2) => s(16) + &b256str(n1, 4) + &b256str(n2, 4),
         Instructions::Swap(n1, n2) => s(17) + &b256str(n1, 1) + &b256str(n2, 1),
         Instructions::Add(n1, n2, n3) => {
             s(18) + &b256str(n1, 1) + &b256str(n2, 1) + &b256str(n3, 1)
@@ -471,30 +471,30 @@ pub fn byte_into_string(byte: Instructions, str: &mut String) {
         Instructions::Len(n) => s(32) + &b256str(n, 1),
         Instructions::Type(n1, n2) => s(33) + &b256str(n1, 1) + &b256str(n2, 1),
         Instructions::Jump(n) => s(34) + &b256str(n, 4),
-        Instructions::Frz => s(35),
+        Instructions::Freeze => s(35),
         Instructions::Back => s(36),
         Instructions::Move(n1, n2) => s(37) + &b256str(n1, 1) + &b256str(n2, 1),
         Instructions::Sweep => s(38),
         Instructions::SweepUnoptimized => s(39),
-        Instructions::AlcS(n) => s(40) + &b256str(n, 4),
-        Instructions::IdxK(n) => s(41) + &b256str(n, 4),
-        Instructions::TRng(n1, n2) => s(42) + &b256str(n1, 1) + &b256str(n2, 4),
-        Instructions::CpRng(n1, n2, n3) => {
+        Instructions::AllocateStatic(n) => s(40) + &b256str(n, 4),
+        Instructions::IndexStatic(n) => s(41) + &b256str(n, 4),
+        Instructions::FillRange(n1, n2) => s(42) + &b256str(n1, 1) + &b256str(n2, 4),
+        Instructions::CopyRange(n1, n2, n3) => {
             s(43) + &b256str(n1, 1) + &b256str(n2, 1) + &b256str(n3, 4)
         }
         Instructions::Break(n) => s(44) + &b256str(n, 1),
-        Instructions::Mtd(n1, n2, n3) => {
+        Instructions::DynMethod(n1, n2, n3) => {
             s(45) + &b256str(n1, 1) + &b256str(n2, 4) + &b256str(n3, 4)
         }
         Instructions::Panic => s(46),
         Instructions::Catch => s(47),
         Instructions::CatchId(n) => s(48) + &b256str(n, 4),
-        Instructions::DelCatch => s(49),
-        Instructions::NPType(n1, n2) => s(50) + &b256str(n1, 1) + &b256str(n2, 4),
+        Instructions::DeleteCatch(n) => s(49) + &b256str(n, 1),
+        Instructions::NonPrimitiveType(n1, n2) => s(50) + &b256str(n1, 1) + &b256str(n2, 4),
         Instructions::StrNew => s(51),
         Instructions::IntoStr(n) => s(52) + &b256str(n, 1),
-        Instructions::ResD(n) => s(53) + &b256str(n, 1),
-        Instructions::ArgD(n1, n2, n3) => {
+        Instructions::DynReserve(n) => s(53) + &b256str(n, 1),
+        Instructions::DynArgument(n1, n2, n3) => {
             s(54) + &b256str(n1, 1) + &b256str(n2, 1) + &b256str(n3, 1)
         }
     };
@@ -505,22 +505,22 @@ pub fn str_into_byte(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> In
     let code = chars.next().unwrap() as u8;
     let byte = match code {
         0 => Instructions::Debug(read_number(chars, 1)),
-        1 => Instructions::Wr(read_number(chars, 4), read_number(chars, 1)),
-        2 => Instructions::Rd(read_number(chars, 4), read_number(chars, 1)),
-        3 => Instructions::Wrp(read_number(chars, 1)),
-        4 => Instructions::Rdp(read_number(chars, 1)),
-        5 => Instructions::Rdc(read_number(chars, 4), read_number(chars, 1)),
+        1 => Instructions::Write(read_number(chars, 4), read_number(chars, 1)),
+        2 => Instructions::Read(read_number(chars, 4), read_number(chars, 1)),
+        3 => Instructions::WritePtr(read_number(chars, 1)),
+        4 => Instructions::ReadPtr(read_number(chars, 1)),
+        5 => Instructions::ReadConst(read_number(chars, 4), read_number(chars, 1)),
         6 => Instructions::Ptr(read_number(chars, 4)),
-        7 => Instructions::Idx(read_number(chars, 4)),
-        8 => Instructions::Alc(read_number(chars, 1)),
-        9 => Instructions::RAlc(read_number(chars, 1)),
-        10 => Instructions::Dalc,
+        7 => Instructions::Index(read_number(chars, 4)),
+        8 => Instructions::Allocate(read_number(chars, 1)),
+        9 => Instructions::Reallocate(read_number(chars, 1)),
+        10 => Instructions::Deallocate,
         11 => Instructions::Goto(read_number(chars, 4)),
-        12 => Instructions::Gotop,
-        13 => Instructions::Brnc(read_number(chars, 4), read_number(chars, 4)),
-        14 => Instructions::Ret,
-        15 => Instructions::Ufrz,
-        16 => Instructions::Res(read_number(chars, 4), read_number(chars, 4)),
+        12 => Instructions::GotoPtr,
+        13 => Instructions::Branch(read_number(chars, 4), read_number(chars, 4)),
+        14 => Instructions::Return,
+        15 => Instructions::Unfreeze,
+        16 => Instructions::ReserveStack(read_number(chars, 4), read_number(chars, 4)),
         17 => Instructions::Swap(read_number(chars, 1), read_number(chars, 1)),
         18 => Instructions::Add(
             read_number(chars, 1),
@@ -579,21 +579,21 @@ pub fn str_into_byte(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> In
         32 => Instructions::Len(read_number(chars, 1)),
         33 => Instructions::Type(read_number(chars, 1), read_number(chars, 1)),
         34 => Instructions::Jump(read_number(chars, 4)),
-        35 => Instructions::Frz,
+        35 => Instructions::Freeze,
         36 => Instructions::Back,
         37 => Instructions::Move(read_number(chars, 1), read_number(chars, 1)),
         38 => Instructions::Sweep,
         39 => Instructions::SweepUnoptimized,
-        40 => Instructions::AlcS(read_number(chars, 4)),
-        41 => Instructions::IdxK(read_number(chars, 4)),
-        42 => Instructions::TRng(read_number(chars, 1), read_number(chars, 4)),
-        43 => Instructions::CpRng(
+        40 => Instructions::AllocateStatic(read_number(chars, 4)),
+        41 => Instructions::IndexStatic(read_number(chars, 4)),
+        42 => Instructions::FillRange(read_number(chars, 1), read_number(chars, 4)),
+        43 => Instructions::CopyRange(
             read_number(chars, 1),
             read_number(chars, 1),
             read_number(chars, 4),
         ),
         44 => Instructions::Break(read_number(chars, 1)),
-        45 => Instructions::Mtd(
+        45 => Instructions::DynMethod(
             read_number(chars, 1),
             read_number(chars, 4),
             read_number(chars, 4),
@@ -601,11 +601,11 @@ pub fn str_into_byte(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> In
         46 => Instructions::Panic,
         47 => Instructions::Catch,
         48 => Instructions::CatchId(read_number(chars, 4)),
-        49 => Instructions::DelCatch,
-        50 => Instructions::NPType(read_number(chars, 1), read_number(chars, 4)),
+        49 => Instructions::DeleteCatch(read_number(chars, 1)),
+        50 => Instructions::NonPrimitiveType(read_number(chars, 1), read_number(chars, 4)),
         51 => Instructions::StrNew,
         52 => Instructions::IntoStr(read_number(chars, 1)),
-        53 => Instructions::ResD(read_number(chars, 1)),
+        53 => Instructions::DynReserve(read_number(chars, 1)),
         _ => panic!("Unknown instruction"),
     };
     byte
