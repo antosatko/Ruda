@@ -1,17 +1,15 @@
-# Welcome to MkDocs
+# Ruda
 
-For full documentation visit [mkdocs.org](https://www.mkdocs.org).
+Ruda is a general purpose programming language that aims to be as straightforward as possible.
 
-## Commands
+Extra focus is put on the following:
 
-* `mkdocs new [dir-name]` - Create a new project.
-* `mkdocs serve` - Start the live-reloading docs server.
-* `mkdocs build` - Build the documentation site.
-* `mkdocs -h` - Print help message and exit.
+- **Simplicity**: Ruda is designed to be easy to learn and use. It has a simple syntax and a small number of keywords.
+- **Safety**: Ruda is a statically typed language. It also has a built-in garbage collector that allows you to take charge of memory management if needed.
+- **Flexibility**: Ruda is a multiparadigm language that allows you to write code in a functional, imperative or object-oriented style. Or maybe a mix of all three.
 
-## Project layout
+## Getting started
 
-    mkdocs.yml    # The configuration file.
-    docs/
-        index.md  # The documentation homepage.
-        ...       # Other markdown pages, images and other files.
+ - ### [Installation](installation)
+ - ### [Hello, world!](/tutorial/hello)
+ - ### [First program](/projects/number-guessing-game)
