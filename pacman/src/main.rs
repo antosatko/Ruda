@@ -46,7 +46,7 @@ fn main() {
         }
         Task::Locate { url, version } => match url {
             Some(url) => println!("locate {}", remote::path(url, version)),
-            None => println!("locate {}", std::env::var("RUDA_PATH").unwrap()),
+            None => println!("{}", std::env::var("RUDA_PATH").unwrap()),
         },
         Task::Restore {
             profile,

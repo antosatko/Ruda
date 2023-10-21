@@ -22,5 +22,19 @@ nav:
     - '14. Error Handling': tutorial/error-handling.md
     - Advanced:
       - '0. Hello': tutorial/advanced/hi.md
+      - '1. Generics': tutorial/advanced/generics.md
+      - '2. Traits': tutorial/advanced/traits.md
+      - '3. Overloading': tutorial/advanced/overloads.md
+      - '4. Memory Management': tutorial/advanced/memory.md
+  - Cheatsheet:
+    - 'Keywords': cheatsheet/keywords.md
+    - 'Operators': cheatsheet/operators.md
+    - 'Syntax': cheatsheet/syntax.md
   - Projects:
     - '1. Number Guessing Game': projects/number-guessing-game.md
+  - Package Manager:
+    - 'Help': pacman/help.md
+    - 'Building': pacman/building.md
+    - 'Debugging': pacman/debugging.md
+    - 'Packages': pacman/packages.md
+    - 'Configuration': pacman/configuration.md
