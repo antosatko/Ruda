@@ -19,3 +19,5 @@ description = "description"
 algo = "algo.dll"
 
 [profile.default]
+
+[profile.release]

@@ -59,6 +59,8 @@ fn main() {
             ctx.memory.non_primitives = data.non_primitives;
             ctx.memory.fun_table = data.fun_table;
             ctx.memory.heap.data = data.heap;
+            ctx.code.ptr = data.entry_point;
+            ctx.code.entry_point = data.entry_point;
             data.shared_libs = vec![
                 ShLib { path: "io".to_string(), owns: stringify::LibOwner::Standard},
                 ShLib { path: "string".to_string(), owns: stringify::LibOwner::Standard},

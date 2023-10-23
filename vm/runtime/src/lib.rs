@@ -59,6 +59,7 @@ impl Context {
             code: Code {
                 data: vec![],
                 ptr: 0,
+                entry_point: 0,
             },
 
             break_code: None,
@@ -1731,6 +1732,7 @@ pub mod runtime_types {
     pub struct Code {
         pub data: Vec<Instructions>,
         pub ptr: usize,
+        pub entry_point: usize,
     }
     /// a structure that holds information about a function
     /// this is used to call dynamic methods
