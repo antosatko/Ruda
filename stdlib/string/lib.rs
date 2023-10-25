@@ -89,9 +89,17 @@ impl lib::Library for String {
                     )));
                 }
             }
-            // string::join
+            // string::clone
             3 => {
-                // take a pointer to an array of strings and join them together
+                if let Types::Pointer(u_size, PointerTypes::String) = m.registers[POINTER_REG] {
+                    let str = m.strings.to_str(u_size).to_string();
+                    let pos = m.strings.from_str(&str);
+                    return Ok(Types::Pointer(pos, PointerTypes::String))
+                } else {
+                    return Err(runtime_error::ErrTypes::Message(format!(
+                        "Invalid string pointer"
+                    )));
+                }
             }
             _ => {
                 unreachable!("Invalid function id")

@@ -10,6 +10,7 @@ use crate::{
 };
 use intermediate::dictionary::*;
 use lexing_preprocessor::*;
+use runtime::runtime_types::{GENERAL_REG1, GENERAL_REG2, GENERAL_REG3, GENERAL_REG4, GENERAL_REG6, GENERAL_REG5, POINTER_REG, RETURN_REG, CODE_PTR_REG};
 
 pub fn load(
     string: &[u8],
@@ -123,6 +124,19 @@ pub fn load(
                         }
                     }
                     dictionary.functions.push(fun);
+                }
+                "KWOverload" => {
+                    todo!("move to impl block");
+                    let op = step_inside_val(&node, "op").name.clone();
+                    let arg = {
+                        let arg = step_inside_val(&node, "arg");
+                        let identifier = get_ident(&arg);
+                        let kind = get_type(&step_inside_val(&arg, "type"), &mut errors);
+                        let mem_loc = get_mem_loc(&arg);
+                        (identifier, kind, mem_loc)
+                    };
+                    let kind = step_inside_val(&step_inside_val(&node, "type"), "type");
+                    let mem_loc = get_mem_loc(node);
                 }
                 "KWImpl" => {
                     // find struct and append methods
@@ -333,6 +347,19 @@ impl Registers {
                 errors.push(ErrType::InvalidRegister(s.to_string(), line));
                 None
             }
+        }
+    }
+    pub fn to_num(&self) -> usize {
+        match self {
+            Registers::G1 => GENERAL_REG1,
+            Registers::G2 => GENERAL_REG2,
+            Registers::G3 => GENERAL_REG3,
+            Registers::G4 => GENERAL_REG4,
+            Registers::G5 => GENERAL_REG5,
+            Registers::G6 => GENERAL_REG6,
+            Registers::Ptr => POINTER_REG,
+            Registers::Ret => RETURN_REG,
+            Registers::CodePtr => CODE_PTR_REG,
         }
     }
 }

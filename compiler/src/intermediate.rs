@@ -1,9 +1,11 @@
 pub mod dictionary {
+    use runtime::runtime_types;
+
     use crate::{
         codeblock_parser,
         expression_parser::{self, get_args, ValueType},
         lexer::tokenizer::{Operators, Tokens},
-        libloader,
+        libloader::{self, Const},
         tree_walker::tree_walker::{self, ArgNodeType, Err, Line, Node},
     };
     use core::panic;
@@ -1079,6 +1081,51 @@ pub mod dictionary {
                     _ => (),
                 },
                 _ => {}
+            }
+        }
+        pub fn vm_partial_eq(&self, other: &runtime::runtime_types::Types) -> bool {
+            match self {
+                ConstValue::Number(n) => match other {
+                    runtime::runtime_types::Types::Float(f) => n == f,
+                    _ => false,
+                },
+                ConstValue::Int(n) => match other {
+                    runtime::runtime_types::Types::Int(i) => n == i,
+                    _ => false,
+                },
+                ConstValue::Float(n) => match other {
+                    runtime::runtime_types::Types::Float(f) => n == f,
+                    _ => false,
+                },
+                ConstValue::Char(n) => match other {
+                    runtime::runtime_types::Types::Char(c) => n == c,
+                    _ => false,
+                },
+                ConstValue::Bool(n) => match other {
+                    runtime::runtime_types::Types::Bool(b) => n == b,
+                    _ => false,
+                },
+                ConstValue::Usize(n) => match other {
+                    runtime::runtime_types::Types::Usize(u) => n == u,
+                    _ => false,
+                },
+                ConstValue::Null => match other {
+                    runtime::runtime_types::Types::Null => true,
+                    _ => false,
+                },
+                _ => false,
+            }
+        }
+        pub fn to_runtime(&self) -> runtime_types::Types {
+            match self {
+                ConstValue::Number(n) => runtime_types::Types::Float(*n),
+                ConstValue::Int(n) => runtime_types::Types::Int(*n),
+                ConstValue::Float(n) => runtime_types::Types::Float(*n),
+                ConstValue::Char(n) => runtime_types::Types::Char(*n),
+                ConstValue::Bool(n) => runtime_types::Types::Bool(*n),
+                ConstValue::Usize(n) => runtime_types::Types::Usize(*n),
+                ConstValue::Null => runtime_types::Types::Null,
+                _ => runtime_types::Types::Null,
             }
         }
     }

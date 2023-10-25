@@ -221,14 +221,13 @@ function_head generic [arguments type errorable
 	! ? set="errorable"
 	type_specifier ? set="type";
 
-KWOverload op arg type errorable assign generic
+KWOverload op arg type assign generic
 	"overload" harderr="true"
 	overloadable_op set="op"
 	generic_decl ? set="generic"
 	(
 	arg set="arg"
 	)
-	! ? set="errorable"
 	type_specifier ? set="type"
 	assign set="assign";
 
@@ -239,7 +238,6 @@ KWOverloadTrait op arg type errorable assign generic
 	(
 	arg set="arg"
 	)
-	! ? set="errorable"
 	type_specifier ? set="type";
 
 
