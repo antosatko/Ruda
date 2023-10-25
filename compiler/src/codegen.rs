@@ -13,28 +13,10 @@ use crate::{intermediate, prep_objects::Context};
 
 use crate::libloader::{MemoryTypes, Registers};
 
-pub fn gen(objects: &Context) -> Result<runtime::runtime_types::Context, CodegenError> {
+pub fn gen(objects: &Context, main: &str) -> Result<runtime::runtime_types::Context, CodegenError> {
     let mut vm_context = runtime::runtime_types::Context::new();
-
-    let code = &mut vm_context.code.data;
-    // hello world (for testing)
-    /*{
-        use Instructions;
-        vm_context
-            .memory
-            .stack
-            .data
-            .push(runtime::runtime_types::Types::Pointer(
-                vm_context.memory.strings.from_str("Hello, world!"), // position of string in memory
-                runtime::runtime_types::PointerTypes::String, // type of string
-            ));
-        let instrs = vec![
-            Instructions::ReadConst(0, runtime::runtime_types::POINTER_REG), // read string from stack
-            Instructions::Cal(0, 1), // call print
-        ];
-        code.extend(instrs);
-    }*/
-    code.push(Instructions::End);
+    gen_fun(objects, objects.get_main(), &mut vm_context);
+    vm_context.code.data.push(Instructions::End);
     Ok(vm_context)
 }
 
@@ -99,14 +81,17 @@ fn expression(
                     Move(RETURN_REG, GENERAL_REG1),
                 ]);
             }
-            expression_parser::Literals::Char(_) => todo!(),
+            expression_parser::Literals::Char(c) => {
+                let pos = new_const(context, &ConstValue::Char(*c))?;
+                code.push(ReadConst(pos, GENERAL_REG1));
+            }
         },
         ValueType::AnonymousFunction(_) => todo!(),
         ValueType::Parenthesis(_, _) => todo!(),
         ValueType::Expression(_) => todo!(),
-        ValueType::Operator(_, _) => todo!(),
+        ValueType::Operator(_, _) => {unreachable!("operator not handled properly by the compiler, please report this bug")},
         ValueType::Value(_) => todo!(),
-        ValueType::Blank => todo!(),
+        ValueType::Blank => {}
     }
     Ok(())
 }
@@ -125,7 +110,7 @@ fn get_scope(
         ($arr: expr) => {{
             let len = $arr.len();
             &mut $arr[len - 1]
-        };};
+        }};
     }
 
     for node in block {
@@ -163,7 +148,9 @@ fn get_scope(
                 line,
             } => todo!(),
             crate::codeblock_parser::Nodes::Return { expr, line } => todo!(),
-            crate::codeblock_parser::Nodes::Expr { expr, line } => todo!(),
+            crate::codeblock_parser::Nodes::Expr { expr, line } => {
+                expression(objects, expr, other_scopes, code, context);
+            },
             crate::codeblock_parser::Nodes::Block { body, line } => todo!(),
             crate::codeblock_parser::Nodes::Break { line } => todo!(),
             crate::codeblock_parser::Nodes::Continue { line } => todo!(),
@@ -350,5 +337,8 @@ impl Code {
     }
     pub fn extend(&mut self, other: &[Instructions]) {
         self.code.extend(other)
+    }
+    pub fn push(&mut self, instr: Instructions) {
+        self.code.push(instr)
     }
 }

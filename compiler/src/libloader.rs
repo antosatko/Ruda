@@ -10,7 +10,7 @@ use crate::{
 };
 use intermediate::dictionary::*;
 use lexing_preprocessor::*;
-use runtime::runtime_types::{GENERAL_REG1, GENERAL_REG2, GENERAL_REG3, GENERAL_REG4, GENERAL_REG6, GENERAL_REG5, POINTER_REG, RETURN_REG, CODE_PTR_REG};
+use runtime::runtime_types::{GENERAL_REG1, GENERAL_REG2, GENERAL_REG3, MEMORY_REG1, MEMORY_REG2, MEMORY_REG3, POINTER_REG, RETURN_REG, CODE_PTR_REG};
 
 pub fn load(
     string: &[u8],
@@ -354,9 +354,9 @@ impl Registers {
             Registers::G1 => GENERAL_REG1,
             Registers::G2 => GENERAL_REG2,
             Registers::G3 => GENERAL_REG3,
-            Registers::G4 => GENERAL_REG4,
-            Registers::G5 => GENERAL_REG5,
-            Registers::G6 => GENERAL_REG6,
+            Registers::G4 => MEMORY_REG1,
+            Registers::G5 => MEMORY_REG2,
+            Registers::G6 => MEMORY_REG3,
             Registers::Ptr => POINTER_REG,
             Registers::Ret => RETURN_REG,
             Registers::CodePtr => CODE_PTR_REG,

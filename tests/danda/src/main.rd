@@ -1,10 +1,8 @@
 // import "std.io"
-import "danda.rd"
 
-use io.println
-
-const danda = "danda.rd"
+// use std.io
 
 fun main() {
-    println("Hello, World!")
+    "Hello, World!"
+    //println("Hello, World!")
 }

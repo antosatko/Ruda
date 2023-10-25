@@ -1,6 +1,6 @@
 use std::{collections::HashMap, process::id};
 
-use crate::{config, sum};
+use crate::{config::{self, Runtime}, sum};
 
 use compiler::prep_objects::Context;
 
@@ -119,8 +119,15 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
         }
     }
 
-    let executable = match codegen::gen(&mut context) {
+    let executable = match codegen::gen(&mut context, "main.rd") {
         Ok(ctx) => {
+            println!("{:?}", ctx.code.data);
+            println!("{:?}", ctx.code.entry_point);
+            println!("{:?}", ctx.memory.heap.data);
+            println!("{:?}", ctx.memory.stack.data);
+            println!("{:?}", ctx.memory.strings.pool);
+            println!("{:?}", ctx.memory.non_primitives);
+
             let code = codegen::stringify(&ctx, &Vec::new());
             code
         }

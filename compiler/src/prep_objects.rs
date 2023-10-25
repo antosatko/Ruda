@@ -7,7 +7,7 @@ use self::dict::prep_dict;
 pub type Dictionaries = HashMap<String, dictionary::Dictionary>;
 pub type Binaries = HashMap<String, libloader::Dictionary>;
 
-pub struct Context(Dictionaries, Binaries);
+pub struct Context(pub Dictionaries, pub Binaries);
 
 impl Context {
     pub fn new(dictionaries: Dictionaries, binaries: Binaries) -> Self {
@@ -15,6 +15,10 @@ impl Context {
     }
     pub fn destruct(&self) -> (&Dictionaries, &Binaries) {
         (&self.0, &self.1)
+    }
+    pub fn get_main(&self) -> &dictionary::Function {
+        let fns = &self.0.get("main.rd").unwrap().functions;
+        fns.iter().find(|f| f.identifier.as_ref().unwrap() == "main").unwrap()
     }
 }
 
