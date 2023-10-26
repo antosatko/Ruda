@@ -312,13 +312,13 @@ fn get_mem_loc(node: &Node) -> MemoryTypes {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum MemoryTypes {
     Stack(usize),
     Register(Registers),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Registers {
     G1,
     G2,

@@ -13,7 +13,7 @@ use crate::{intermediate, prep_objects::Context};
 
 use crate::libloader::{MemoryTypes, Registers};
 
-pub fn gen(objects: &Context, main: &str) -> Result<runtime::runtime_types::Context, CodegenError> {
+pub fn gen(objects: &mut Context, main: &str) -> Result<runtime::runtime_types::Context, CodegenError> {
     let mut vm_context = runtime::runtime_types::Context::new();
     /// Initialize some common constants
     vm_context.memory.stack.data.extend(&[
@@ -27,13 +27,19 @@ pub fn gen(objects: &Context, main: &str) -> Result<runtime::runtime_types::Cont
         Types::Usize(1),
         Types::Usize(2),
     ]);
-    gen_fun(objects, objects.get_main(), &mut vm_context);
+    let main_path = FunctionPath {
+        file: main.to_string(),
+        block: None,
+        ident: "main".to_string(),
+    };
+    gen_fun(objects, &main_path, &mut vm_context);
     vm_context.code.data.push(Instructions::End);
     Ok(vm_context)
 }
 
 pub enum CodegenError {
     CannotInitializeConstant,
+    FunctionNotFound(FunctionPath),
 }
 
 pub fn stringify(
@@ -45,22 +51,28 @@ pub fn stringify(
 }
 
 fn gen_fun(
-    objects: &Context,
-    fun: &intermediate::dictionary::Function,
+    objects: &mut Context,
+    fun: &FunctionPath,
     context: &mut runtime_types::Context,
-) -> (usize, usize) {
+) -> Result<(usize, usize), CodegenError> {
     let mut code = Code { code: Vec::new() };
     let mut scopes = Vec::new();
-    get_scope(objects, &fun.code, context, &mut scopes, &mut code);
+    let this_fun = match fun.get(objects) {
+        Some(fun) => fun,
+        None => {
+            return Err(CodegenError::FunctionNotFound((fun.clone())));
+        }
+    };
+    get_scope(objects, &this_fun.code, context, &mut scopes, &mut code, fun);
 
-    merge_code(context, &code.code)
+    Ok(merge_code(context, &code.code))
 }
 
 /// evaluates expression at runtime and puts result in reg1
 fn expression(
     objects: &Context,
     expr: &expression_parser::ValueType,
-    other_scopes: &mut Vec<Cached>,
+    scopes: &mut Vec<ScopeCached>,
     code: &mut Code,
     context: &mut runtime_types::Context,
 ) -> Result<(), CodegenError> {
@@ -79,7 +91,7 @@ fn expression(
                                 Move(GENERAL_REG1, POINTER_REG),
                             ]);
                             for value in values {
-                                arr_.push(expression(objects, value, other_scopes, code, context)?);
+                                arr_.push(expression(objects, value, scopes, code, context)?);
                             }
                         }
                     }
@@ -102,20 +114,55 @@ fn expression(
         ValueType::Parenthesis(_, _) => todo!(),
         ValueType::Expression(_) => todo!(),
         ValueType::Operator(_, _) => {unreachable!("operator not handled properly by the compiler, please report this bug")},
-        ValueType::Value(_) => todo!(),
+        ValueType::Value(value) => {
+            println!("{:?}", value);
+            match find_var(scopes, &value.root.0) {
+                Some(var) => {
+                    println!("{:?}", var);
+                    let mut iter = value.tail.iter();
+                    let mut pos = var.pos;
+                    for (node, line) in iter {
+                        match node {
+                            expression_parser::TailNodes::Nested(_) => todo!(),
+                            expression_parser::TailNodes::Index(_) => todo!(),
+                            expression_parser::TailNodes::Call(_) => todo!(),
+                            expression_parser::TailNodes::Cast(_) => todo!(),
+                        }
+                    }
+                    match value.refs {
+                        expression_parser::Ref::Dereferencing(_) => todo!(),
+                        expression_parser::Ref::Reference(_) => todo!(),
+                        expression_parser::Ref::None => {
+                            code.read(&pos, GENERAL_REG1);
+                        }
+                    }
+                }
+                None => { }
+            }
+        }
         ValueType::Blank => {}
     }
     Ok(())
+}
+
+fn find_var<'a>(scopes: &'a Vec<ScopeCached>, ident: &'a str) -> Option<&'a Variable> {
+    for scope in scopes.iter().rev() {
+        if let Some(var) = scope.variables.get(ident) {
+            return Some(var);
+        }
+    }
+    None
 }
 
 fn get_scope(
     objects: &Context,
     block: &Vec<Nodes>,
     context: &mut runtime_types::Context,
-    other_scopes: &mut Vec<Cached>,
+    other_scopes: &mut Vec<ScopeCached>,
     code: &mut Code,
+    fun: &FunctionPath,
 ) -> Result<(), CodegenError>{
-    other_scopes.push(Cached {
+    other_scopes.push(ScopeCached {
         variables: HashMap::new(),
     });
     macro_rules! last {
@@ -201,7 +248,7 @@ fn get_scope(
     Ok(())
 }
 
-fn create_var_pos(scopes: &Vec<Cached>) -> MemoryTypes {
+fn create_var_pos(scopes: &Vec<ScopeCached>) -> MemoryTypes {
     let len = {
         let mut len = 0;
         for scope in scopes {
@@ -209,12 +256,7 @@ fn create_var_pos(scopes: &Vec<Cached>) -> MemoryTypes {
         }
         len
     };
-    match len {
-        0 => MemoryTypes::Register(Registers::G4),
-        1 => MemoryTypes::Register(Registers::G5),
-        2 => MemoryTypes::Register(Registers::G6),
-        _ => MemoryTypes::Stack(len - 3),
-    }
+    MemoryTypes::Stack(len + 1)
 }
 
 /// TODO: todo xd
@@ -316,10 +358,11 @@ fn new_const(
     Ok(idx)
 }
 
-struct Cached {
+struct ScopeCached {
     variables: HashMap<String, Variable>,
 }
 
+#[derive(Debug)]
 struct Variable {
     kind: Option<ShallowType>,
     pos: MemoryTypes,
@@ -363,5 +406,53 @@ impl Code {
     }
     pub fn push(&mut self, instr: Instructions) {
         self.code.push(instr)
+    }
+}
+
+enum StructField {
+    Field(usize),
+    Method(usize),
+    TraitMethod(usize),
+}
+
+#[derive(Debug, Clone)]
+pub struct FunctionPath {
+    file: String,
+    block: Option<String>,
+    ident: String,
+}
+
+impl FunctionPath {
+    pub fn get_mut<'a>(&'a self, objects: &'a mut Context) -> Option<&mut Function> {
+        let file = objects.0.get_mut(&self.file)?;
+        match &self.block {
+            Some(b) => {
+                None
+            }
+            None => {
+                for fun in file.functions.iter_mut() {
+                    if fun.identifier.clone().unwrap().as_ref() == self.ident {
+                        return Some(fun);
+                    }
+                }
+                None
+            }
+        }
+    }
+    pub fn get<'a>(&'a self, objects: &'a Context) -> Option<&Function> {
+        let file = objects.0.get(&self.file)?;
+        match &self.block {
+            Some(b) => {
+                None
+            }
+            None => {
+                for fun in file.functions.iter() {
+                    if fun.identifier.clone().unwrap().as_ref() == self.ident {
+                        return Some(fun);
+                    }
+                }
+                None
+            }
+        }
     }
 }
