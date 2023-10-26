@@ -32,9 +32,24 @@ pub fn gen(objects: &mut Context, main: &str) -> Result<runtime::runtime_types::
         block: None,
         ident: "main".to_string(),
     };
-    gen_fun(objects, &main_path, &mut vm_context);
-    vm_context.code.data.push(Instructions::End);
+    let main = gen_fun(objects, &main_path, &mut vm_context)?;
+    call_main(&main.clone(), &mut vm_context)?;
     Ok(vm_context)
+}
+
+fn call_main(
+    main: &Function,
+    context: &mut runtime_types::Context,
+) -> Result<(), CodegenError> {
+    use Instructions::*;
+    context.code.entry_point = context.code.data.len() + 1;
+    context.code.data.extend(&[
+        End,
+        ReserveStack(main.stack_size.unwrap(), main.pointers.unwrap_or(0)),
+        Goto(main.location.unwrap()),
+    ]);
+    
+    Ok(())
 }
 
 pub enum CodegenError {
@@ -50,22 +65,20 @@ pub fn stringify(
     stringify(context, Some(&shlibs))
 }
 
-fn gen_fun(
-    objects: &mut Context,
-    fun: &FunctionPath,
-    context: &mut runtime_types::Context,
-) -> Result<(usize, usize), CodegenError> {
+fn gen_fun<'a>(
+    objects: &'a mut Context,
+    fun: &'a FunctionPath,
+    context: &'a mut runtime_types::Context,
+) -> Result<&'a mut Function, CodegenError> {
     let mut code = Code { code: Vec::new() };
     let mut scopes = Vec::new();
-    let this_fun = match fun.get(objects) {
-        Some(fun) => fun,
-        None => {
-            return Err(CodegenError::FunctionNotFound((fun.clone())));
-        }
-    };
-    get_scope(objects, &this_fun.code, context, &mut scopes, &mut code, fun);
-
-    Ok(merge_code(context, &code.code))
+    let this_fun = fun.get(objects)?;
+    let scope_len = get_scope(objects, &this_fun.code, context, &mut scopes, &mut code, fun)?;
+    let pos = merge_code(context, &code.code, scope_len);
+    let this_fun = fun.get_mut(objects)?;
+    this_fun.location = Some(pos.0);
+    this_fun.stack_size = Some(scope_len);
+    Ok(this_fun)
 }
 
 /// evaluates expression at runtime and puts result in reg1
@@ -115,10 +128,8 @@ fn expression(
         ValueType::Expression(_) => todo!(),
         ValueType::Operator(_, _) => {unreachable!("operator not handled properly by the compiler, please report this bug")},
         ValueType::Value(value) => {
-            println!("{:?}", value);
             match find_var(scopes, &value.root.0) {
                 Some(var) => {
-                    println!("{:?}", var);
                     let mut iter = value.tail.iter();
                     let mut pos = var.pos;
                     for (node, line) in iter {
@@ -161,7 +172,8 @@ fn get_scope(
     other_scopes: &mut Vec<ScopeCached>,
     code: &mut Code,
     fun: &FunctionPath,
-) -> Result<(), CodegenError>{
+) -> Result<usize, CodegenError> {
+    let mut max_scope_len = 0;
     other_scopes.push(ScopeCached {
         variables: HashMap::new(),
     });
@@ -169,6 +181,14 @@ fn get_scope(
         ($arr: expr) => {{
             let len = $arr.len();
             &mut $arr[len - 1]
+        }};
+    }
+
+    macro_rules! open_scope {
+        ($block: expr) => {{
+            let scope_len = get_scope(objects, $block, context, other_scopes, code, fun)?;
+            other_scopes.pop();
+            scope_len
         }};
     }
 
@@ -245,9 +265,28 @@ fn get_scope(
             } => todo!(),
         }
     }
-    Ok(())
+    max_scope_len = {
+        let mut len = 0;
+        for scope in other_scopes {
+            len += scope.variables.len();
+        }
+        len
+    };
+    Ok(max_scope_len)
 }
 
+fn call_fun(
+    objects: &Context,
+    fun: &FunctionPath,
+    args: &Vec<expression_parser::ValueType>,
+    scopes: &mut Vec<ScopeCached>,
+    code: &mut Code,
+    context: &mut runtime_types::Context,
+) -> Result<(), CodegenError> {
+    let fun = fun.get(objects)?;
+
+    Ok(())
+}
 fn create_var_pos(scopes: &Vec<ScopeCached>) -> MemoryTypes {
     let len = {
         let mut len = 0;
@@ -268,6 +307,7 @@ fn try_get_const_val() -> Option<ConstValue> {
 fn merge_code(
     context: &mut runtime_types::Context,
     new_code: &Vec<Instructions>,
+    scope_len: usize,
 ) -> (usize, usize) {
     let code = &mut context.code.data;
     code.reserve(new_code.len());
@@ -423,35 +463,45 @@ pub struct FunctionPath {
 }
 
 impl FunctionPath {
-    pub fn get_mut<'a>(&'a self, objects: &'a mut Context) -> Option<&mut Function> {
-        let file = objects.0.get_mut(&self.file)?;
+    pub fn get_mut<'a>(&'a self, objects: &'a mut Context) -> Result<&mut Function, CodegenError> {
+        let file = match objects.0.get_mut(&self.file) {
+            Some(f) => f,
+            None => {
+                return Err(CodegenError::FunctionNotFound(self.clone()));
+            }
+        };
         match &self.block {
             Some(b) => {
-                None
+                Err(CodegenError::FunctionNotFound(self.clone()))
             }
             None => {
                 for fun in file.functions.iter_mut() {
                     if fun.identifier.clone().unwrap().as_ref() == self.ident {
-                        return Some(fun);
+                        return Ok(fun);
                     }
                 }
-                None
+                Err(CodegenError::FunctionNotFound(self.clone()))
             }
         }
     }
-    pub fn get<'a>(&'a self, objects: &'a Context) -> Option<&Function> {
-        let file = objects.0.get(&self.file)?;
+    pub fn get<'a>(&'a self, objects: &'a Context) -> Result<&Function, CodegenError> {
+        let file = match objects.0.get(&self.file) {
+            Some(f) => f,
+            None => {
+                return Err(CodegenError::FunctionNotFound(self.clone()));
+            }
+        };
         match &self.block {
             Some(b) => {
-                None
+                Err(CodegenError::FunctionNotFound(self.clone()))
             }
             None => {
                 for fun in file.functions.iter() {
                     if fun.identifier.clone().unwrap().as_ref() == self.ident {
-                        return Some(fun);
+                        return Ok(fun);
                     }
                 }
-                None
+                Err(CodegenError::FunctionNotFound(self.clone()))
             }
         }
     }

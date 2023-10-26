@@ -622,6 +622,7 @@ pub mod dictionary {
             public: false,
             code,
             line: node.line,
+            pointers: None,
         }
     }
     pub fn public(node: &Node) -> bool {
@@ -904,6 +905,7 @@ pub mod dictionary {
         pub public: bool,
         pub code: Vec<codeblock_parser::Nodes>,
         pub line: Line,
+        pub pointers: Option<usize>,
     }
     #[derive(Debug)]
     pub struct Overload {
