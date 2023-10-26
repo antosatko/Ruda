@@ -53,8 +53,9 @@ fn main() {
             path,
             compile,
             run,
+            args,
         } => {
-            build::restore(&path, profile, *compile, *run);
+            build::restore(&path, profile, *compile, *run, args.clone());
         }
     }
 }

@@ -104,6 +104,10 @@ pub enum Task {
         /// Path to project
         #[clap(name = "path", default_value = ".")]
         path: String,
+
+        /// Runtime arguments for the VM
+        #[clap(name = "args", last = true)]
+        args: Vec<String>,
     },
 }
 

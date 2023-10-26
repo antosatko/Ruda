@@ -1,5 +1,4 @@
 /// This module is responsible for converting to and from the binary format of the VM
-
 use std::{collections::HashMap, path::PathBuf};
 
 use runtime::runtime_types::{
@@ -628,7 +627,12 @@ pub fn str_into_byte(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> In
 
 pub fn value_into_byte(value: Types, str: &mut String) {
     let res = match value {
-        Types::Int(n) => s(0) + &b256str(unsafe { std::mem::transmute::<i64, usize>(n) }, 8),
+        Types::Int(n) => {
+            s(0) + &b256str(
+                unsafe { std::mem::transmute::<i64, usize>(n) },
+                8,
+            )
+        }
         Types::Float(n) => s(1) + &b256str(unsafe { std::mem::transmute::<f64, usize>(n) }, 8),
         Types::Usize(n) => s(2) + &b256str(n, 8),
         Types::Char(n) => s(3) + &b256str(n as usize, 1),
@@ -645,7 +649,10 @@ pub fn value_into_byte(value: Types, str: &mut String) {
 fn bytes_into_value(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> Types {
     let byte = chars.next().unwrap();
     match byte as u8 {
-        0 => Types::Int(unsafe { std::mem::transmute::<usize, i64>(read_number(chars, 8)) }),
+        0 => Types::Int(unsafe { 
+            let num = read_number(chars, 8);
+            std::mem::transmute::<usize, i64>(num) 
+        }),
         1 => Types::Float(unsafe { std::mem::transmute::<usize, f64>(read_number(chars, 8)) }),
         2 => Types::Usize(read_number(chars, 8)),
         3 => Types::Char(read_number(chars, 1) as u8 as char),
@@ -687,16 +694,16 @@ pub fn into_base256(mut n: usize, fill_size: usize) -> Vec<u8> {
     if n == 0 {
         return vec![0; fill_size];
     }
-    if n > 255usize.pow(fill_size as u32) {
+    if n > 256usize.pow(fill_size as u32) - 1 {
         println!(
-            "Important! number {} is too large to fit in {} bytes program will continue with corrupted data",
-            n, fill_size
+            "Important! number {} is too large to fit in {} bytes ({} max number) program will continue with corrupted data",
+            n, fill_size, 256usize.pow(fill_size as u32) - 1
         );
     }
 
     let mut vec = Vec::new();
     for _ in 0..fill_size {
-        vec.push((n as u8) % 255);
+        vec.push((n % 256) as u8);
         n >>= 8;
     }
     vec.reverse();

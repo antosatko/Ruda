@@ -95,7 +95,7 @@ pub fn build_deps(profile: &Profile, _3rdparty: usize) {
 
 /// Restore a project if cannot compile correctly
 /// delete target directory
-pub fn restore(path: &str, profile: &str, compile: bool, run: bool) {
+pub fn restore(path: &str, profile: &str, compile: bool, run: bool, args: Vec<String>) {
     let config = config::read(path);
     let profile = match config.profile.get(profile) {
         Some(prof) => (profile, prof),
@@ -110,11 +110,11 @@ pub fn restore(path: &str, profile: &str, compile: bool, run: bool) {
         std::fs::remove_dir_all(&profile_path).unwrap();
     }
     // compile
-    if compile {
+    if compile || run {
         build_deps(&profile.1, profile.1._3rdparty as usize);
         compile::compile(path, profile);
         if run {
-            run::run(path, &profile, &vec![]);
+            run::run(path, &profile, &args);
         }
     }
 }

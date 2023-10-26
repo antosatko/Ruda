@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::thread::Scope;
 
 use runtime::runtime_types::{
-    self, Instructions, Stack, CODE_PTR_REG, GENERAL_REG1, POINTER_REG, RETURN_REG,
+    self, Instructions, Stack, CODE_PTR_REG, GENERAL_REG1, POINTER_REG, RETURN_REG, Types,
 };
 
 use crate::codeblock_parser::Nodes;
@@ -15,6 +15,18 @@ use crate::libloader::{MemoryTypes, Registers};
 
 pub fn gen(objects: &Context, main: &str) -> Result<runtime::runtime_types::Context, CodegenError> {
     let mut vm_context = runtime::runtime_types::Context::new();
+    /// Initialize some common constants
+    vm_context.memory.stack.data.extend(&[
+        Types::Null,
+        Types::Bool(true),
+        Types::Bool(false),
+        Types::Usize(0),
+        Types::Int(0),
+        Types::Int(1),
+        Types::Int(-1),
+        Types::Usize(1),
+        Types::Usize(2),
+    ]);
     gen_fun(objects, objects.get_main(), &mut vm_context);
     vm_context.code.data.push(Instructions::End);
     Ok(vm_context)
@@ -102,7 +114,7 @@ fn get_scope(
     context: &mut runtime_types::Context,
     other_scopes: &mut Vec<Cached>,
     code: &mut Code,
-) {
+) -> Result<(), CodegenError>{
     other_scopes.push(Cached {
         variables: HashMap::new(),
     });
@@ -121,9 +133,19 @@ fn get_scope(
                 kind,
                 line,
             } => {
-                let pos = create_var_pos(&other_scopes);
-                let cach = last!(other_scopes);
-                cach.variables.insert(
+                let pos: MemoryTypes = create_var_pos(&other_scopes);
+                match expr {
+                    Some(expr) => {
+                        expression(objects, expr, other_scopes, code, context);
+                        code.write(GENERAL_REG1, &pos);
+                    }
+                    None => {
+                        let null = new_const(context, &ConstValue::Null)?;
+                        code.write(null, &pos);
+                    }
+                }
+                let cache = last!(other_scopes);
+                cache.variables.insert(
                     ident.clone(),
                     Variable {
                         kind: kind.clone(),
@@ -176,6 +198,7 @@ fn get_scope(
             } => todo!(),
         }
     }
+    Ok(())
 }
 
 fn create_var_pos(scopes: &Vec<Cached>) -> MemoryTypes {
