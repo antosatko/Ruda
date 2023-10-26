@@ -111,18 +111,12 @@ pub fn node_from_node(
                     let cond = step_inside_val(&node, "expression");
                     let cond = expr_into_tree(&cond, errors);
                     let body = generate_tree(step_inside_val(&node, "code"), errors);
-                    elif.push((
-                        cond,
-                        Nodes::Block {
-                            body,
-                            line: node.line,
-                        },
-                    ));
+                    elif.push((cond, body, node.line));
                 }
                 let els = step_inside_val(&node, "else");
                 let els = if let Tokens::Text(txt) = &els.name {
                     if txt == "KWElse" {
-                        Some(generate_tree(step_inside_val(&els, "code"), errors))
+                        Some((generate_tree(step_inside_val(&els, "code"), errors), els.line))
                     } else {
                         None
                     }
@@ -284,8 +278,8 @@ pub enum Nodes {
     If {
         cond: ValueType,
         body: Vec<Nodes>,
-        elif: Vec<(ValueType, Nodes)>,
-        els: Option<Vec<Nodes>>,
+        elif: Vec<(ValueType, Vec<Nodes>, Line)>,
+        els: Option<(Vec<Nodes>, Line)>,
         line: Line,
     },
     While {

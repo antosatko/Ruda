@@ -27,11 +27,7 @@ pub fn gen(objects: &mut Context, main: &str) -> Result<runtime::runtime_types::
         Types::Usize(1),
         Types::Usize(2),
     ]);
-    let main_path = FunctionPath {
-        file: main.to_string(),
-        block: None,
-        ident: "main".to_string(),
-    };
+    let main_path = FunctionPath::main();
     let main = gen_fun(objects, &main_path, &mut vm_context)?;
     call_main(&main.clone(), &mut vm_context)?;
     Ok(vm_context)
@@ -52,6 +48,7 @@ fn call_main(
     Ok(())
 }
 
+#[derive(Debug)]
 pub enum CodegenError {
     CannotInitializeConstant,
     FunctionNotFound(FunctionPath),
@@ -76,7 +73,7 @@ fn gen_fun<'a>(
     let scope_len = get_scope(objects, &this_fun.code, context, &mut scopes, &mut code, fun)?;
     let pos = merge_code(context, &code.code, scope_len);
     let this_fun = fun.get_mut(objects)?;
-    this_fun.location = Some(pos.0);
+    this_fun.location = Some(pos.1);
     this_fun.stack_size = Some(scope_len);
     Ok(this_fun)
 }
@@ -128,6 +125,14 @@ fn expression(
         ValueType::Expression(_) => todo!(),
         ValueType::Operator(_, _) => {unreachable!("operator not handled properly by the compiler, please report this bug")},
         ValueType::Value(value) => {
+            // check for bool value
+            if value.is_true_simple() && value.root.0 == "true" {
+                code.push(ReadConst(1, GENERAL_REG1));
+                return Ok(());
+            } else if value.is_true_simple() && value.root.0 == "false" {
+                code.push(ReadConst(2, GENERAL_REG1));
+                return Ok(());
+            }
             match find_var(scopes, &value.root.0) {
                 Some(var) => {
                     let mut iter = value.tail.iter();
@@ -185,8 +190,8 @@ fn get_scope(
     }
 
     macro_rules! open_scope {
-        ($block: expr) => {{
-            let scope_len = get_scope(objects, $block, context, other_scopes, code, fun)?;
+        ($block: expr, $code: expr) => {{
+            let scope_len = get_scope(objects, $block, context, other_scopes, $code, fun)?;
             other_scopes.pop();
             scope_len
         }};
@@ -228,7 +233,56 @@ fn get_scope(
                 elif,
                 els,
                 line,
-            } => todo!(),
+            } => {
+                use Instructions::*;
+                let mut blocks_amount = 1;
+                // if
+                let mut expr_code = Code { code: Vec::new() };
+                let mut block_code = Code { code: Vec::new() };
+                expression(objects, cond, other_scopes, &mut expr_code, context)?;
+                let scope = open_scope!(body, &mut block_code);
+                expr_code.push(Branch(expr_code.code.len() + 1, expr_code.code.len() + block_code.code.len() + 1));
+                let mut blocks_len = expr_code.code.len() + block_code.code.len();
+                /*merge_code(context, &expr_code.code, scope);
+                merge_code(context, &block_code.code, scope);*/
+                // elifs
+                let mut elifs = Vec::new();
+                for elif in elif {
+                    let mut expr_code = Code { code: Vec::new() };
+                    let mut block_code = Code { code: Vec::new() };
+                    expression(objects, &elif.0, other_scopes, &mut expr_code, context)?;
+                    let scope = open_scope!(&elif.1, &mut block_code);
+                    expr_code.push(Branch(expr_code.code.len() + 1, expr_code.code.len() + block_code.code.len() + 1));
+                    /*merge_code(context, &expr_code.code, scope);
+                    merge_code(context, &block_code.code, scope);*/
+                    blocks_len += expr_code.code.len() + block_code.code.len();
+                    blocks_amount += 1;
+                    elifs.push((expr_code, block_code, scope));
+                }
+                // else
+                let elsse = match els {
+                    Some(els) => {
+                        let mut block_code = Code { code: Vec::new() };
+                        let scope = open_scope!(&els.0, &mut block_code);
+                        //merge_code(context, &block_code.code, scope);
+                        blocks_len += block_code.code.len();
+                        (block_code, scope)
+                    }
+                    None => (Code { code: Vec::new() }, 0),
+                };
+                // merge
+                let mut temp_code = Code { code: Vec::new() };
+                block_code.push(Goto(blocks_len + blocks_amount));
+                temp_code.extend(&expr_code.code);
+                temp_code.extend(&block_code.code);
+                for (expr_code, mut block_code, scope) in elifs {
+                    block_code.push(Goto(blocks_len + blocks_amount));
+                    temp_code.extend(&expr_code.code);
+                    temp_code.extend(&block_code.code);
+                }
+                temp_code.extend(&elsse.0.code);
+                merge_code(context, &temp_code.code, scope);
+            }
             crate::codeblock_parser::Nodes::While { cond, body, line } => todo!(),
             crate::codeblock_parser::Nodes::For {
                 ident,
@@ -284,7 +338,11 @@ fn call_fun(
     context: &mut runtime_types::Context,
 ) -> Result<(), CodegenError> {
     let fun = fun.get(objects)?;
-
+    use Instructions::*;
+    code.extend(&[
+        ReserveStack(fun.stack_size.unwrap(), fun.pointers.unwrap_or(0)),
+        Jump(fun.location.unwrap()),
+    ]);
     Ok(())
 }
 fn create_var_pos(scopes: &Vec<ScopeCached>) -> MemoryTypes {
@@ -447,6 +505,17 @@ impl Code {
     pub fn push(&mut self, instr: Instructions) {
         self.code.push(instr)
     }
+    pub fn extend_start(&mut self, other: &[Instructions]) {
+        let mut code = Vec::new();
+        code.extend(other);
+        code.extend(&self.code);
+        self.code = code;
+    }
+    pub fn push_start(&mut self, instr: Instructions) {
+        let mut code = vec![instr];
+        code.extend(&self.code);
+        self.code = code;
+    }
 }
 
 enum StructField {
@@ -463,6 +532,13 @@ pub struct FunctionPath {
 }
 
 impl FunctionPath {
+    pub fn main() -> Self {
+        FunctionPath {
+            file: "main.rd".to_string(),
+            block: None,
+            ident: "main".to_string(),
+        }
+    }
     pub fn get_mut<'a>(&'a self, objects: &'a mut Context) -> Result<&mut Function, CodegenError> {
         let file = match objects.0.get_mut(&self.file) {
             Some(f) => f,

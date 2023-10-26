@@ -3,6 +3,11 @@
 // use std.io
 
 fun main() {
-    let hello = "Hello, World!"
-    hello
+    if true {
+        "danda"
+    } else if false {
+        "neni danda"
+    } else {
+        "neco jineho"
+    }
 }

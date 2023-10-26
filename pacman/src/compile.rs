@@ -132,7 +132,7 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
             code
         }
         Err(err) => {
-            println!("Failed to generate code.");
+            println!("Failed to generate code: {:?}", err);
             return;
         }
     };

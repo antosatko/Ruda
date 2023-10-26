@@ -535,6 +535,7 @@ pub struct Variable {
 }
 
 impl Variable {
+    /// returns true if the variable is simple
     pub fn is_simple(&self) -> bool {
         self.refs == Ref::None
             && self.modificatior.is_none()
@@ -542,6 +543,12 @@ impl Variable {
                 TailNodes::Nested(_) => true,
                 _ => false,
             })
+    }
+    pub fn is_true_simple(&self) -> bool {
+        self.refs == Ref::None
+            && self.modificatior.is_none()
+            && self.tail.len() == 0
+            && self.unary.is_none()
     }
 }
 
