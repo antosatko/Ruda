@@ -3,6 +3,7 @@
 // use std.io
 
 fun main() {
+    let danda = "b"
     if true {
         "danda"
     } else if false {
@@ -10,4 +11,5 @@ fun main() {
     } else {
         "neco jineho"
     }
+    50
 }

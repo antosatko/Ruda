@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::net;
 use std::thread::Scope;
 
 use runtime::runtime_types::{
@@ -8,6 +9,7 @@ use runtime::runtime_types::{
 use crate::codeblock_parser::Nodes;
 use crate::expression_parser::{self, ValueType};
 use crate::intermediate::dictionary::{ConstValue, Function, ShallowType};
+use crate::lexer::tokenizer::Tokens;
 use crate::tree_walker::tree_walker::Line;
 use crate::{intermediate, prep_objects::Context};
 
@@ -89,7 +91,23 @@ fn expression(
     use Instructions::*;
     match expr {
         ValueType::Literal(lit) => match &lit.value {
-            expression_parser::Literals::Number(_) => todo!(),
+            expression_parser::Literals::Number(tok) => {
+                match *tok {
+                    Tokens::Number(n, t) => {
+                        let num = match t {
+                            'i' => ConstValue::Int(n as i64),
+                            'u' => ConstValue::Usize(n as usize),
+                            'f' => ConstValue::Float(n as f64),
+                            'c' => ConstValue::Char(n as u8 as char),
+                            'n' => ConstValue::Int(n as i64),
+                            _ => unreachable!("number type not handled properly by the compiler, please report this bug")
+                        };
+                        let pos = new_const(context, &num)?;
+                        code.push(ReadConst(pos, GENERAL_REG1));
+                    }
+                    _=> unreachable!("number token not handled properly by the compiler, please report this bug")
+                }
+            }
             expression_parser::Literals::Array(arr) => {
                 let pos = {
                     let mut arr_ = Vec::new();
@@ -243,8 +261,6 @@ fn get_scope(
                 let scope = open_scope!(body, &mut block_code);
                 expr_code.push(Branch(expr_code.code.len() + 1, expr_code.code.len() + block_code.code.len() + 1));
                 let mut blocks_len = expr_code.code.len() + block_code.code.len();
-                /*merge_code(context, &expr_code.code, scope);
-                merge_code(context, &block_code.code, scope);*/
                 // elifs
                 let mut elifs = Vec::new();
                 for elif in elif {
@@ -253,8 +269,6 @@ fn get_scope(
                     expression(objects, &elif.0, other_scopes, &mut expr_code, context)?;
                     let scope = open_scope!(&elif.1, &mut block_code);
                     expr_code.push(Branch(expr_code.code.len() + 1, expr_code.code.len() + block_code.code.len() + 1));
-                    /*merge_code(context, &expr_code.code, scope);
-                    merge_code(context, &block_code.code, scope);*/
                     blocks_len += expr_code.code.len() + block_code.code.len();
                     blocks_amount += 1;
                     elifs.push((expr_code, block_code, scope));
@@ -264,7 +278,6 @@ fn get_scope(
                     Some(els) => {
                         let mut block_code = Code { code: Vec::new() };
                         let scope = open_scope!(&els.0, &mut block_code);
-                        //merge_code(context, &block_code.code, scope);
                         blocks_len += block_code.code.len();
                         (block_code, scope)
                     }
