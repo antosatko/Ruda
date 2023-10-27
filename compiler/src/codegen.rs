@@ -8,7 +8,7 @@ use runtime::runtime_types::{
 
 use crate::codeblock_parser::Nodes;
 use crate::expression_parser::{self, ValueType};
-use crate::intermediate::dictionary::{ConstValue, Function, ShallowType};
+use crate::intermediate::dictionary::{ConstValue, Function, ShallowType, ShTypeBuilder};
 use crate::lexer::tokenizer::Tokens;
 use crate::tree_walker::tree_walker::Line;
 use crate::{intermediate, prep_objects::Context};
@@ -54,6 +54,7 @@ fn call_main(
 pub enum CodegenError {
     CannotInitializeConstant,
     FunctionNotFound(FunctionPath),
+    ExpectedBool(Line),
 }
 
 pub fn stringify(
@@ -87,26 +88,20 @@ fn expression(
     scopes: &mut Vec<ScopeCached>,
     code: &mut Code,
     context: &mut runtime_types::Context,
-) -> Result<(), CodegenError> {
+) -> Result<ShallowType, CodegenError> {
     use Instructions::*;
+    let mut return_kind = ShallowType::empty();
     match expr {
         ValueType::Literal(lit) => match &lit.value {
             expression_parser::Literals::Number(tok) => {
-                match *tok {
-                    Tokens::Number(n, t) => {
-                        let num = match t {
-                            'i' => ConstValue::Int(n as i64),
-                            'u' => ConstValue::Usize(n as usize),
-                            'f' => ConstValue::Float(n as f64),
-                            'c' => ConstValue::Char(n as u8 as char),
-                            'n' => ConstValue::Int(n as i64),
-                            _ => unreachable!("number type not handled properly by the compiler, please report this bug")
-                        };
-                        let pos = new_const(context, &num)?;
-                        code.push(ReadConst(pos, GENERAL_REG1));
+                let const_num = match tok.into_const_number() {
+                    Some(num) => num,
+                    None => {
+                        return unreachable!("number not handled properly by the compiler, please report this bug");
                     }
-                    _=> unreachable!("number token not handled properly by the compiler, please report this bug")
-                }
+                };
+                let pos = new_const(context, &const_num)?;
+                code.push(ReadConst(pos, GENERAL_REG1));
             }
             expression_parser::Literals::Array(arr) => {
                 let pos = {
@@ -146,10 +141,10 @@ fn expression(
             // check for bool value
             if value.is_true_simple() && value.root.0 == "true" {
                 code.push(ReadConst(1, GENERAL_REG1));
-                return Ok(());
+                return Ok(ShTypeBuilder::new().set_name("bool").build());
             } else if value.is_true_simple() && value.root.0 == "false" {
                 code.push(ReadConst(2, GENERAL_REG1));
-                return Ok(());
+                return Ok(ShTypeBuilder::new().set_name("bool").build());
             }
             match find_var(scopes, &value.root.0) {
                 Some(var) => {
@@ -176,7 +171,7 @@ fn expression(
         }
         ValueType::Blank => {}
     }
-    Ok(())
+    Ok(return_kind)
 }
 
 fn find_var<'a>(scopes: &'a Vec<ScopeCached>, ident: &'a str) -> Option<&'a Variable> {
@@ -214,6 +209,8 @@ fn get_scope(
             scope_len
         }};
     }
+
+    let bool_type = ShTypeBuilder::new().set_name("bool").build();
 
     for node in block {
         match node {
@@ -257,7 +254,10 @@ fn get_scope(
                 // if
                 let mut expr_code = Code { code: Vec::new() };
                 let mut block_code = Code { code: Vec::new() };
-                expression(objects, cond, other_scopes, &mut expr_code, context)?;
+                let kind = expression(objects, cond, other_scopes, &mut expr_code, context)?;
+                if kind.cmp(&bool_type).is_not_equal() {
+                    return Err(CodegenError::ExpectedBool(line.clone()));
+                }
                 let scope = open_scope!(body, &mut block_code);
                 expr_code.push(Branch(expr_code.code.len() + 1, expr_code.code.len() + block_code.code.len() + 1));
                 let mut blocks_len = expr_code.code.len() + block_code.code.len();
@@ -266,7 +266,10 @@ fn get_scope(
                 for elif in elif {
                     let mut expr_code = Code { code: Vec::new() };
                     let mut block_code = Code { code: Vec::new() };
-                    expression(objects, &elif.0, other_scopes, &mut expr_code, context)?;
+                    let kind = expression(objects, &elif.0, other_scopes, &mut expr_code, context)?;
+                    if kind.cmp(&bool_type).is_not_equal() {
+                        return Err(CodegenError::ExpectedBool(line.clone()));
+                    }
                     let scope = open_scope!(&elif.1, &mut block_code);
                     expr_code.push(Branch(expr_code.code.len() + 1, expr_code.code.len() + block_code.code.len() + 1));
                     blocks_len += expr_code.code.len() + block_code.code.len();

@@ -1,8 +1,8 @@
 pub mod tokenizer {
-    use crate::lexing_preprocessor::{
+    use crate::{lexing_preprocessor::{
         lexing_preprocessor::refactor,
         parse_err::{self},
-    };
+    }, intermediate::dictionary::ConstValue};
     const RESERVED_CHARS: &str = " +-*/=%;:,.({<[]>})&|!?\"'\\";
     pub fn tokenize(
         file: &[u8],
@@ -198,5 +198,22 @@ pub mod tokenizer {
         Pipe,
         /// opening 0, closing 1
         AngleBracket(bool),
+    }
+    impl Tokens {
+        pub fn into_const_number(&self) -> Option<ConstValue> {
+            match self {
+                Tokens::Number(num, t) => {
+                    match t {
+                        'i' => Some(ConstValue::Int(*num as i64)),
+                        'f' => Some(ConstValue::Float(*num)),
+                        'u' => Some(ConstValue::Usize(*num as usize)),
+                        'c' => Some(ConstValue::Char(*num as u8 as char)),
+                        'n' => Some(ConstValue::Int(*num as i64)),
+                        _ => None,
+                    }
+                }
+                _ => None,
+            }
+        }
     }
 }

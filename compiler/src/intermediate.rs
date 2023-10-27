@@ -560,7 +560,7 @@ pub mod dictionary {
                             identifier: String::from("self"),
                             kind: ShallowType {
                                 is_fun: None,
-                                arr_len: None,
+                                is_array: None,
                                 refs: count_refs(&arg),
                                 main: vec![String::from("Self")],
                                 generics: Vec::new(),
@@ -672,14 +672,14 @@ pub mod dictionary {
             let refs = count_refs(&node);
             return ShallowType {
                 is_fun: Some(Box::new(fun)),
-                arr_len: None,
+                is_array: None,
                 refs,
                 main: vec![],
                 generics: Vec::new(),
                 line: node.line,
             };
         }
-        let mut arr_len = None;
+        let mut is_array = None;
         let mut refs = count_refs(node);
         let main = if let Some(type_ident) =
             try_step_inside_arr(step_inside_val(&node, "main"), "nodes")
@@ -706,12 +706,12 @@ pub mod dictionary {
             }
             // length will be calculated later since it might be a constant or an expression with constant value
             // consts will be evaluated after the dictionary is loaded
-            arr_len = Some(0);
+            is_array = Some(Array { len: 0, kinds: vec![] });
             main
         };
         ShallowType {
             is_fun: None,
-            arr_len,
+            is_array,
             refs,
             main,
             generics: get_generics_expr(node, errors),
@@ -1130,6 +1130,106 @@ pub mod dictionary {
                 _ => runtime_types::Types::Null,
             }
         }
+        pub fn gen_type(&self) -> Option<ShallowType> {
+            let res = match self {
+                ConstValue::Number(_) => ShallowType {
+                    is_fun: None,
+                    is_array: None,
+                    refs: 0,
+                    main: vec![String::from("float")],
+                    generics: Vec::new(),
+                    line: Line { line: 0, column: 0 },
+                },
+                ConstValue::Int(_) => ShallowType {
+                    is_fun: None,
+                    is_array: None,
+                    refs: 0,
+                    main: vec![String::from("int")],
+                    generics: Vec::new(),
+                    line: Line { line: 0, column: 0 },
+                },
+                ConstValue::Float(_) => ShallowType {
+                    is_fun: None,
+                    is_array: None,
+                    refs: 0,
+                    main: vec![String::from("float")],
+                    generics: Vec::new(),
+                    line: Line { line: 0, column: 0 },
+                },
+                ConstValue::Char(_) => ShallowType {
+                    is_fun: None,
+                    is_array: None,
+                    refs: 0,
+                    main: vec![String::from("char")],
+                    generics: Vec::new(),
+                    line: Line { line: 0, column: 0 },
+                },
+                ConstValue::Bool(_) => ShallowType {
+                    is_fun: None,
+                    is_array: None,
+                    refs: 0,
+                    main: vec![String::from("bool")],
+                    generics: Vec::new(),
+                    line: Line { line: 0, column: 0 },
+                },
+                ConstValue::Usize(_) => ShallowType {
+                    is_fun: None,
+                    is_array: None,
+                    refs: 0,
+                    main: vec![String::from("usize")],
+                    generics: Vec::new(),
+                    line: Line { line: 0, column: 0 },
+                },
+                ConstValue::String(_) => {
+                    ShallowType {
+                        is_fun: None,
+                        is_array: None,
+                        refs: 0,
+                        main: vec![String::from("string")],
+                        generics: Vec::new(),
+                        line: Line { line: 0, column: 0 },
+                    }
+                }
+                ConstValue::Null => {
+                    ShallowType {
+                        is_fun: None,
+                        is_array: None,
+                        refs: 0,
+                        main: vec![String::from("null")],
+                        generics: Vec::new(),
+                        line: Line { line: 0, column: 0 },
+                    }
+                }
+                ConstValue::Function(_) => todo!(),
+                ConstValue::Array(arr) => {
+                    let mut res = ShallowType {
+                        is_fun: None,
+                        is_array: None,
+                        refs: 0,
+                        main: vec![],
+                        generics: Vec::new(),
+                        line: Line { line: 0, column: 0 },
+                    };
+                    let mut array_desc = Array {
+                        len: arr.len(),
+                        kinds: Vec::new(),
+                    };
+                    for val in arr {
+                        let kind = val.gen_type()?;
+                        // if it is not already in the array, add it
+                        if !array_desc.kinds.iter().any(|x| x.cmp(&kind).is_equal()) {
+                            array_desc.kinds.push(kind);
+                        }
+                    }
+                    res.is_array = Some(array_desc);
+                    res
+                }
+                ConstValue::Undefined => {
+                    ShallowType::empty()
+                },
+            };
+            Some(res)
+        }
     }
     /*#[derive(Debug)]
     pub enum Types {
@@ -1151,11 +1251,17 @@ pub mod dictionary {
     }*/
     type GenericExpr = Vec<ShallowType>;
 
+    #[derive(Debug, Clone)]
+    pub struct Array {
+        pub len: usize,
+        pub kinds: Vec<ShallowType>,
+    }
+
     #[derive(Clone)]
     pub struct ShallowType {
         pub is_fun: Option<Box<Function>>,
         /// if Some then it is an array of that length
-        pub arr_len: Option<usize>,
+        pub is_array: Option<Array>,
         pub refs: usize,
         pub main: NestedIdent,
         pub generics: GenericExpr,
@@ -1176,7 +1282,7 @@ pub mod dictionary {
                 write!(f, ")")?;
                 return Ok(());
             }
-            if self.arr_len.is_some() {
+            if self.is_array.is_some() {
                 write!(f, "[")?;
             }
             for (i, part) in self.main.iter().enumerate() {
@@ -1185,8 +1291,8 @@ pub mod dictionary {
                     write!(f, ".")?;
                 }
             }
-            if self.arr_len.is_some() {
-                write!(f, "; {}]", self.arr_len.unwrap())?;
+            if self.is_array.is_some() {
+                write!(f, "; {}]", self.is_array.as_ref().unwrap().len)?;
             }
             if !self.generics.is_empty() {
                 write!(f, "<")?;
@@ -1205,40 +1311,111 @@ pub mod dictionary {
         pub fn empty() -> Self {
             ShallowType {
                 is_fun: None,
-                arr_len: None,
+                is_array: None,
                 refs: 0,
                 main: vec![],
                 generics: vec![],
                 line: Line { line: 0, column: 0 },
             }
         }
-        pub fn cmp(&self, other: &Self, dict: &Dictionary) -> TypeComparison {
-            /*// check if both have the same refs and if not return difference in refs
+        pub fn get_ident(&self) -> &str {
+            &self.main[self.main.len() - 1]
+        }
+        pub fn cmp(&self, other: &Self) -> TypeComparison {
+            // check if both have the same refs and if not return difference in refs
             if self.refs != other.refs {
                 return TypeComparison::ReferenceDiff(self.refs as i32 - other.refs as i32);
             }
             // check if one of them as an array and if so return difference in array length
-            if self.arr_len.is_some() || other.arr_len.is_some() {
-                if self.arr_len.is_none() {
+            if self.is_array.is_some() || other.is_array.is_some() {
+                if self.is_array.is_none() {
                     return TypeComparison::NotEqual;
                 }
-                if other.arr_len.is_none() {
+                if other.is_array.is_none() {
                     return TypeComparison::NotEqual;
                 }
-                return TypeComparison::ArrayDiff(self.arr_len.unwrap(), other.arr_len.unwrap());
+                return TypeComparison::ArrayDiff(self.is_array.as_ref().unwrap().len, other.is_array.as_ref().unwrap().len);
             }
             if self.main != other.main {
-                return TypeComparison::Different;
+                return TypeComparison::NotEqual;
             }
-            if self.generics.len() != other.generics.len() {
-                return TypeComparison::Different;
+            /*if self.generics.len() != other.generics.len() {
+                return TypeComparison::NotEqual;
             }
             for (i, gen) in self.generics.iter().enumerate() {
                 if gen != &other.generics[i] {
-                    return TypeComparison::Different;
+                    return TypeComparison::NotEqual;
                 }
             }*/
             TypeComparison::Equal
+        }
+    }
+
+    pub struct ShTypeBuilder {
+        pub is_fun: Option<Box<Function>>,
+        /// if Some then it is an array of that length
+        pub is_array: Option<Array>,
+        pub refs: usize,
+        pub path: NestedIdent,
+        pub generics: GenericExpr,
+        pub line: Line,
+        pub name: String,
+    }
+
+    impl ShTypeBuilder {
+        pub fn new() -> Self {
+            ShTypeBuilder {
+                is_fun: None,
+                is_array: None,
+                refs: 0,
+                path: vec![],
+                generics: vec![],
+                line: Line { line: 0, column: 0 },
+                name: String::new(),
+            }
+        }
+        pub fn build(self) -> ShallowType {
+            let main = {
+                let mut main = self.path;
+                main.push(self.name);
+                main
+            };
+            ShallowType {
+                is_fun: self.is_fun,
+                is_array: self.is_array,
+                refs: self.refs,
+                main,
+                generics: self.generics,
+                line: self.line,
+            }
+        }
+        pub fn set_fun(mut self, fun: Function) -> Self {
+            self.is_fun = Some(Box::new(fun));
+            self
+        }
+        pub fn set_arr_len(mut self, array: Array) -> Self {
+            self.is_array = Some(array);
+            self
+        }
+        pub fn set_refs(mut self, refs: usize) -> Self {
+            self.refs = refs;
+            self
+        }
+        pub fn set_path(mut self, path: NestedIdent) -> Self {
+            self.path = path;
+            self
+        }
+        pub fn set_name(mut self, name: &str) -> Self {
+            self.path.push(name.to_string());
+            self
+        }
+        pub fn set_generics(mut self, generics: GenericExpr) -> Self {
+            self.generics = generics;
+            self
+        }
+        pub fn set_line(mut self, line: Line) -> Self {
+            self.line = line;
+            self
         }
     }
 
@@ -1310,6 +1487,38 @@ pub mod dictionary {
         /// both are arrays, but they have different lengths
         /// len1 len2
         ArrayDiff(usize, usize),
+    }
+    impl TypeComparison {
+        pub fn is_equal(&self) -> bool {
+            match self {
+                TypeComparison::Equal => true,
+                _ => false,
+            }
+        }
+        pub fn is_not_equal(&self) -> bool {
+            match self {
+                TypeComparison::NotEqual => true,
+                _ => false,
+            }
+        }
+        pub fn is_compatible(&self) -> bool {
+            match self {
+                TypeComparison::Compatible => true,
+                _ => false,
+            }
+        }
+        pub fn is_reference_diff(&self) -> bool {
+            match self {
+                TypeComparison::ReferenceDiff(_) => true,
+                _ => false,
+            }
+        }
+        pub fn is_array_diff(&self) -> bool {
+            match self {
+                TypeComparison::ArrayDiff(_, _) => true,
+                _ => false,
+            }
+        }
     }
 }
 pub mod AnalyzationError {
