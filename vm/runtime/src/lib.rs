@@ -80,6 +80,7 @@ impl Context {
     pub fn run(&mut self) {
         panic_msg!();
         while self.read_line() {
+            // println!("ptr: {}", self.code.ptr);
             // TODO: remove for or testing
             // self.memory.gc_sweep_unoptimized()
         }

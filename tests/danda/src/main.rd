@@ -3,14 +3,9 @@
 // use std.io
 
 fun main() {
-    let dfg = true
-    let danda = true
-    if danda {
-        "danda"
+    if false {
     } else if false {
-        "neni danda"
+    } else if false {
     } else {
-        "neco jineho"
     }
-    50
 }

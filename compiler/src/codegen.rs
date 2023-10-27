@@ -72,13 +72,15 @@ fn gen_fun<'a>(
     fun: &'a FunctionPath,
     context: &'a mut runtime_types::Context,
 ) -> Result<&'a mut Function, CodegenError> {
+    let context_code_end = context.code.data.len();
     let mut code = Code { code: Vec::new() };
     let mut scopes = Vec::new();
     let this_fun = fun.get(objects)?;
     let scope_len = get_scope(objects, &this_fun.code, context, &mut scopes, &mut code, fun)?;
+    flip_stack_access(scope_len, &mut code);
     let pos = merge_code(context, &code.code, scope_len);
     let this_fun = fun.get_mut(objects)?;
-    this_fun.location = Some(pos.1);
+    this_fun.location = Some(context_code_end);
     this_fun.stack_size = Some(scope_len);
     Ok(this_fun)
 }
@@ -126,6 +128,7 @@ fn expression(
                 let pos = new_const(context, &ConstValue::String(str.clone()))?;
                 code.extend(&[
                     ReadConst(pos, POINTER_REG),
+                    Debug(POINTER_REG),
                     Cal(1, 3),
                     Move(RETURN_REG, GENERAL_REG1),
                 ]);
@@ -256,12 +259,13 @@ fn get_scope(
                 // if
                 let mut expr_code = Code { code: Vec::new() };
                 let mut block_code = Code { code: Vec::new() };
+                let mut gotos = Vec::new();
                 let kind = expression(objects, cond, other_scopes, &mut expr_code, context)?;
                 if kind.cmp(&bool_type).is_not_equal() {
                     //return Err(CodegenError::ExpectedBool(line.clone()));
                 }
                 let scope = open_scope!(body, &mut block_code);
-                expr_code.push(Branch(expr_code.code.len() + 1, expr_code.code.len() + block_code.code.len() + 1));
+                expr_code.push(Branch(expr_code.code.len() + 1, expr_code.code.len() + block_code.code.len() + 2));
                 let mut blocks_len = expr_code.code.len() + block_code.code.len();
                 // elifs
                 let mut elifs = Vec::new();
@@ -273,7 +277,7 @@ fn get_scope(
                         return Err(CodegenError::ExpectedBool(line.clone()));
                     }
                     let scope = open_scope!(&elif.1, &mut block_code);
-                    expr_code.push(Branch(expr_code.code.len() + 1, expr_code.code.len() + block_code.code.len() + 1));
+                    expr_code.push(Branch(expr_code.code.len() + 1, expr_code.code.len() + block_code.code.len() + 2));
                     blocks_len += expr_code.code.len() + block_code.code.len();
                     blocks_amount += 1;
                     elifs.push((expr_code, block_code, scope));
@@ -289,17 +293,25 @@ fn get_scope(
                     None => (Code { code: Vec::new() }, 0),
                 };
                 // merge
-                let mut temp_code = Code { code: Vec::new() };
+                let start = context.code.data.len();
                 block_code.push(Goto(blocks_len + blocks_amount));
-                temp_code.extend(&expr_code.code);
-                temp_code.extend(&block_code.code);
+                merge_code(context, &expr_code.code, scope);
+                merge_code(context, &block_code.code, scope);
+                gotos.push(context.code.data.len() - 1);
                 for (expr_code, mut block_code, scope) in elifs {
                     block_code.push(Goto(blocks_len + blocks_amount));
-                    temp_code.extend(&expr_code.code);
-                    temp_code.extend(&block_code.code);
+                    merge_code(context, &expr_code.code, scope);
+                    merge_code(context, &block_code.code, scope);
+                    gotos.push(context.code.data.len() - 1);
+                 }   
+                merge_code(context, &elsse.0.code, elsse.1);
+                // fix gotos
+                for goto in gotos {
+                    let goto = goto + start;
+                    println!("goto: {}", goto);
+                    println!("instruction: {:?}", context.code.data[goto]);
+                    context.code.data[goto] = Goto(context.code.data.len());
                 }
-                temp_code.extend(&elsse.0.code);
-                merge_code(context, &temp_code.code, scope);
             }
             crate::codeblock_parser::Nodes::While { cond, body, line } => todo!(),
             crate::codeblock_parser::Nodes::For {
@@ -385,6 +397,7 @@ fn merge_code(
     new_code: &Vec<Instructions>,
     scope_len: usize,
 ) -> (usize, usize) {
+    let start = context.code.data.len();
     let code = &mut context.code.data;
     code.reserve(new_code.len());
     let instrs = code.len();
@@ -408,7 +421,21 @@ fn merge_code(
         };
         code.push(instr);
     }
-    (instrs, code.len() - instrs)
+    (start, code.len())
+}
+
+fn flip_stack_access(len: usize, code: &mut Code) {
+    use Instructions::*;
+    let mut new_code = Vec::new();
+    new_code.reserve(code.code.len());
+    for instr in code.code.iter() {
+        match instr {
+            Read(from, to) => new_code.push(Read(len - from, *to)),
+            Write(from, to) => new_code.push(Write(len - from, *to)),
+            _ => new_code.push(*instr),
+        }
+    }
+    code.code = new_code;
 }
 
 /// returns location of new constant
