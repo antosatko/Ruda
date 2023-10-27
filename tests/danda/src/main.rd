@@ -3,8 +3,9 @@
 // use std.io
 
 fun main() {
-    let danda = "b"
-    if true {
+    let dfg = true
+    let danda = true
+    if danda {
         "danda"
     } else if false {
         "neni danda"

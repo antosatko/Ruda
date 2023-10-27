@@ -17,33 +17,35 @@ use crate::libloader::{MemoryTypes, Registers};
 
 pub fn gen(objects: &mut Context, main: &str) -> Result<runtime::runtime_types::Context, CodegenError> {
     let mut vm_context = runtime::runtime_types::Context::new();
-    /// Initialize some common constants
-    vm_context.memory.stack.data.extend(&[
-        Types::Null,
-        Types::Bool(true),
-        Types::Bool(false),
-        Types::Usize(0),
-        Types::Int(0),
-        Types::Int(1),
-        Types::Int(-1),
-        Types::Usize(1),
-        Types::Usize(2),
-    ]);
+    // Initialize some common constants for faster lookup
+    let consts = [
+        ConstValue::Null,
+        ConstValue::Bool(true),
+        ConstValue::Bool(false),
+        ConstValue::Usize(0),
+        ConstValue::Int(0),
+        ConstValue::Int(1),
+        ConstValue::Int(-1),
+        ConstValue::Usize(1),
+        ConstValue::Usize(2),
+    ];
+    vm_context.memory.stack.data.extend(consts.iter().map(|c| c.to_runtime()));
     let main_path = FunctionPath::main();
     let main = gen_fun(objects, &main_path, &mut vm_context)?;
-    call_main(&main.clone(), &mut vm_context)?;
+    call_main(&main.clone(), &mut vm_context, consts.len())?;
     Ok(vm_context)
 }
 
 fn call_main(
     main: &Function,
     context: &mut runtime_types::Context,
+    consts_len: usize,
 ) -> Result<(), CodegenError> {
     use Instructions::*;
     context.code.entry_point = context.code.data.len() + 1;
     context.code.data.extend(&[
         End,
-        ReserveStack(main.stack_size.unwrap(), main.pointers.unwrap_or(0)),
+        ReserveStack(main.stack_size.unwrap() + consts_len, main.pointers.unwrap_or(0)),
         Goto(main.location.unwrap()),
     ]);
     
@@ -256,7 +258,7 @@ fn get_scope(
                 let mut block_code = Code { code: Vec::new() };
                 let kind = expression(objects, cond, other_scopes, &mut expr_code, context)?;
                 if kind.cmp(&bool_type).is_not_equal() {
-                    return Err(CodegenError::ExpectedBool(line.clone()));
+                    //return Err(CodegenError::ExpectedBool(line.clone()));
                 }
                 let scope = open_scope!(body, &mut block_code);
                 expr_code.push(Branch(expr_code.code.len() + 1, expr_code.code.len() + block_code.code.len() + 1));
