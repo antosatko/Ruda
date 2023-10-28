@@ -4,7 +4,7 @@ use crate::config::Profile;
 use crate::remote;
 use crate::run;
 
-pub fn run(path: &str, profile: &str, _args: Vec<String>) {
+pub fn run(path: &str, profile: &str, _args: Vec<String>, debug: bool) {
     let config = config::read(path);
     let profile = match config.profile.get(profile) {
         Some(prof) => (profile, prof),
@@ -23,7 +23,7 @@ pub fn run(path: &str, profile: &str, _args: Vec<String>) {
     compile::compile(path, profile);
 
     // run
-    run::run(path, &profile, &_args);
+    run::run(path, &profile, &_args, debug);
 }
 
 pub fn build(path: &str, profile: &str) {
@@ -95,7 +95,7 @@ pub fn build_deps(profile: &Profile, _3rdparty: usize) {
 
 /// Restore a project if cannot compile correctly
 /// delete target directory
-pub fn restore(path: &str, profile: &str, compile: bool, run: bool, args: Vec<String>) {
+pub fn restore(path: &str, profile: &str, compile: bool, run: bool, args: Vec<String>, debug: bool) {
     let config = config::read(path);
     let profile = match config.profile.get(profile) {
         Some(prof) => (profile, prof),
@@ -114,7 +114,7 @@ pub fn restore(path: &str, profile: &str, compile: bool, run: bool, args: Vec<St
         build_deps(&profile.1, profile.1._3rdparty as usize);
         compile::compile(path, profile);
         if run {
-            run::run(path, &profile, &args);
+            run::run(path, &profile, &args, debug);
         }
     }
 }

@@ -42,6 +42,10 @@ pub enum Task {
         #[clap(name = "path", default_value = ".")]
         path: String,
 
+        /// VM reports each instruction as it is executed
+        #[clap(name = "debug", long)]
+        debug: bool,
+
         /// Runtime arguments for the VM
         #[clap(name = "args", last = true)]
         args: Vec<String>,
@@ -104,6 +108,10 @@ pub enum Task {
         /// Path to project
         #[clap(name = "path", default_value = ".")]
         path: String,
+        
+        /// VM reports each instruction as it is executed
+        #[clap(name = "debug", long)]
+        debug: bool,
 
         /// Runtime arguments for the VM
         #[clap(name = "args", last = true)]

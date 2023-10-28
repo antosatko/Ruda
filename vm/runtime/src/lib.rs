@@ -80,7 +80,6 @@ impl Context {
     pub fn run(&mut self) {
         panic_msg!();
         while self.read_line() {
-            // println!("ptr: {}", self.code.ptr);
             // TODO: remove for or testing
             // self.memory.gc_sweep_unoptimized()
         }
@@ -111,6 +110,13 @@ impl Context {
             if !self.read_line() {
                 break;
             }
+        }
+    }
+    /// runs the context while printing the actions
+    pub fn run_debug(&mut self) {
+        println!("Running in debug mode...");
+        while self.read_line() {
+            println!("{}. {:?}", self.code.ptr, self.code.data[self.code.ptr]);
         }
     }
     pub fn read_line(&mut self) -> bool {

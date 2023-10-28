@@ -51,16 +51,9 @@ pub fn node_from_node(
             "KWBreak" => Some(Nodes::Break { line: node.line }),
             "KWContinue" => Some(Nodes::Continue { line: node.line }),
             "KWLoop" => {
-                let body = step_inside_arr(&node, "body");
-                let mut nodes = Vec::new();
-                for node in body {
-                    let temp = node_from_node(node, errors);
-                    if let Some(temp) = temp {
-                        nodes.push(temp);
-                    }
-                }
+                let body = generate_tree(step_inside_val(&node, "code"), errors);
                 Some(Nodes::Loop {
-                    body: nodes,
+                    body,
                     line: node.line,
                 })
             }

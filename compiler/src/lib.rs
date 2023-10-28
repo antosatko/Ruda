@@ -1,5 +1,3 @@
-#![allow(warnings)]
-
 use crate::ast_parser::ast_parser::{generate_ast as gen_ast, Head, HeadParam};
 use crate::intermediate::AnalyzationError::ErrType;
 use crate::lexer::tokenizer::Tokens;

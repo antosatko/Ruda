@@ -32,8 +32,9 @@ fn main() {
             profile,
             args,
             path,
+            debug,
         } => {
-            build::run(&path, profile, args.clone());
+            build::run(&path, profile, args.clone(), *debug);
         }
         Task::Build { profile, path } => {
             build::build(&path, profile);
@@ -54,8 +55,9 @@ fn main() {
             compile,
             run,
             args,
+            debug,
         } => {
-            build::restore(&path, profile, *compile, *run, args.clone());
+            build::restore(&path, profile, *compile, *run, args.clone(), *debug);
         }
     }
 }

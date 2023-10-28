@@ -3,9 +3,16 @@
 // use std.io
 
 fun main() {
-    if false {
-    } else if false {
-    } else if false {
-    } else {
+    loop {
+        if false {
+            "Hello World"
+        }else {
+            if true {
+                "Hello World"
+            }else if true {
+                "blbost"
+            }
+            "danda"
+        }
     }
 }

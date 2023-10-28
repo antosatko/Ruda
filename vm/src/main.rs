@@ -32,6 +32,10 @@ struct Args {
     /// Runtime arguments for the VM
     #[clap(name = "args", last = true)]
     args: Vec<String>,
+    
+    /// VM reports each instruction as it is executed
+    #[clap(name = "debug", long)]
+    debug: bool,
 }
 
 fn main() {
@@ -87,7 +91,14 @@ fn main() {
     match args.time {
         true => {
             let start_time = SystemTime::now();
-            ctx.run();
+            match args.debug {
+                true => {
+                    ctx.run_debug();
+                }
+                false => {
+                    ctx.run();
+                }
+            }
             match enable_ansi_support() {
                 Ok(_) => {
                     println!(
@@ -113,7 +124,14 @@ fn main() {
             }
         }
         false => {
-            ctx.run();
+            match args.debug {
+                true => {
+                    ctx.run_debug();
+                }
+                false => {
+                    ctx.run();
+                }
+            }
             if report {
                 data_report(&ctx);
             }
