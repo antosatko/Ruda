@@ -57,6 +57,10 @@ pub enum CodegenError {
     CannotInitializeConstant,
     FunctionNotFound(FunctionPath),
     ExpectedBool(Line),
+    /// (depth, line)
+    DerefereString(usize, Line),
+    /// (depth, line)
+    ReferenceString(usize, Line),
 }
 
 pub fn stringify(
@@ -126,12 +130,25 @@ fn expression(
             }
             expression_parser::Literals::String(str) => {
                 let pos = new_const(context, &ConstValue::String(str.clone()))?;
-                code.extend(&[
-                    ReadConst(pos, POINTER_REG),
-                    Debug(POINTER_REG),
-                    Cal(1, 3),
-                    Move(RETURN_REG, GENERAL_REG1),
-                ]);
+                match lit.refs {
+                    expression_parser::Ref::Dereferencing(depth) => {
+                        Err(CodegenError::DerefereString(depth, lit.line.clone()))?
+                    }
+                    expression_parser::Ref::Reference(depth) => {
+                        if depth > 1 {
+                            Err(CodegenError::ReferenceString(depth, lit.line.clone()))?;
+                        }
+                        code.push(ReadConst(pos, GENERAL_REG1));
+                    }
+                    expression_parser::Ref::None => {
+                        code.extend(&[
+                            ReadConst(pos, POINTER_REG),
+                            Cal(1, 3),
+                            Move(RETURN_REG, GENERAL_REG1),
+                            Debug(GENERAL_REG1),
+                        ]);
+                    }
+                }
             }
             expression_parser::Literals::Char(c) => {
                 let pos = new_const(context, &ConstValue::Char(*c))?;
@@ -141,7 +158,7 @@ fn expression(
         ValueType::AnonymousFunction(_) => todo!(),
         ValueType::Parenthesis(_, _) => todo!(),
         ValueType::Expression(_) => todo!(),
-        ValueType::Operator(_, _) => {unreachable!("operator not handled properly by the compiler, please report this bug")},
+        ValueType::Operator(_, line) => unreachable!("operator not handled properly by the compiler at {line}, please report this bug"),
         ValueType::Value(value) => {
             // check for bool value
             if value.is_true_simple() && value.root.0 == "true" {

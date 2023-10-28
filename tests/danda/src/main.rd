@@ -5,14 +5,14 @@
 fun main() {
     loop {
         if false {
-            "Hello World"
+            &"Hello World"
         }else {
             if true {
-                "Hello World"
+                &"Hello World"
             }else if true {
-                "blbost"
+                &"blbost"
             }
-            "danda"
+            &"danda"
         }
     }
 }
