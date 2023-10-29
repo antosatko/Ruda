@@ -8,7 +8,7 @@ use runtime::runtime_types::{
 
 use crate::codeblock_parser::Nodes;
 use crate::expression_parser::{self, ValueType};
-use crate::intermediate::dictionary::{ConstValue, Function, ShallowType, ShTypeBuilder};
+use crate::intermediate::dictionary::{ConstValue, Function, ShallowType, ShTypeBuilder, TypeComparison};
 use crate::lexer::tokenizer::Tokens;
 use crate::tree_walker::tree_walker::Line;
 use crate::{intermediate, prep_objects::Context};
@@ -32,17 +32,17 @@ pub fn gen(objects: &mut Context, main: &str) -> Result<runtime::runtime_types::
     vm_context.memory.stack.data.extend(consts.iter().map(|c| c.to_runtime()));
     let main_path = FunctionPath::main();
     let main = gen_fun(objects, &main_path, &mut vm_context)?;
-    call_main(&main.clone(), &mut vm_context, consts.len())?;
+    call_main(&main.clone(), &mut vm_context)?;
     Ok(vm_context)
 }
 
 fn call_main(
     main: &Function,
     context: &mut runtime_types::Context,
-    consts_len: usize,
 ) -> Result<(), CodegenError> {
     use Instructions::*;
     context.code.entry_point = context.code.data.len() + 1;
+    let consts_len = context.memory.stack.data.len();
     context.code.data.extend(&[
         End,
         ReserveStack(main.stack_size.unwrap() + consts_len, main.pointers.unwrap_or(0)),
@@ -61,6 +61,12 @@ pub enum CodegenError {
     DerefereString(usize, Line),
     /// (depth, line)
     ReferenceString(usize, Line),
+    /// (expected, got, comparison, line)
+    VariableTypeMismatch(ShallowType, ShallowType, TypeComparison, Line),
+    /// (line)
+    NotInitializedNoType(Line),
+    /// (line)
+    TypeNotNullable(Line),
 }
 
 pub fn stringify(
@@ -232,6 +238,7 @@ fn get_scope(
         ($block: expr, $code: expr) => {{
             let scope_len = get_scope(objects, $block, context, other_scopes, $code, fun)?;
             other_scopes.pop();
+            max_scope_len += scope_len;
             scope_len
         }};
     }
@@ -246,15 +253,36 @@ fn get_scope(
                 kind,
                 line,
             } => {
+                max_scope_len += 1;
                 let pos: MemoryTypes = create_var_pos(&other_scopes);
-                match expr {
+                let expr_kind = match expr {
                     Some(expr) => {
-                        expression(objects, expr, other_scopes, code, context);
+                        let expr_kind = expression(objects, expr, other_scopes, code, context)?;
                         code.write(GENERAL_REG1, &pos);
+                        expr_kind
                     }
                     None => {
+                        if let Some(kind) = kind {
+                            if !kind.nullable {
+                                Err(CodegenError::TypeNotNullable(line.clone()))?;
+                            }
+                        } else {
+                            Err(CodegenError::NotInitializedNoType(line.clone()))?;
+                        }
                         let null = new_const(context, &ConstValue::Null)?;
                         code.write(null, &pos);
+                        ShTypeBuilder::new().set_name("null").build()
+                    }
+                };
+                if let Some(kind) = kind {
+                    let cmp = kind.cmp(&expr_kind);
+                    if cmp.is_not_equal() {
+                        return Err(CodegenError::VariableTypeMismatch(
+                            kind.clone(),
+                            expr_kind,
+                            cmp,
+                            line.clone(),
+                        ));
                     }
                 }
                 let cache = last!(other_scopes);
@@ -333,7 +361,22 @@ fn get_scope(
                 // append
                 merge_code(&mut code.code, &buffer, scope);
             }
-            crate::codeblock_parser::Nodes::While { cond, body, line } => todo!(),
+            crate::codeblock_parser::Nodes::While { cond, body, line } => {
+                use Instructions::*;
+                let mut expr_code = Code { code: Vec::new() };
+                let mut block_code = Code { code: Vec::new() };
+                let kind = expression(objects, cond, other_scopes, &mut expr_code, context)?;
+                if kind.cmp(&bool_type).is_not_equal() {
+                    return Err(CodegenError::ExpectedBool(line.clone()));
+                }
+                let scope = open_scope!(body, &mut block_code);
+                expr_code.push(Branch(expr_code.code.len() + 1, expr_code.code.len() + block_code.code.len() + 2));
+                let mut buffer = Vec::new();
+                merge_code(&mut buffer, &expr_code.code, scope);
+                merge_code(&mut buffer, &block_code.code, scope);
+                buffer.push(Goto(0));
+                merge_code(&mut code.code, &buffer, scope);
+            }
             crate::codeblock_parser::Nodes::For {
                 ident,
                 expr,
@@ -344,7 +387,9 @@ fn get_scope(
             crate::codeblock_parser::Nodes::Expr { expr, line } => {
                 expression(objects, expr, other_scopes, code, context)?;
             },
-            crate::codeblock_parser::Nodes::Block { body, line } => todo!(),
+            crate::codeblock_parser::Nodes::Block { body, line } => {
+                let scope = open_scope!(body, code);
+            }
             crate::codeblock_parser::Nodes::Break { line } => todo!(),
             crate::codeblock_parser::Nodes::Continue { line } => todo!(),
             crate::codeblock_parser::Nodes::Loop { body, line } => {
@@ -375,13 +420,6 @@ fn get_scope(
             } => todo!(),
         }
     }
-    max_scope_len = {
-        let mut len = 0;
-        for scope in other_scopes {
-            len += scope.variables.len();
-        }
-        len
-    };
     Ok(max_scope_len)
 }
 
@@ -451,16 +489,18 @@ fn merge_code(
 
 fn flip_stack_access(len: usize, code: &mut Code) {
     use Instructions::*;
-    let mut new_code = Vec::new();
-    new_code.reserve(code.code.len());
-    for instr in code.code.iter() {
+    println!("len: {}", len);
+    for instr in code.code.iter_mut() {
         match instr {
-            Read(from, to) => new_code.push(Read(len - from, *to)),
-            Write(from, to) => new_code.push(Write(len - from, *to)),
-            _ => new_code.push(*instr),
+            Read(from, _) => {
+                *from = len - *from + 1;
+            }
+            Write(to, _) => {
+                *to = len - *to + 1;
+            }
+            _ => ()
         }
     }
-    code.code = new_code;
 }
 
 /// returns location of new constant
@@ -516,11 +556,11 @@ fn new_const(
                 });
             context.memory.heap.data[pos][0] = runtime::runtime_types::Types::NonPrimitive(todo!())
         }
-        _ => {
-            context.memory.stack.data.push(value.to_runtime());
-        }
         intermediate::dictionary::ConstValue::Undefined => {
             Err(CodegenError::CannotInitializeConstant)?
+        }
+        _ => {
+            context.memory.stack.data.push(value.to_runtime());
         }
     }
     Ok(idx)

@@ -14,11 +14,10 @@ entry [nodes
 	KWStruct ? set="nodes" back="2"
 	KWType ? set="nodes" back="3"
 	KWImport ? set="nodes" back="4"
-	KWImpl ? set="nodes" back="5"
-	KWTrait ? set="nodes" back="6"
-	KWEnum ? set="nodes" back="7"
-	KWError ? set="nodes" back="8"
-	KWUse ? set="nodes" back="9"
+	KWTrait ? set="nodes" back="5"
+	KWEnum ? set="nodes" back="6"
+	KWError ? set="nodes" back="7"
+	KWUse ? set="nodes" back="8"
 	"'eof";
 
 
@@ -123,11 +122,12 @@ int
 int<float<[int; 50]>>
 etc..
 "
-type main generic ref arr
+type main generic ref arr optional
 	ref_type ? set="ref"
 	function_head ? set="main" end="false"
 	array_decl ? set="arr" end="false"
 	type_ident_null set="main"
+	? ? set="optional"
 	generic_expr ? set="generic";
 
 ref_type [refs
@@ -139,10 +139,9 @@ type_ident [nodes
 	. ? back="1";
 
 
-type_ident_null [nodes nullable
+type_ident_null [nodes
 	ident set="nodes"
-	. ? back="1"
-	? ? set="nullable";
+	. ? back="1";
 
 "
 [int; 60]
@@ -359,7 +358,7 @@ struct Danda <T> {
 	things: [T, 50],
 }
 "
-KWStruct identifier [keys generic public
+KWStruct identifier [keys generic public [methods [impls
 	"pub" ? set="public"
 	"struct" harderr="true"
 	ident set="identifier"
@@ -367,6 +366,9 @@ KWStruct identifier [keys generic public
 	{
 	arg ? set="keys"
 	, ? back="1"
+	KWOverload ? set="methods" back="0"
+	KWFun ? set="methods" back="1"
+	KWImpl ? set="impls" back="2"
 	};
 
 
@@ -375,12 +377,9 @@ impl Danda(Rusty) {
 	fun move(self){}
 }
 "
-KWImpl identifier [traits [methods
+KWImpl identifier [methods
 	"impl" harderr="true"
 	type_ident set="identifier"
-	"trait" ?
-		type_ident set="traits"
-		, ? back="1"
 	{
 	KWOverload ? set="methods" back="0"
 	KWFun ? set="methods" back="1"
@@ -524,16 +523,15 @@ code_block [nodes
 	KWBreak ? set="nodes" back="11"
 	KWReturn ? set="nodes" back="12"
 	KWContinue ? set="nodes" back="13"
-	KWImpl ? set="nodes" back="14"
-	KWTrait ? set="nodes" back="15"
-	KWEnum ? set="nodes" back="16"
-	KWTry ? set="nodes" back="17"
-	KWYeet ? set="nodes" back="18"
-	code_block ? set="nodes" back="19"
-	set ? set="nodes" back="20"
-	; ? back="21"
+	KWTrait ? set="nodes" back="14"
+	KWEnum ? set="nodes" back="15"
+	KWTry ? set="nodes" back="16"
+	KWYeet ? set="nodes" back="17"
+	code_block ? set="nodes" back="18"
+	set ? set="nodes" back="19"
+	; ? back="20"
 	} ? end="true"
-	expression ? set="nodes" back="23";
+	expression ? set="nodes" back="22";
 
 set value operator expression
 	value set="value"

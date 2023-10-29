@@ -259,6 +259,47 @@ pub mod dictionary {
                 }
             }
             "KWStruct" => {
+                let mut functions = Vec::new();
+                let mut overloads = Vec::new();
+                for method in step_inside_arr(&node, "methods") {
+                    if let Tokens::Text(txt) = &method.name {
+                        match txt.as_str() {
+                            "KWOverload" => {
+                                overloads.push(get_overload_siginifier(&method, errors))
+                            }
+                            "KWFun" => {
+                                functions.push(get_fun_siginifier(&method, errors));
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                let mut impls = Vec::new();
+                for impl_node in step_inside_arr(&node, "impls") {
+                    let target =
+                        get_nested_ident(&step_inside_val(&impl_node, "identifier"), errors);
+                    let mut functions = Vec::new();
+                    let mut overloads = Vec::new();
+                    for method in step_inside_arr(&impl_node, "methods") {
+                        if let Tokens::Text(txt) = &method.name {
+                            match txt.as_str() {
+                                "KWOverload" => {
+                                    overloads.push(get_overload_siginifier(&method, errors))
+                                }
+                                "KWFun" => {
+                                    functions.push(get_fun_siginifier(&method, errors));
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                    impls.push(Implementation {
+                        target,
+                        functions,
+                        overloads,
+                        line: impl_node.line,
+                    })
+                }
                 let mut result = Struct {
                     identifier: get_ident(node),
                     fields: Vec::new(),
@@ -268,6 +309,9 @@ pub mod dictionary {
                     memory_layout: Vec::new(),
                     ptrs: 0,
                     line: node.line,
+                    functions,
+                    overloads,
+                    impls,
                 };
                 for key in step_inside_arr(node, "keys") {
                     let ident = get_ident(&key);
@@ -364,10 +408,10 @@ pub mod dictionary {
                 //println!("{:#?}", expression_parser::expr_into_tree(step_inside_val(&node, "expression"), errors));
             }
             "KWImpl" => {
-                let ident = get_nested_ident(&step_inside_val(&node, "identifier"), errors);
+                unreachable!("impl statements moved inside structs");
+                /*let ident = get_nested_ident(&step_inside_val(&node, "identifier"), errors);
                 let mut functions = Vec::new();
                 let mut overloads = Vec::new();
-                let traits = get_traits(&node, errors);
                 for method in step_inside_arr(&node, "methods") {
                     if let Tokens::Text(txt) = &method.name {
                         match txt.as_str() {
@@ -383,11 +427,10 @@ pub mod dictionary {
                 }
                 dictionary.implementations.push(Implementation {
                     target: ident,
-                    traits,
                     functions,
                     overloads,
                     line: node.line,
-                })
+                })*/
             }
             "KWTrait" => {
                 let is_pub = public(&node);
@@ -565,6 +608,7 @@ pub mod dictionary {
                                 main: vec![String::from("Self")],
                                 generics: Vec::new(),
                                 line: arg.line,
+                                nullable: false
                             },
                             line: arg.line,
                         });
@@ -666,6 +710,13 @@ pub mod dictionary {
         refs
     }
     pub fn get_type(node: &Node, errors: &mut Vec<ErrType>) -> ShallowType {
+        println!("{:?}", node.nodes.keys());
+        let nullable = if let Some(val) = try_step_inside_val(node, "nullable") {
+            println!("valal: {:?}", val);
+            val.name == Tokens::Optional
+        } else {
+            false
+        };
         let main = step_inside_val(&node, "main");
         if main.name == Tokens::Text(String::from("function_head")) {
             let fun = get_fun_siginifier(&main, errors);
@@ -677,10 +728,11 @@ pub mod dictionary {
                 main: vec![],
                 generics: Vec::new(),
                 line: node.line,
+                nullable
             };
         }
         let mut is_array = None;
-        let mut refs = count_refs(node);
+        let refs = count_refs(node);
         let main = if let Some(type_ident) =
             try_step_inside_arr(step_inside_val(&node, "main"), "nodes")
         {
@@ -706,7 +758,10 @@ pub mod dictionary {
             }
             // length will be calculated later since it might be a constant or an expression with constant value
             // consts will be evaluated after the dictionary is loaded
-            is_array = Some(Array { len: 0, kinds: vec![] });
+            is_array = Some(Array {
+                len: 0,
+                kinds: vec![],
+            });
             main
         };
         ShallowType {
@@ -716,6 +771,7 @@ pub mod dictionary {
             main,
             generics: get_generics_expr(node, errors),
             line: node.line,
+            nullable
         }
     }
     pub fn get_generics_expr(node: &Node, errors: &mut Vec<ErrType>) -> GenericExpr {
@@ -781,7 +837,6 @@ pub mod dictionary {
         pub constants: Vec<Constant>,
         pub identifiers: Vec<(String, IdentifierKinds)>,
         pub imports: Vec<Import>,
-        pub implementations: Vec<Implementation>,
         pub traits: Vec<Trait>,
         pub errors: Vec<Error>,
         pub uses: Vec<Use>,
@@ -944,11 +999,13 @@ pub mod dictionary {
         /// number of pointers in struct
         pub ptrs: usize,
         pub line: Line,
+        pub impls: Vec<Implementation>,
+        pub functions: Vec<Function>,
+        pub overloads: Vec<Overload>,
     }
     #[derive(Debug)]
     pub struct Implementation {
         pub target: NestedIdent,
-        pub traits: Vec<NestedIdent>,
         pub functions: Vec<Function>,
         pub overloads: Vec<Overload>,
         pub line: Line,
@@ -1139,6 +1196,7 @@ pub mod dictionary {
                     main: vec![String::from("float")],
                     generics: Vec::new(),
                     line: Line { line: 0, column: 0 },
+                    nullable: false,
                 },
                 ConstValue::Int(_) => ShallowType {
                     is_fun: None,
@@ -1147,6 +1205,7 @@ pub mod dictionary {
                     main: vec![String::from("int")],
                     generics: Vec::new(),
                     line: Line { line: 0, column: 0 },
+                    nullable: false,
                 },
                 ConstValue::Float(_) => ShallowType {
                     is_fun: None,
@@ -1155,6 +1214,7 @@ pub mod dictionary {
                     main: vec![String::from("float")],
                     generics: Vec::new(),
                     line: Line { line: 0, column: 0 },
+                    nullable: false,
                 },
                 ConstValue::Char(_) => ShallowType {
                     is_fun: None,
@@ -1163,6 +1223,7 @@ pub mod dictionary {
                     main: vec![String::from("char")],
                     generics: Vec::new(),
                     line: Line { line: 0, column: 0 },
+                    nullable: false,
                 },
                 ConstValue::Bool(_) => ShallowType {
                     is_fun: None,
@@ -1171,6 +1232,7 @@ pub mod dictionary {
                     main: vec![String::from("bool")],
                     generics: Vec::new(),
                     line: Line { line: 0, column: 0 },
+                    nullable: false,
                 },
                 ConstValue::Usize(_) => ShallowType {
                     is_fun: None,
@@ -1179,27 +1241,26 @@ pub mod dictionary {
                     main: vec![String::from("usize")],
                     generics: Vec::new(),
                     line: Line { line: 0, column: 0 },
+                    nullable: false,
                 },
-                ConstValue::String(_) => {
-                    ShallowType {
-                        is_fun: None,
-                        is_array: None,
-                        refs: 0,
-                        main: vec![String::from("string")],
-                        generics: Vec::new(),
-                        line: Line { line: 0, column: 0 },
-                    }
-                }
-                ConstValue::Null => {
-                    ShallowType {
-                        is_fun: None,
-                        is_array: None,
-                        refs: 0,
-                        main: vec![String::from("null")],
-                        generics: Vec::new(),
-                        line: Line { line: 0, column: 0 },
-                    }
-                }
+                ConstValue::String(_) => ShallowType {
+                    is_fun: None,
+                    is_array: None,
+                    refs: 0,
+                    main: vec![String::from("string")],
+                    generics: Vec::new(),
+                    line: Line { line: 0, column: 0 },
+                    nullable: false,
+                },
+                ConstValue::Null => ShallowType {
+                    is_fun: None,
+                    is_array: None,
+                    refs: 0,
+                    main: vec![String::from("null")],
+                    generics: Vec::new(),
+                    line: Line { line: 0, column: 0 },
+                    nullable: false,
+                },
                 ConstValue::Function(_) => todo!(),
                 ConstValue::Array(arr) => {
                     let mut res = ShallowType {
@@ -1209,6 +1270,7 @@ pub mod dictionary {
                         main: vec![],
                         generics: Vec::new(),
                         line: Line { line: 0, column: 0 },
+                        nullable: false,
                     };
                     let mut array_desc = Array {
                         len: arr.len(),
@@ -1224,9 +1286,7 @@ pub mod dictionary {
                     res.is_array = Some(array_desc);
                     res
                 }
-                ConstValue::Undefined => {
-                    ShallowType::empty()
-                },
+                ConstValue::Undefined => ShallowType::empty(),
             };
             Some(res)
         }
@@ -1266,6 +1326,7 @@ pub mod dictionary {
         pub main: NestedIdent,
         pub generics: GenericExpr,
         pub line: Line,
+        pub nullable: bool,
     }
     // print formating
     impl std::fmt::Debug for ShallowType {
@@ -1316,6 +1377,7 @@ pub mod dictionary {
                 main: vec![],
                 generics: vec![],
                 line: Line { line: 0, column: 0 },
+                nullable: false,
             }
         }
         pub fn get_ident(&self) -> &str {
@@ -1334,7 +1396,10 @@ pub mod dictionary {
                 if other.is_array.is_none() {
                     return TypeComparison::NotEqual;
                 }
-                return TypeComparison::ArrayDiff(self.is_array.as_ref().unwrap().len, other.is_array.as_ref().unwrap().len);
+                return TypeComparison::ArrayDiff(
+                    self.is_array.as_ref().unwrap().len,
+                    other.is_array.as_ref().unwrap().len,
+                );
             }
             if self.main != other.main {
                 return TypeComparison::NotEqual;
@@ -1360,6 +1425,7 @@ pub mod dictionary {
         pub generics: GenericExpr,
         pub line: Line,
         pub name: String,
+        pub nullable: bool,
     }
 
     impl ShTypeBuilder {
@@ -1372,6 +1438,7 @@ pub mod dictionary {
                 generics: vec![],
                 line: Line { line: 0, column: 0 },
                 name: String::new(),
+                nullable: false,
             }
         }
         pub fn build(self) -> ShallowType {
@@ -1387,7 +1454,12 @@ pub mod dictionary {
                 main,
                 generics: self.generics,
                 line: self.line,
+                nullable: self.nullable,
             }
+        }
+        pub fn set_nullable(mut self, nullable: bool) -> Self {
+            self.nullable = nullable;
+            self
         }
         pub fn set_fun(mut self, fun: Function) -> Self {
             self.is_fun = Some(Box::new(fun));
@@ -1406,7 +1478,7 @@ pub mod dictionary {
             self
         }
         pub fn set_name(mut self, name: &str) -> Self {
-            self.path.push(name.to_string());
+            self.name = name.to_string();
             self
         }
         pub fn set_generics(mut self, generics: GenericExpr) -> Self {
@@ -1430,7 +1502,6 @@ pub mod dictionary {
                 constants: vec![],
                 identifiers: vec![],
                 imports: vec![],
-                implementations: vec![],
                 traits: vec![],
                 errors: vec![],
                 uses: vec![],
@@ -1475,6 +1546,7 @@ pub mod dictionary {
             false
         }
     }
+    #[derive(Debug)]
     pub enum TypeComparison {
         /// types are equal
         Equal,
