@@ -280,7 +280,11 @@ fn get_scope(
                             Err(CodegenError::NotInitializedNoType(line.clone()))?;
                         }
                         let null = new_const(context, &ConstValue::Null)?;
-                        code.write(null, &pos);
+                        use Instructions::*;
+                        code.extend(&[
+                            ReadConst(null, GENERAL_REG1),
+                        ]);
+                        code.write(GENERAL_REG1, &pos);
                         ShTypeBuilder::new().set_name("null").build()
                     }
                 };
