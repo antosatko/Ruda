@@ -9,7 +9,7 @@ pub mod ast_parser {
         use std::fs;
         let source = match fs::read_to_string(source_path) {
             Ok(source) => source,
-            Err(err) => {
+            Err(_) => {
                 return None;
             }
         };

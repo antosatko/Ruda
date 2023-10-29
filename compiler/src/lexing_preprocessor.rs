@@ -1,7 +1,4 @@
 pub mod lexing_preprocessor {
-
-    use std::time::SystemTime;
-
     use crate::{
         lexer::tokenizer::{deparse_token, Operators, Tokens},
         tree_walker::tree_walker::Line,

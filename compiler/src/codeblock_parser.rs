@@ -5,7 +5,7 @@ use crate::intermediate::dictionary::{
 use crate::intermediate::AnalyzationError::ErrType;
 use crate::lexer::tokenizer::*;
 use crate::tree_walker::tree_walker::Line;
-use crate::{expression_parser::*, tree_walker};
+use crate::tree_walker;
 
 pub fn generate_tree(
     node: &tree_walker::tree_walker::Node,

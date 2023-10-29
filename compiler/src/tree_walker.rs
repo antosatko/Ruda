@@ -215,7 +215,6 @@ pub mod tree_walker {
                                     place
                                 } else {
                                     Error!(Err::EmptyNodeParameter(arg_part.into()), true);
-                                    continue; // Skip to the next part of the argument
                                 }
                             }
                         };

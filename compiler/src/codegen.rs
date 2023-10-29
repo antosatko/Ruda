@@ -130,6 +130,7 @@ fn expression(
             }
             expression_parser::Literals::String(str) => {
                 let pos = new_const(context, &ConstValue::String(str.clone()))?;
+                println!("refs: {:?}", lit.refs);
                 match lit.refs {
                     expression_parser::Ref::Dereferencing(depth) => {
                         Err(CodegenError::DerefereString(depth, lit.line.clone()))?
@@ -138,7 +139,10 @@ fn expression(
                         if depth > 1 {
                             Err(CodegenError::ReferenceString(depth, lit.line.clone()))?;
                         }
-                        code.push(ReadConst(pos, GENERAL_REG1));
+                        code.extend(&[
+                            ReadConst(pos, GENERAL_REG1),
+                            Debug(GENERAL_REG1),
+                        ]);
                     }
                     expression_parser::Ref::None => {
                         code.extend(&[

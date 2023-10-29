@@ -359,7 +359,7 @@ pub fn get_tail(node: &Node, errors: &mut Vec<ErrType>) -> Vec<(TailNodes, Line)
 
 pub fn get_prepend(
     node: &Node,
-    errors: &mut Vec<ErrType>,
+    _errors: &mut Vec<ErrType>,
 ) -> (Ref, Option<(String, Line)>, Option<(Operators, Line)>) {
     // TODO: use "ref_tok" instead of "ref_type"
     let refs = get_ref_type(&node);
@@ -401,11 +401,11 @@ pub fn get_ref_type(node: &Node) -> Ref {
         return Ref::None;
     }
     // find out if it's a reference or a dereference, if both, then subtract lesser from greater
-    let result = if ampersants > stars {
-        return Ref::Reference(ampersants - stars);
+    if ampersants > stars {
+        Ref::Reference(ampersants - stars)
     } else {
-        return Ref::Dereferencing(stars - ampersants);
-    };
+        Ref::Dereferencing(stars - ampersants)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -415,7 +415,7 @@ pub enum Ref {
     None,
 }
 
-pub fn try_get_op(node: &Node, errors: &mut Vec<ErrType>) -> Option<Operators> {
+pub fn try_get_op(node: &Node, _errors: &mut Vec<ErrType>) -> Option<Operators> {
     if let Tokens::Text(txt) = &node.name {
         if txt != "operator" {
             return None;
@@ -510,7 +510,7 @@ pub enum ArrayRule {
 impl fmt::Debug for ArrayRule {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ArrayRule::Fill { value, size } => write!(f, "[_; _]"),
+            ArrayRule::Fill { .. } => write!(f, "[_; _]"),
             ArrayRule::Explicit(vec) => {
                 write!(f, "[{}]", vec.len())
             }
@@ -563,11 +563,4 @@ pub enum TailNodes {
     Index(ValueType),
     Call(FunctionCall),
     Cast(Vec<String>),
-}
-
-pub fn try_is_operator(node: &Node, errors: &mut Vec<ErrType>) -> Option<Operators> {
-    if let Tokens::Operator(op) = &node.name {
-        return Some(*op);
-    }
-    None
 }

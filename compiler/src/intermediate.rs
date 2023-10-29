@@ -495,7 +495,7 @@ pub mod dictionary {
         }
         result
     }
-    pub fn get_nested_ident(node: &Node, errors: &mut Vec<ErrType>) -> NestedIdent {
+    pub fn get_nested_ident(node: &Node, _errors: &mut Vec<ErrType>) -> NestedIdent {
         let mut result = vec![];
         for nd in step_inside_arr(node, "nodes") {
             if let Tokens::Text(txt) = &step_inside_val(nd, "identifier").name {

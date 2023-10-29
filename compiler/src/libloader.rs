@@ -1,22 +1,19 @@
 use std::collections::HashMap;
 
 use crate::{
-    ast_parser::ast_parser::{generate_ast, Head, HeadParam},
-    expression_parser::{get_args, ValueType},
+    ast_parser::ast_parser::{Head, HeadParam},
     intermediate::{self, AnalyzationError::ErrType},
     lexer::tokenizer::{self, Operators, Tokens},
-    lexing_preprocessor::{lexing_preprocessor, parse_err::Errors},
-    tree_walker::tree_walker::{generate_tree, Err, Line, Node},
+    tree_walker::tree_walker::{generate_tree,  Line, Node},
 };
 use intermediate::dictionary::*;
-use lexing_preprocessor::*;
 use runtime::runtime_types::{GENERAL_REG1, GENERAL_REG2, GENERAL_REG3, MEMORY_REG1, MEMORY_REG2, MEMORY_REG3, POINTER_REG, RETURN_REG, CODE_PTR_REG};
 
 pub fn load(
     string: &[u8],
     ast: &mut (HashMap<String, Head>, Vec<HeadParam>),
 ) -> Result<Dictionary, String> {
-    let (mut tokens, mut lines, mut errs) = tokenizer::tokenize(string, true);
+    let (tokens, lines, errs) = tokenizer::tokenize(string, true);
     let tree = match generate_tree(&tokens, ast, &lines) {
         Ok(tree) => tree,
         Err(err) => {
@@ -227,12 +224,6 @@ pub fn load(
     Ok(dictionary)
 }
 
-fn from_tree(node: &Node) -> Result<Dictionary, String> {
-    let mut dict = Dictionary::new();
-    let nodes = step_inside_arr(&node, "nodes");
-    Ok(dict)
-}
-
 fn get_assign(node: &Node) -> usize {
     let node = step_inside_val(&node, "assign");
     if let Tokens::Number(num, _) = step_inside_val(node, "num").name {
@@ -255,10 +246,10 @@ fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>) -> Function {
         }
         let ident = get_ident(&arg);
         let mem_loc = get_mem_loc(&arg);
-        let mut arg_type = get_type(step_inside_val(&arg, "type"), errors);
+        let arg_type = get_type(step_inside_val(&arg, "type"), errors);
         args.push((ident, arg_type, mem_loc));
     }
-    let mut return_type = if let Tokens::Text(txt) = &step_inside_val(node, "type").name {
+    let return_type = if let Tokens::Text(txt) = &step_inside_val(node, "type").name {
         if txt == "type_specifier" {
             get_type(
                 step_inside_val(step_inside_val(node, "type"), "type"),
@@ -270,7 +261,7 @@ fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>) -> Function {
     } else {
         ShallowType::empty()
     };
-    let mut errorable =
+    let errorable =
         if let Tokens::Operator(Operators::Not) = step_inside_val(node, "errorable").name {
             true
         } else {
