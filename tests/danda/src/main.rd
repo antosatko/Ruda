@@ -7,4 +7,6 @@ fun main() {
     let b: number = 7294967295
     let c: bool?
     let d = 1
+    let str = &"Hello World"
+    let danda = "danda"
 }

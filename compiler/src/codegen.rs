@@ -458,7 +458,6 @@ fn create_var_pos(scopes: &Vec<ScopeCached>) -> MemoryTypes {
         let mut len = 0;
         for scope in scopes {
             len += scope.variables.len();
-            println!("len: {}", len);
         }
         len
     };
@@ -504,7 +503,6 @@ fn merge_code(
 
 fn flip_stack_access(len: usize, code: &mut Code) {
     use Instructions::*;
-    println!("len: {}", len);
     for instr in code.code.iter_mut() {
         match instr {
             Read(from, _) => {
