@@ -4,7 +4,6 @@
 
 fun main() {
     let a = 42949672955
-    {
-        let c: bool? = true
-    }
+    let b: number = 4294967295
+    let c: bool? = true
 }

@@ -711,8 +711,7 @@ pub mod dictionary {
     }
     pub fn get_type(node: &Node, errors: &mut Vec<ErrType>) -> ShallowType {
         println!("{:?}", node.nodes.keys());
-        let nullable = if let Some(val) = try_step_inside_val(node, "nullable") {
-            println!("valal: {:?}", val);
+        let nullable = if let Some(val) = try_step_inside_val(node, "optional") {
             val.name == Tokens::Optional
         } else {
             false
@@ -1193,7 +1192,7 @@ pub mod dictionary {
                     is_fun: None,
                     is_array: None,
                     refs: 0,
-                    main: vec![String::from("float")],
+                    main: vec![String::from("number")],
                     generics: Vec::new(),
                     line: Line { line: 0, column: 0 },
                     nullable: false,
@@ -1384,6 +1383,9 @@ pub mod dictionary {
             &self.main[self.main.len() - 1]
         }
         pub fn cmp(&self, other: &Self) -> TypeComparison {
+            if self.nullable && other.is_null() {
+                return TypeComparison::Equal;
+            }
             // check if both have the same refs and if not return difference in refs
             if self.refs != other.refs {
                 return TypeComparison::ReferenceDiff(self.refs as i32 - other.refs as i32);
@@ -1413,6 +1415,9 @@ pub mod dictionary {
                 }
             }*/
             TypeComparison::Equal
+        }
+        pub fn is_null(&self) -> bool {
+            self.main == vec![String::from("null")]
         }
     }
 
@@ -1559,6 +1564,8 @@ pub mod dictionary {
         /// both are arrays, but they have different lengths
         /// len1 len2
         ArrayDiff(usize, usize),
+        /// The other type is null while this doesnt allow null
+        NotNullable
     }
     impl TypeComparison {
         pub fn is_equal(&self) -> bool {

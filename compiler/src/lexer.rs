@@ -2,7 +2,7 @@ pub mod tokenizer {
     use crate::{lexing_preprocessor::{
         lexing_preprocessor::refactor,
         parse_err::{self},
-    }, intermediate::dictionary::ConstValue};
+    }, intermediate::dictionary::{ConstValue, ShallowType}};
     const RESERVED_CHARS: &str = " +-*/=%;:,.({<[]>})&|!?\"'\\";
     pub fn tokenize(
         file: &[u8],
@@ -200,15 +200,35 @@ pub mod tokenizer {
         AngleBracket(bool),
     }
     impl Tokens {
-        pub fn into_const_number(&self) -> Option<ConstValue> {
+        pub fn into_const_number(&self) -> Option<(ConstValue, ShallowType)> {
             match self {
                 Tokens::Number(num, t) => {
                     match t {
-                        'i' => Some(ConstValue::Int(*num as i64)),
-                        'f' => Some(ConstValue::Float(*num)),
-                        'u' => Some(ConstValue::Usize(*num as usize)),
-                        'c' => Some(ConstValue::Char(*num as u8 as char)),
-                        'n' => Some(ConstValue::Int(*num as i64)),
+                        'i' => {
+                            let val = ConstValue::Int(*num as i64);
+                            let kind = val.gen_type().unwrap();
+                            Some((val, kind))
+                        },
+                        'f' => {
+                            let val = ConstValue::Float(*num);
+                            let kind = val.gen_type().unwrap();
+                            Some((val, kind))
+                        }
+                        'u' => {
+                            let val = ConstValue::Usize(*num as usize);
+                            let kind = val.gen_type().unwrap();
+                            Some((val, kind))
+                        }
+                        'c' => {
+                            let val = ConstValue::Char(*num as u8 as char);
+                            let kind = val.gen_type().unwrap();
+                            Some((val, kind))
+                        }
+                        'n' => {
+                            let val = ConstValue::Number(*num);
+                            let kind = val.gen_type().unwrap();
+                            Some((val, kind))
+                        }
                         _ => None,
                     }
                 }

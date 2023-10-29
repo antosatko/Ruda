@@ -67,6 +67,8 @@ pub enum CodegenError {
     NotInitializedNoType(Line),
     /// (line)
     TypeNotNullable(Line),
+    /// (ident, this_line, other_line)
+    VariableAlreadyDeclared(String, Line, Line),
 }
 
 pub fn stringify(
@@ -114,8 +116,9 @@ fn expression(
                         unreachable!("number not handled properly by the compiler, please report this bug");
                     }
                 };
-                let pos = new_const(context, &const_num)?;
+                let pos = new_const(context, &const_num.0)?;
                 code.push(ReadConst(pos, GENERAL_REG1));
+                return_kind = const_num.1;
             }
             expression_parser::Literals::Array(arr) => {
                 let pos = {
@@ -253,6 +256,13 @@ fn get_scope(
                 kind,
                 line,
             } => {
+                if let Some(var) = find_var(other_scopes, ident) {
+                    Err(CodegenError::VariableAlreadyDeclared(
+                        ident.clone(),
+                        line.clone(),
+                        var.line.clone(),
+                    ))?;
+                }
                 max_scope_len += 1;
                 let pos: MemoryTypes = create_var_pos(&other_scopes);
                 let expr_kind = match expr {
@@ -444,6 +454,7 @@ fn create_var_pos(scopes: &Vec<ScopeCached>) -> MemoryTypes {
         let mut len = 0;
         for scope in scopes {
             len += scope.variables.len();
+            println!("len: {}", len);
         }
         len
     };

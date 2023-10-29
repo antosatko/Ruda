@@ -17,7 +17,7 @@ import "std.math" as mt
 const PI = 3.14
 
 // Type aliases
-type int = i32
+type i32 = int
 
 fun main() {
     // Variables
