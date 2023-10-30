@@ -48,6 +48,15 @@ fn call_main(
         ReserveStack(main.stack_size.unwrap() + consts_len, main.pointers.unwrap_or(0)),
         Goto(main.location.unwrap()),
     ]);
+    // swap all returns in main with end
+    for i in main.location.unwrap()..context.code.data.len() {
+        match context.code.data[i] {
+            Return => {
+                context.code.data[i] = End;
+            }
+            _ => {}
+        }
+    }
     
     Ok(())
 }
@@ -69,6 +78,7 @@ pub enum CodegenError {
     TypeNotNullable(Line),
     /// (ident, this_line, other_line)
     VariableAlreadyDeclared(String, Line, Line),
+    VariableNotFound(String, Line),
 }
 
 pub fn stringify(
@@ -169,17 +179,31 @@ fn expression(
             }
         },
         ValueType::AnonymousFunction(_) => todo!(),
-        ValueType::Parenthesis(_, _) => todo!(),
+        ValueType::Parenthesis(expr, tail) => {
+            let kind = expression(objects, expr, scopes, code, context)?;
+            for (node, line) in tail.iter() {
+                match node {
+                    expression_parser::TailNodes::Nested(_) => todo!(),
+                    expression_parser::TailNodes::Index(_) => todo!(),
+                    expression_parser::TailNodes::Call(_) => todo!(),
+                    expression_parser::TailNodes::Cast(_) => todo!(),
+                }
+            }
+            return_kind = kind;
+        }
         ValueType::Expression(_) => todo!(),
         ValueType::Operator(_, line) => unreachable!("operator not handled properly by the compiler at {line}, please report this bug"),
         ValueType::Value(value) => {
-            // check for bool value
+            // check for inner const
             if value.is_true_simple() && value.root.0 == "true" {
                 code.push(ReadConst(1, GENERAL_REG1));
                 return Ok(ShTypeBuilder::new().set_name("bool").build());
             } else if value.is_true_simple() && value.root.0 == "false" {
                 code.push(ReadConst(2, GENERAL_REG1));
                 return Ok(ShTypeBuilder::new().set_name("bool").build());
+            } else if value.is_true_simple() && value.root.0 == "null" {
+                code.push(ReadConst(0, GENERAL_REG1));
+                return Ok(ShTypeBuilder::new().set_name("null").build());
             }
             match find_var(scopes, &value.root.0) {
                 Some(var) => {
@@ -201,7 +225,12 @@ fn expression(
                         }
                     }
                 }
-                None => { }
+                None => {
+                    Err(CodegenError::VariableNotFound(
+                        value.root.0.clone(),
+                        value.root.1.clone(),
+                    ))?
+                }
             }
         }
         ValueType::Blank => {}
@@ -318,7 +347,6 @@ fn get_scope(
                 line,
             } => {
                 use Instructions::*;
-                let mut blocks_amount = 1;
                 // if
                 let mut expr_code = Code { code: Vec::new() };
                 let mut block_code = Code { code: Vec::new() };
@@ -329,7 +357,6 @@ fn get_scope(
                 }
                 let scope = open_scope!(body, &mut block_code);
                 expr_code.push(Branch(expr_code.code.len() + 1, expr_code.code.len() + block_code.code.len() + 2));
-                let mut blocks_len = expr_code.code.len() + block_code.code.len();
                 // elifs
                 let mut elifs = Vec::new();
                 for elif in elif {
@@ -341,8 +368,6 @@ fn get_scope(
                     }
                     let scope = open_scope!(&elif.1, &mut block_code);
                     expr_code.push(Branch(expr_code.code.len() + 1, expr_code.code.len() + block_code.code.len() + 2));
-                    blocks_len += expr_code.code.len() + block_code.code.len();
-                    blocks_amount += 1;
                     elifs.push((expr_code, block_code, scope));
                 }
                 // else
@@ -350,7 +375,6 @@ fn get_scope(
                     Some(els) => {
                         let mut block_code = Code { code: Vec::new() };
                         let scope = open_scope!(&els.0, &mut block_code);
-                        blocks_len += block_code.code.len();
                         (block_code, scope)
                     }
                     None => (Code { code: Vec::new() }, 0),
@@ -397,7 +421,42 @@ fn get_scope(
                 body,
                 line,
             } => todo!(),
-            crate::codeblock_parser::Nodes::Return { expr, line } => todo!(),
+            crate::codeblock_parser::Nodes::Return { expr, line } => {
+                use Instructions::*;
+                let kind = match expr {
+                    Some(expr) => {
+                        let kind = expression(objects, expr, other_scopes, code, context)?;
+                        code.push(Move(GENERAL_REG1, RETURN_REG));
+                        kind
+                    }
+                    None => {
+                        code.push(ReadConst(0, RETURN_REG));
+                        ShTypeBuilder::new().set_name("null").build()
+                    }
+                };
+                let this_fun = fun.get(objects)?;
+                if let Some(ret_type) = &this_fun.return_type {
+                    let cmp = ret_type.cmp(&kind);
+                    if cmp.is_not_equal() {
+                        return Err(CodegenError::VariableTypeMismatch(
+                            ret_type.clone(),
+                            kind,
+                            cmp,
+                            line.clone(),
+                        ));
+                    }
+                } else if !kind.is_null() {
+                    return Err(CodegenError::VariableTypeMismatch(
+                        ShTypeBuilder::new().set_name("null").build(),
+                        kind,
+                        TypeComparison::NotEqual,
+                        line.clone(),
+                    ));
+                }
+                code.extend(&[
+                    Return
+                ]);
+            }
             crate::codeblock_parser::Nodes::Expr { expr, line } => {
                 expression(objects, expr, other_scopes, code, context)?;
             },
@@ -431,7 +490,13 @@ fn get_scope(
                 expr,
                 op,
                 line,
-            } => todo!(),
+            } => {
+                use Instructions::*;
+                let mut expr_code = Code { code: Vec::new() };
+                let mut target_code = Code { code: Vec::new() };
+                // let expr_kind = expression(objects, expr, other_scopes, &mut expr_code, context)?;
+                
+            }
         }
     }
     Ok(max_scope_len)
@@ -646,6 +711,15 @@ enum StructField {
     Method(usize),
     OverloadedOperator(usize),
     TraitMethod(usize),
+}
+
+enum Position {
+    General,
+    Pointer,
+    Return,
+    CodePtr,
+    Function(FunctionPath),
+    StructField(StructField),
 }
 
 #[derive(Debug, Clone)]
