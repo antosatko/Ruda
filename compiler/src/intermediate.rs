@@ -338,11 +338,14 @@ pub mod dictionary {
                 }
             }
             "KWImport" => {
-                let alias = try_get_ident(&node);
                 let path = if let Tokens::String(path) = &step_inside_val(&node, "path").name {
                     path.to_string()
                 } else {
                     unreachable!("Path not specified");
+                };
+                let alias = match try_get_ident(&node) {
+                    Some(alias) => alias,
+                    None => path.split("/").last().unwrap().to_string(),
                 };
                 dictionary.imports.push(Import {
                     path,
@@ -853,7 +856,7 @@ pub mod dictionary {
     #[derive(Debug)]
     pub struct Import {
         pub path: String,
-        pub alias: Option<String>,
+        pub alias: String,
         pub line: Line,
     }
     #[derive(Debug)]

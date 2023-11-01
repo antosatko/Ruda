@@ -3,19 +3,24 @@ use std::net;
 use std::thread::Scope;
 
 use runtime::runtime_types::{
-    self, Instructions, Stack, CODE_PTR_REG, GENERAL_REG1, POINTER_REG, RETURN_REG, Types,
+    self, Instructions, Stack, Types, CODE_PTR_REG, GENERAL_REG1, POINTER_REG, RETURN_REG,
 };
 
 use crate::codeblock_parser::Nodes;
 use crate::expression_parser::{self, ValueType};
-use crate::intermediate::dictionary::{ConstValue, Function, ShallowType, ShTypeBuilder, TypeComparison};
+use crate::intermediate::dictionary::{
+    ConstValue, Function, ShTypeBuilder, ShallowType, TypeComparison, self,
+};
 use crate::lexer::tokenizer::Tokens;
 use crate::tree_walker::tree_walker::Line;
 use crate::{intermediate, prep_objects::Context};
 
 use crate::libloader::{MemoryTypes, Registers};
 
-pub fn gen(objects: &mut Context, main: &str) -> Result<runtime::runtime_types::Context, CodegenError> {
+pub fn gen(
+    objects: &mut Context,
+    main: &str,
+) -> Result<runtime::runtime_types::Context, CodegenError> {
     let mut vm_context = runtime::runtime_types::Context::new();
     // Initialize some common constants for faster lookup
     let consts = [
@@ -29,23 +34,27 @@ pub fn gen(objects: &mut Context, main: &str) -> Result<runtime::runtime_types::
         ConstValue::Usize(1),
         ConstValue::Usize(2),
     ];
-    vm_context.memory.stack.data.extend(consts.iter().map(|c| c.to_runtime()));
-    let main_path = FunctionPath::main();
+    vm_context
+        .memory
+        .stack
+        .data
+        .extend(consts.iter().map(|c| c.to_runtime()));
+    let main_path = InnerPath::main();
     let main = gen_fun(objects, &main_path, &mut vm_context)?;
     call_main(&main.clone(), &mut vm_context)?;
     Ok(vm_context)
 }
 
-fn call_main(
-    main: &Function,
-    context: &mut runtime_types::Context,
-) -> Result<(), CodegenError> {
+fn call_main(main: &Function, context: &mut runtime_types::Context) -> Result<(), CodegenError> {
     use Instructions::*;
     context.code.entry_point = context.code.data.len() + 1;
     let consts_len = context.memory.stack.data.len();
     context.code.data.extend(&[
         End,
-        ReserveStack(main.stack_size.unwrap() + consts_len, main.pointers.unwrap_or(0)),
+        ReserveStack(
+            main.stack_size.unwrap() + consts_len,
+            main.pointers.unwrap_or(0),
+        ),
         Goto(main.location.unwrap()),
     ]);
     // swap all returns in main with end
@@ -57,14 +66,14 @@ fn call_main(
             _ => {}
         }
     }
-    
+
     Ok(())
 }
 
 #[derive(Debug)]
 pub enum CodegenError {
     CannotInitializeConstant,
-    FunctionNotFound(FunctionPath),
+    FunctionNotFound(InnerPath),
     ExpectedBool(Line),
     /// (depth, line)
     DerefereString(usize, Line),
@@ -91,14 +100,21 @@ pub fn stringify(
 
 fn gen_fun<'a>(
     objects: &'a mut Context,
-    fun: &'a FunctionPath,
+    fun: &'a InnerPath,
     context: &'a mut runtime_types::Context,
 ) -> Result<&'a mut Function, CodegenError> {
     let context_code_end = context.code.data.len();
     let mut code = Code { code: Vec::new() };
     let mut scopes = Vec::new();
     let this_fun = fun.get(objects)?;
-    let scope_len = get_scope(objects, &this_fun.code, context, &mut scopes, &mut code, fun)?;
+    let scope_len = get_scope(
+        objects,
+        &this_fun.code,
+        context,
+        &mut scopes,
+        &mut code,
+        fun,
+    )?;
     flip_stack_access(scope_len, &mut code);
     let pos = merge_code(&mut context.code.data, &code.code, scope_len);
     let this_fun = fun.get_mut(objects)?;
@@ -118,66 +134,65 @@ fn expression(
     use Instructions::*;
     let mut return_kind = ShallowType::empty();
     match expr {
-        ValueType::Literal(lit) => match &lit.value {
-            expression_parser::Literals::Number(tok) => {
-                let const_num = match tok.into_const_number() {
-                    Some(num) => num,
-                    None => {
-                        unreachable!("number not handled properly by the compiler, please report this bug");
-                    }
-                };
-                let pos = new_const(context, &const_num.0)?;
-                code.push(ReadConst(pos, GENERAL_REG1));
-                return_kind = const_num.1;
-            }
-            expression_parser::Literals::Array(arr) => {
-                let pos = {
-                    let mut arr_ = Vec::new();
-                    match arr {
-                        expression_parser::ArrayRule::Fill { value, size } => todo!(),
-                        expression_parser::ArrayRule::Explicit(values) => {
-                            code.extend(&[
-                                AllocateStatic(values.len() + 1),
-                                Move(GENERAL_REG1, POINTER_REG),
-                            ]);
-                            for value in values {
-                                arr_.push(expression(objects, value, scopes, code, context)?);
+        ValueType::Literal(lit) => {
+            match &lit.value {
+                expression_parser::Literals::Number(tok) => {
+                    let const_num = match tok.into_const_number() {
+                        Some(num) => num,
+                        None => {
+                            unreachable!("number not handled properly by the compiler, please report this bug");
+                        }
+                    };
+                    let pos = new_const(context, &const_num.0)?;
+                    code.push(ReadConst(pos, GENERAL_REG1));
+                    return_kind = const_num.1;
+                }
+                expression_parser::Literals::Array(arr) => {
+                    let pos = {
+                        let mut arr_ = Vec::new();
+                        match arr {
+                            expression_parser::ArrayRule::Fill { value, size } => todo!(),
+                            expression_parser::ArrayRule::Explicit(values) => {
+                                code.extend(&[
+                                    AllocateStatic(values.len() + 1),
+                                    Move(GENERAL_REG1, POINTER_REG),
+                                ]);
+                                for value in values {
+                                    arr_.push(expression(objects, value, scopes, code, context)?);
+                                }
                             }
                         }
-                    }
-                };
-            }
-            expression_parser::Literals::String(str) => {
-                let pos = new_const(context, &ConstValue::String(str.clone()))?;
-                println!("refs: {:?}", lit.refs);
-                match lit.refs {
-                    expression_parser::Ref::Dereferencing(depth) => {
-                        Err(CodegenError::DerefereString(depth, lit.line.clone()))?
-                    }
-                    expression_parser::Ref::Reference(depth) => {
-                        if depth > 1 {
-                            Err(CodegenError::ReferenceString(depth, lit.line.clone()))?;
+                    };
+                }
+                expression_parser::Literals::String(str) => {
+                    let pos = new_const(context, &ConstValue::String(str.clone()))?;
+                    println!("refs: {:?}", lit.refs);
+                    match lit.refs {
+                        expression_parser::Ref::Dereferencing(depth) => {
+                            Err(CodegenError::DerefereString(depth, lit.line.clone()))?
                         }
-                        code.extend(&[
-                            ReadConst(pos, GENERAL_REG1),
-                            Debug(GENERAL_REG1),
-                        ]);
-                    }
-                    expression_parser::Ref::None => {
-                        code.extend(&[
-                            ReadConst(pos, POINTER_REG),
-                            Cal(1, 3),
-                            Move(RETURN_REG, GENERAL_REG1),
-                            Debug(GENERAL_REG1),
-                        ]);
+                        expression_parser::Ref::Reference(depth) => {
+                            if depth > 1 {
+                                Err(CodegenError::ReferenceString(depth, lit.line.clone()))?;
+                            }
+                            code.extend(&[ReadConst(pos, GENERAL_REG1), Debug(GENERAL_REG1)]);
+                        }
+                        expression_parser::Ref::None => {
+                            code.extend(&[
+                                ReadConst(pos, POINTER_REG),
+                                Cal(1, 3),
+                                Move(RETURN_REG, GENERAL_REG1),
+                                Debug(GENERAL_REG1),
+                            ]);
+                        }
                     }
                 }
+                expression_parser::Literals::Char(c) => {
+                    let pos = new_const(context, &ConstValue::Char(*c))?;
+                    code.push(ReadConst(pos, GENERAL_REG1));
+                }
             }
-            expression_parser::Literals::Char(c) => {
-                let pos = new_const(context, &ConstValue::Char(*c))?;
-                code.push(ReadConst(pos, GENERAL_REG1));
-            }
-        },
+        }
         ValueType::AnonymousFunction(_) => todo!(),
         ValueType::Parenthesis(expr, tail) => {
             let kind = expression(objects, expr, scopes, code, context)?;
@@ -192,7 +207,9 @@ fn expression(
             return_kind = kind;
         }
         ValueType::Expression(_) => todo!(),
-        ValueType::Operator(_, line) => unreachable!("operator not handled properly by the compiler at {line}, please report this bug"),
+        ValueType::Operator(_, line) => unreachable!(
+            "operator not handled properly by the compiler at {line}, please report this bug"
+        ),
         ValueType::Value(value) => {
             // check for inner const
             if value.is_true_simple() && value.root.0 == "true" {
@@ -225,12 +242,10 @@ fn expression(
                         }
                     }
                 }
-                None => {
-                    Err(CodegenError::VariableNotFound(
-                        value.root.0.clone(),
-                        value.root.1.clone(),
-                    ))?
-                }
+                None => Err(CodegenError::VariableNotFound(
+                    value.root.0.clone(),
+                    value.root.1.clone(),
+                ))?,
             }
         }
         ValueType::Blank => {}
@@ -247,13 +262,79 @@ fn find_var<'a>(scopes: &'a Vec<ScopeCached>, ident: &'a str) -> Option<&'a Vari
     None
 }
 
+fn find_import<'a>(objects: &'a Context, ident: &'a str, file_name: &'a str) -> Option<&'a str> {
+    let file = match objects.0.get(file_name) {
+        Some(dictionary) => {
+            for import in dictionary.imports.iter() {
+                if import.alias == ident {
+                    return Some(&import.path);
+                }
+            }
+        },
+        None => None?,
+    };
+    None
+}
+
+fn gen_value(
+    objects: &Context,
+    value: &expression_parser::Variable,
+    context: &mut runtime_types::Context,
+    scopes: &mut Vec<ScopeCached>,
+    code: &mut Code,
+    fun: &InnerPath,
+) -> Result<ShallowType, CodegenError> {
+    use Instructions::*;
+    let mut return_kind = ShallowType::empty();
+    if let Some(var) = find_var(scopes, &value.root.0) {
+        let iter: std::slice::Iter<'_, (expression_parser::TailNodes, Line)> = value.tail.iter();
+        let root = identify_root(objects, iter, context, scopes, code, fun)?;
+        let (kind, pos) = traverse_tail(objects, iter, context, scopes, code, fun, root)?;
+        
+    }
+    Ok(return_kind)
+}
+
+fn identify_root(
+    objects: &Context,
+    tail: std::slice::Iter<'_, (expression_parser::TailNodes, Line)>,
+    context: &mut runtime_types::Context,
+    scopes: &mut Vec<ScopeCached>,
+    code: &mut Code,
+    fun: &InnerPath,
+) -> Result<(ShallowType, Position), CodegenError> {
+
+}
+
+fn traverse_tail(
+    objects: &Context,
+    tail: std::slice::Iter<'_, (expression_parser::TailNodes, Line)>,
+    context: &mut runtime_types::Context,
+    scopes: &mut Vec<ScopeCached>,
+    code: &mut Code,
+    fun: &InnerPath,
+    (kind, pos): (ShallowType, Position),
+) -> Result<(ShallowType, Position), CodegenError> {
+    use Instructions::*;
+    let mut return_kind = ShallowType::empty();
+    for (node, line) in tail {
+        match node {
+            expression_parser::TailNodes::Nested(_) => todo!(),
+            expression_parser::TailNodes::Index(_) => todo!(),
+            expression_parser::TailNodes::Call(_) => todo!(),
+            expression_parser::TailNodes::Cast(_) => todo!(),
+        }
+    }
+    Ok((kind, pos))
+}
+
 fn get_scope(
     objects: &Context,
     block: &Vec<Nodes>,
     context: &mut runtime_types::Context,
     other_scopes: &mut Vec<ScopeCached>,
     code: &mut Code,
-    fun: &FunctionPath,
+    fun: &InnerPath,
 ) -> Result<usize, CodegenError> {
     let mut max_scope_len = 0;
     other_scopes.push(ScopeCached {
@@ -310,9 +391,7 @@ fn get_scope(
                         }
                         let null = new_const(context, &ConstValue::Null)?;
                         use Instructions::*;
-                        code.extend(&[
-                            ReadConst(null, GENERAL_REG1),
-                        ]);
+                        code.extend(&[ReadConst(null, GENERAL_REG1)]);
                         code.write(GENERAL_REG1, &pos);
                         ShTypeBuilder::new().set_name("null").build()
                     }
@@ -356,7 +435,10 @@ fn get_scope(
                     return Err(CodegenError::ExpectedBool(line.clone()));
                 }
                 let scope = open_scope!(body, &mut block_code);
-                expr_code.push(Branch(expr_code.code.len() + 1, expr_code.code.len() + block_code.code.len() + 2));
+                expr_code.push(Branch(
+                    expr_code.code.len() + 1,
+                    expr_code.code.len() + block_code.code.len() + 2,
+                ));
                 // elifs
                 let mut elifs = Vec::new();
                 for elif in elif {
@@ -367,7 +449,10 @@ fn get_scope(
                         return Err(CodegenError::ExpectedBool(elif.2.clone()));
                     }
                     let scope = open_scope!(&elif.1, &mut block_code);
-                    expr_code.push(Branch(expr_code.code.len() + 1, expr_code.code.len() + block_code.code.len() + 2));
+                    expr_code.push(Branch(
+                        expr_code.code.len() + 1,
+                        expr_code.code.len() + block_code.code.len() + 2,
+                    ));
                     elifs.push((expr_code, block_code, scope));
                 }
                 // else
@@ -390,7 +475,7 @@ fn get_scope(
                     merge_code(&mut buffer, &expr_code.code, scope);
                     merge_code(&mut buffer, &block_code.code, scope);
                     gotos.push(buffer.len() - 1);
-                 }   
+                }
                 merge_code(&mut buffer, &elsse.0.code, elsse.1);
                 // fix gotos
                 for goto in &gotos {
@@ -408,7 +493,10 @@ fn get_scope(
                     return Err(CodegenError::ExpectedBool(line.clone()));
                 }
                 let scope = open_scope!(body, &mut block_code);
-                expr_code.push(Branch(expr_code.code.len() + 1, expr_code.code.len() + block_code.code.len() + 2));
+                expr_code.push(Branch(
+                    expr_code.code.len() + 1,
+                    expr_code.code.len() + block_code.code.len() + 2,
+                ));
                 let mut buffer = Vec::new();
                 merge_code(&mut buffer, &expr_code.code, scope);
                 merge_code(&mut buffer, &block_code.code, scope);
@@ -453,13 +541,11 @@ fn get_scope(
                         line.clone(),
                     ));
                 }
-                code.extend(&[
-                    Return
-                ]);
+                code.extend(&[Return]);
             }
             crate::codeblock_parser::Nodes::Expr { expr, line } => {
                 expression(objects, expr, other_scopes, code, context)?;
-            },
+            }
             crate::codeblock_parser::Nodes::Block { body, line } => {
                 let scope = open_scope!(body, code);
             }
@@ -495,7 +581,6 @@ fn get_scope(
                 let mut expr_code = Code { code: Vec::new() };
                 let mut target_code = Code { code: Vec::new() };
                 // let expr_kind = expression(objects, expr, other_scopes, &mut expr_code, context)?;
-                
             }
         }
     }
@@ -504,7 +589,7 @@ fn get_scope(
 
 fn call_fun(
     objects: &Context,
-    fun: &FunctionPath,
+    fun: &InnerPath,
     args: &Vec<expression_parser::ValueType>,
     scopes: &mut Vec<ScopeCached>,
     code: &mut Code,
@@ -576,7 +661,7 @@ fn flip_stack_access(len: usize, code: &mut Code) {
             Write(to, _) => {
                 *to = len - *to + 1;
             }
-            _ => ()
+            _ => (),
         }
     }
 }
@@ -714,24 +799,22 @@ enum StructField {
 }
 
 enum Position {
-    General,
-    Pointer,
-    Return,
-    CodePtr,
-    Function(FunctionPath),
-    StructField(StructField),
+    Function(InnerPath),
+    StructField(InnerPath, StructField),
+    File(String),
+    Variable(String),
 }
 
 #[derive(Debug, Clone)]
-pub struct FunctionPath {
+pub struct InnerPath {
     file: String,
     block: Option<String>,
     ident: String,
 }
 
-impl FunctionPath {
+impl InnerPath {
     pub fn main() -> Self {
-        FunctionPath {
+        InnerPath {
             file: "main.rd".to_string(),
             block: None,
             ident: "main".to_string(),
@@ -745,9 +828,7 @@ impl FunctionPath {
             }
         };
         match &self.block {
-            Some(b) => {
-                Err(CodegenError::FunctionNotFound(self.clone()))
-            }
+            Some(b) => Err(CodegenError::FunctionNotFound(self.clone())),
             None => {
                 for fun in file.functions.iter_mut() {
                     if fun.identifier.clone().unwrap().as_ref() == self.ident {
@@ -766,9 +847,7 @@ impl FunctionPath {
             }
         };
         match &self.block {
-            Some(b) => {
-                Err(CodegenError::FunctionNotFound(self.clone()))
-            }
+            Some(b) => Err(CodegenError::FunctionNotFound(self.clone())),
             None => {
                 for fun in file.functions.iter() {
                     if fun.identifier.clone().unwrap().as_ref() == self.ident {
