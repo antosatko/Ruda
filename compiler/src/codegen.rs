@@ -3,7 +3,7 @@ use std::net;
 use std::thread::Scope;
 
 use runtime::runtime_types::{
-    self, Instructions, Stack, Types, CODE_PTR_REG, GENERAL_REG1, POINTER_REG, RETURN_REG,
+    self, Instructions, Stack, Types, CODE_PTR_REG, GENERAL_REG1, POINTER_REG, RETURN_REG, GENERAL_REG3,
 };
 
 use crate::codeblock_parser::Nodes;
@@ -11,8 +11,8 @@ use crate::expression_parser::{self, ValueType};
 use crate::intermediate::dictionary::{
     ConstValue, Function, ShTypeBuilder, ShallowType, TypeComparison, self,
 };
-use crate::lexer::tokenizer::Tokens;
-use crate::tree_walker::tree_walker::Line;
+use crate::lexer::tokenizer::{Tokens, Operators};
+use crate::tree_walker::tree_walker::{Line, Err};
 use crate::{intermediate, prep_objects::Context};
 
 use crate::libloader::{MemoryTypes, Registers};
@@ -88,6 +88,8 @@ pub enum CodegenError {
     /// (ident, this_line, other_line)
     VariableAlreadyDeclared(String, Line, Line),
     VariableNotFound(String, Line),
+    /// (line)
+    CannotIndexFile(Line),
 }
 
 pub fn stringify(
@@ -287,9 +289,9 @@ fn gen_value(
     use Instructions::*;
     let mut return_kind = ShallowType::empty();
     if let Some(var) = find_var(scopes, &value.root.0) {
-        let iter: std::slice::Iter<'_, (expression_parser::TailNodes, Line)> = value.tail.iter();
-        let root = identify_root(objects, iter, context, scopes, code, fun)?;
-        let (kind, pos) = traverse_tail(objects, iter, context, scopes, code, fun, root)?;
+        let mut iter: std::slice::Iter<'_, (expression_parser::TailNodes, Line)> = value.tail.iter();
+        let root = identify_root(objects, value, context, scopes, code, fun)?;
+        let pos = traverse_tail(objects, &mut iter, context, scopes, code, fun, root)?;
         
     }
     Ok(return_kind)
@@ -297,35 +299,64 @@ fn gen_value(
 
 fn identify_root(
     objects: &Context,
-    tail: std::slice::Iter<'_, (expression_parser::TailNodes, Line)>,
+    value: &expression_parser::Variable,
     context: &mut runtime_types::Context,
     scopes: &mut Vec<ScopeCached>,
     code: &mut Code,
     fun: &InnerPath,
-) -> Result<(ShallowType, Position), CodegenError> {
-
+) -> Result<Position, CodegenError> {
+    let root = &value.root.0;
+    if find_var(scopes, &root).is_some() {
+        return Ok(Position::Variable(root.clone()));
+    }
+    Err(CodegenError::VariableNotFound(root.clone(), value.root.1.clone()))?
 }
 
 fn traverse_tail(
     objects: &Context,
-    tail: std::slice::Iter<'_, (expression_parser::TailNodes, Line)>,
+    tail: &mut std::slice::Iter<'_, (expression_parser::TailNodes, Line)>,
     context: &mut runtime_types::Context,
     scopes: &mut Vec<ScopeCached>,
     code: &mut Code,
     fun: &InnerPath,
-    (kind, pos): (ShallowType, Position),
-) -> Result<(ShallowType, Position), CodegenError> {
+    pos: Position,
+) -> Result<Position, CodegenError> {
     use Instructions::*;
     let mut return_kind = ShallowType::empty();
-    for (node, line) in tail {
-        match node {
-            expression_parser::TailNodes::Nested(_) => todo!(),
-            expression_parser::TailNodes::Index(_) => todo!(),
-            expression_parser::TailNodes::Call(_) => todo!(),
-            expression_parser::TailNodes::Cast(_) => todo!(),
+    match tail.next() {
+        Some(node) => {
+            match &node.0 {
+                expression_parser::TailNodes::Nested(_) => todo!(),
+                expression_parser::TailNodes::Index(idx) => {
+                    match &pos {
+                        Position::Function(_) => todo!(),
+                        Position::StructField(_, _) => todo!(),
+                        Position::File(_) => Err(CodegenError::CannotIndexFile(node.1.clone()))?,
+                        Position::Variable(var) => {
+                            let var = match find_var(&scopes, &var) {
+                                Some(var) => var,
+                                None => {
+                                    Err(CodegenError::VariableNotFound(var.clone(), node.1.clone()))?
+                                }
+                            };
+                            let pos_cloned = var.pos.clone();
+                            let index_kind = expression(objects, idx, scopes, code, context)?;
+                            code.push(Move(GENERAL_REG1, GENERAL_REG3));
+                            code.read(&pos_cloned, GENERAL_REG1);
+                        }
+                    }
+                }
+                expression_parser::TailNodes::Call(fun) => {
+                    
+                },
+                expression_parser::TailNodes::Cast(_) => todo!(),
+            }
+        }
+        None => {
+            // finish the sequence
         }
     }
-    Ok((kind, pos))
+    Ok(pos)
 }
 
 fn get_scope(
@@ -792,10 +823,10 @@ impl Code {
 }
 
 enum StructField {
-    Field(usize),
-    Method(usize),
-    OverloadedOperator(usize),
-    TraitMethod(usize),
+    Field(String),
+    Method(String),
+    OverloadedOperator(Operators),
+    TraitMethod(String, String),
 }
 
 enum Position {
