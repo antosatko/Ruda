@@ -2,14 +2,13 @@
 
 // use std.io
 
+fun empty(){}
+
 fun danda(): number {
-    &"danda";
-    &"danda";
-    &"danda";
-    &"danda";
     return 5
 }
 
 fun main(): number {
-    return danda()
+    let a = danda()
+    return a
 }
