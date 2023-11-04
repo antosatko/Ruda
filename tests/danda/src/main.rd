@@ -5,6 +5,7 @@
 fun empty(){}
 
 fun danda(): number {
+    6
     return 5
 }
 

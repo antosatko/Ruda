@@ -1,4 +1,3 @@
-use std::fmt::format;
 use std::ops::Add;
 use std::ops::Div;
 use std::ops::Mul;

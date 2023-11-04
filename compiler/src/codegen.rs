@@ -414,8 +414,8 @@ fn traverse_tail(
                                         }
                                     };
                                     *scope_len += 1;
+                                    scopes.last_mut().unwrap().insert_dummy(MemoryTypes::Register(Registers::G1));
                                     let obj = create_var_pos(scopes);
-                                    scopes.last_mut().unwrap().insert_dummy(obj.clone());
                                     temp_code.extend(&[
                                         Freeze,
                                         AllocateStatic(called_fun.args.len()),
