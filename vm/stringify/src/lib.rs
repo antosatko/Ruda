@@ -227,6 +227,7 @@ pub fn parse(str: &str) -> Data {
         shared_libs.push(ShLib { path, owns });
         i += 1;
     }
+    let _ = std::panic::take_hook();
     Data {
         instructions,
         values,

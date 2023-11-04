@@ -564,7 +564,7 @@ impl Context {
             Freeze => {
                 self.memory.stack.call_stack[self.memory.stack.ptr]
                     .reg_freeze
-                    .clone_from_slice(&self.memory.registers[..3]);
+                    .clone_from_slice(&self.memory.registers[..6]);
                 self.next_line();
             }
             Swap(reg1, reg2) => {
@@ -2081,7 +2081,7 @@ pub mod runtime_types {
         Ptr(usize),
         /// Index: idx | gets pointer from reg(<pointer>) repairs it and adds reg(<idx>)
         Index(usize),
-        /// Allocate: size_reg pointers_len | reserves <size> on heap and stores location in registers(<reg>)
+        /// Allocate: size_reg pointers_len | reserves <size> on heap and stores location in registers(pointer_reg)
         Allocate(usize),
         /// Reallocate: size_reg | resizes heap(<reg>) for <size>; additional space is filled with null
         Reallocate(usize),

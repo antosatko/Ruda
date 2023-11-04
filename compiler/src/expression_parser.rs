@@ -309,7 +309,13 @@ pub fn try_get_variable(
 pub fn get_args(node: &Node, errors: &mut Vec<ErrType>) -> Vec<ValueType> {
     let mut result = vec![];
     for child in step_inside_arr(&node, "expressions") {
-        result.push(expr_into_tree(&child, errors));
+        let expr = expr_into_tree(&child, errors);
+        if let ValueType::Expression(exrp) = &expr {
+            if exrp.left.is_none() && exrp.right.is_none() {
+                continue;
+            }
+        }
+        result.push(expr);
     }
     result
 }
@@ -554,8 +560,8 @@ impl Variable {
 
 #[derive(Debug, Clone)]
 pub struct FunctionCall {
-    generic: Vec<ShallowType>,
-    args: Vec<ValueType>,
+    pub generic: Vec<ShallowType>,
+    pub args: Vec<ValueType>,
 }
 #[derive(Debug, Clone)]
 pub enum TailNodes {

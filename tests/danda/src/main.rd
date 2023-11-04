@@ -2,7 +2,13 @@
 
 // use std.io
 
-fun main(): char? {
-    let a = 1
-    return null
+fun danda(): number {
+    let a = 5
+    let b = 6
+    return 5
+}
+
+fun main(): number {
+    return danda()
+    
 }
