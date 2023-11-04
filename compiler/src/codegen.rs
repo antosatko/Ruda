@@ -173,7 +173,6 @@ fn expression(
                 }
                 expression_parser::Literals::String(str) => {
                     let pos = new_const(context, &ConstValue::String(str.clone()))?;
-                    println!("refs: {:?}", lit.refs);
                     match lit.refs {
                         expression_parser::Ref::Dereferencing(depth) => {
                             Err(CodegenError::DerefereString(depth, lit.line.clone()))?
@@ -229,7 +228,7 @@ fn expression(
                 code.push(ReadConst(0, GENERAL_REG1));
                 return Ok(ShTypeBuilder::new().set_name("null").build());
             }
-            gen_value(objects, value, context, scopes, code, fun)?;
+            return gen_value(objects, value, context, scopes, code, fun);
         }
         ValueType::Blank => {}
     }
@@ -307,11 +306,8 @@ fn gen_value(
     fun: &InnerPath,
 ) -> Result<ShallowType, CodegenError> {
     use Instructions::*;
-    println!("I am here");
     let root = identify_root(objects, value, context, scopes, code, fun)?;
-    println!("root: {:?}", root);
     let pos = traverse_tail(objects, &mut value.tail.iter(), context, scopes, code, fun, root)?;
-    println!("pos: {:?}", pos);
     let return_kind = match pos {
         Position::Function(fun) => {
             match fun {
@@ -553,22 +549,24 @@ fn get_scope(
                         ShTypeBuilder::new().set_name("null").build()
                     }
                 };
-                if let Some(kind) = kind {
-                    let cmp = kind.cmp(&expr_kind);
-                    if cmp.is_not_equal() {
-                        return Err(CodegenError::VariableTypeMismatch(
-                            kind.clone(),
-                            expr_kind,
-                            cmp,
-                            line.clone(),
-                        ));
-                    }
+                let kind = match kind {
+                    Some(kind) => kind.clone(),
+                    None => expr_kind.clone(),
+                };
+                let cmp = kind.cmp(&expr_kind);
+                if cmp.is_not_equal() {
+                    return Err(CodegenError::VariableTypeMismatch(
+                        kind.clone(),
+                        expr_kind,
+                        cmp,
+                        line.clone(),
+                    ));
                 }
                 let cache = last!(other_scopes);
                 cache.variables.insert(
                     ident.clone(),
                     Variable {
-                        kind: kind.clone(),
+                        kind: Some(kind.clone()),
                         pos,
                         value: try_get_const_val(),
                         line: line.clone(),

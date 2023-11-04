@@ -1,3 +1,4 @@
+use std::fmt::format;
 use std::ops::Add;
 use std::ops::Div;
 use std::ops::Mul;
@@ -115,8 +116,9 @@ impl Context {
     /// runs the context while printing the actions
     pub fn run_debug(&mut self) {
         println!("Running in debug mode...");
+        println!("{}", self.instruction_debug());
         while self.read_line() {
-            println!("{}. {:?}", self.code.ptr, self.code.data[self.code.ptr]);
+            println!("{}", self.instruction_debug());
         }
     }
     pub fn read_line(&mut self) -> bool {
@@ -1133,6 +1135,159 @@ impl Context {
     }
     pub fn set_libs(&mut self, libs: Libs) {
         self.libs = libs.into();
+    }
+    pub fn instruction_debug(&self) -> String {
+        const DEF: String = String::new();
+        let mut prepend = format!("{}. {:?} ", self.code.ptr, self.code.data[self.code.ptr]);
+        let val = match &self.code.data[self.code.ptr] {
+            Instructions::Debug(_) => DEF,
+            Instructions::Write(_, register) => format!(
+                "data: {}",
+                self.memory.registers[*register].to_str(&self.memory)
+            ),
+            Instructions::Read(stack, _) => format!(
+                "data: {}",
+                self.memory.stack.data
+                    [self.memory.stack.call_stack[self.memory.stack.ptr].end - *stack]
+                    .to_str(&self.memory)
+            ),
+            Instructions::WritePtr(reg) => {
+                format!("data: {}", self.memory.registers[*reg].to_str(&self.memory))
+            }
+            Instructions::ReadPtr(_) => DEF,
+            Instructions::ReadConst(pos, _) => format!(
+                "data: {}",
+                self.memory.stack.data[*pos].to_str(&self.memory)
+            ),
+            Instructions::Ptr(_) => DEF,
+            Instructions::Index(_) => DEF,
+            Instructions::Allocate(_) => DEF,
+            Instructions::Reallocate(_) => DEF,
+            Instructions::Deallocate => DEF,
+            Instructions::Goto(instr) => format!("destination: {}", self.code.data[*instr]),
+            Instructions::GotoPtr => DEF,
+            Instructions::Branch(a, b) => format!(
+                "destination: {} or {}",
+                self.code.data[*a], self.code.data[*b]
+            ),
+            Instructions::Return => format!(
+                "destination: {}; value: {}",
+                self.code.data[self.memory.stack.call_stack[self.memory.stack.ptr].code_ptr],
+                self.memory.registers[RETURN_REG].to_str(&self.memory)
+            ),
+            Instructions::Unfreeze => DEF,
+            Instructions::ReserveStack(_, _) => DEF,
+            Instructions::Swap(a, b) => format!(
+                "registers: {} and {}",
+                self.memory.registers[*a].to_str(&self.memory),
+                self.memory.registers[*b].to_str(&self.memory)
+            ),
+            Instructions::Add(a, b, _) => format!(
+                "registers: {} and {}",
+                self.memory.registers[*a].to_str(&self.memory),
+                self.memory.registers[*b].to_str(&self.memory)
+            ),
+            Instructions::Sub(a, b, _) => format!(
+                "registers: {} and {}",
+                self.memory.registers[*a].to_str(&self.memory),
+                self.memory.registers[*b].to_str(&self.memory)
+            ),
+            Instructions::Mul(a, b, _) => format!(
+                "registers: {} and {}",
+                self.memory.registers[*a].to_str(&self.memory),
+                self.memory.registers[*b].to_str(&self.memory)
+            ),
+            Instructions::Div(a, b, _) => format!(
+                "registers: {} and {}",
+                self.memory.registers[*a].to_str(&self.memory),
+                self.memory.registers[*b].to_str(&self.memory)
+            ),
+            Instructions::Mod(a, b, _) => format!(
+                "registers: {} and {}",
+                self.memory.registers[*a].to_str(&self.memory),
+                self.memory.registers[*b].to_str(&self.memory)
+            ),
+            Instructions::Equ(a, b, _) => format!(
+                "registers: {} and {}",
+                self.memory.registers[*a].to_str(&self.memory),
+                self.memory.registers[*b].to_str(&self.memory)
+            ),
+            Instructions::Grt(a, b, _) => format!(
+                "registers: {} and {}",
+                self.memory.registers[*a].to_str(&self.memory),
+                self.memory.registers[*b].to_str(&self.memory)
+            ),
+            Instructions::Less(a, b, _) => format!(
+                "registers: {} and {}",
+                self.memory.registers[*a].to_str(&self.memory),
+                self.memory.registers[*b].to_str(&self.memory)
+            ),
+            Instructions::And(a, b, _) => format!(
+                "registers: {} and {}",
+                self.memory.registers[*a].to_str(&self.memory),
+                self.memory.registers[*b].to_str(&self.memory)
+            ),
+            Instructions::Or(a, b, _) => format!(
+                "registers: {} and {}",
+                self.memory.registers[*a].to_str(&self.memory),
+                self.memory.registers[*b].to_str(&self.memory)
+            ),
+            Instructions::Not(a, _) => format!(
+                "register: {}",
+                self.memory.registers[*a].to_str(&self.memory)
+            ),
+            Instructions::Cal(_, _) => DEF,
+            Instructions::End => DEF,
+            Instructions::Cast(a, b) => format!(
+                "registers: {} and {}",
+                self.memory.registers[*a].to_str(&self.memory),
+                self.memory.registers[*b].to_str(&self.memory)
+            ),
+            Instructions::Len(_) => DEF,
+            Instructions::Type(_, _) => DEF,
+            Instructions::Jump(dest) => format!("destination: {}", self.code.data[*dest]),
+            Instructions::Freeze => DEF,
+            Instructions::Back => format!(
+                "destination: {}",
+                self.code.data[self.memory.stack.call_stack[self.memory.stack.ptr].code_ptr]
+            ),
+            Instructions::Move(val, _) => format!(
+                "register: {}",
+                self.memory.registers[*val].to_str(&self.memory)
+            ),
+            Instructions::Sweep => DEF,
+            Instructions::SweepUnoptimized => DEF,
+            Instructions::AllocateStatic(_) => DEF,
+            Instructions::IndexStatic(_) => DEF,
+            Instructions::FillRange(val, _) => format!(
+                "register: {}",
+                self.memory.registers[*val].to_str(&self.memory)
+            ),
+            Instructions::CopyRange(_, _, _) => DEF,
+            Instructions::Break(_) => DEF,
+            Instructions::DynMethod(_, _, _) => DEF,
+            Instructions::Panic => DEF,
+            Instructions::Catch => DEF,
+            Instructions::CatchId(_) => DEF,
+            Instructions::DeleteCatch(_) => DEF,
+            Instructions::NonPrimitiveType(reg, id) => format!(
+                "register: {}; name: {}",
+                self.memory.registers[*reg].to_str(&self.memory),
+                self.memory.non_primitives[*id].name
+            ),
+            Instructions::StrNew => DEF,
+            Instructions::IntoStr(val) => format!(
+                "register: {}",
+                self.memory.registers[*val].to_str(&self.memory)
+            ),
+            Instructions::DynReserve(reg) => format!(
+                "reserved: {}",
+                self.memory.registers[*reg].to_str(&self.memory)
+            ),
+            Instructions::DynArgument(_, _, _) => DEF,
+        };
+        prepend.push_str(&val);
+        prepend
     }
 }
 #[allow(unused)]

@@ -206,27 +206,27 @@ pub mod tokenizer {
                     match t {
                         'i' => {
                             let val = ConstValue::Int(*num as i64);
-                            let kind = val.gen_type().unwrap();
+                            let kind = val.gen_type()?;
                             Some((val, kind))
                         },
                         'f' => {
                             let val = ConstValue::Float(*num);
-                            let kind = val.gen_type().unwrap();
+                            let kind = val.gen_type()?;
                             Some((val, kind))
                         }
                         'u' => {
                             let val = ConstValue::Usize(*num as usize);
-                            let kind = val.gen_type().unwrap();
+                            let kind = val.gen_type()?;
                             Some((val, kind))
                         }
                         'c' => {
                             let val = ConstValue::Char(*num as u8 as char);
-                            let kind = val.gen_type().unwrap();
+                            let kind = val.gen_type()?;
                             Some((val, kind))
                         }
                         'n' => {
                             let val = ConstValue::Number(*num);
-                            let kind = val.gen_type().unwrap();
+                            let kind = val.gen_type()?;
                             Some((val, kind))
                         }
                         _ => None,
