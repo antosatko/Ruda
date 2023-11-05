@@ -377,10 +377,16 @@ fn identify_root(
     if let Some(fun) = find_fun(objects, &ident, &file) {
         return Ok(Position::Function(fun));
     }
+    // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE 
+    // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE 
+    // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE 
     Err(CodegenError::VariableNotFound(
         ident.to_string(),
         line.clone(),
     ))?
+    // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE 
+    // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE 
+    // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE 
 }
 
 fn traverse_tail(
