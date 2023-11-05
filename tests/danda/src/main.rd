@@ -5,11 +5,12 @@
 fun empty(){}
 
 fun danda(): number {
-    6
-    return 5
+    let a = 5
+    {
+        return a
+    }
 }
 
 fun main(): number {
-    let a = danda()
-    return a
+    return danda()
 }
