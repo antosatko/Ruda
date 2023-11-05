@@ -2,15 +2,28 @@
 
 // use std.io
 
-fun empty(){}
+fun empty(): number{
+    69
+}
 
 fun danda(): number {
-    let a = 5
-    {
-        return a
-    }
+    let b = empty()
+    return 7
 }
 
 fun main(): number {
+    let a: number?
+    let b = 8
+    danda()
+    danda()
+    danda()
+    danda()
+    danda()
+    danda()
+    danda()
+    let c = 51
+    danda();
+    &"dfg"
+    danda()
     return danda()
 }

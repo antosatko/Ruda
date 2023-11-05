@@ -52,9 +52,10 @@ fn call_main(main: &Function, context: &mut runtime_types::Context) -> Result<()
     context.code.data.extend(&[
         End,
         ReserveStack(
-            main.stack_size.unwrap() + consts_len,
-            main.pointers.unwrap_or(0),
+            consts_len,
+            0,
         ),
+        ReserveStack(main.stack_size.unwrap(), main.pointers.unwrap_or(0)),
         Goto(main.location.unwrap()),
     ]);
     // swap all returns in main with end
@@ -120,11 +121,13 @@ fn gen_fun<'a>(
         &mut code,
         fun,
     )?;
+    println!("flipping with size: {scope_len}");
     flip_stack_access(scope_len, &mut code);
     code.push(Instructions::Return);
     let pos = merge_code(&mut context.code.data, &code.code, scope_len);
     let this_fun = fun.get_mut(objects)?;
     this_fun.location = Some(pos.0);
+    println!("this_fun.stack_size: {scope_len}");
     this_fun.stack_size = Some(scope_len);
     Ok(())
 }
@@ -414,7 +417,6 @@ fn traverse_tail(
                                         }
                                     };
                                     *scope_len += 1;
-                                    scopes.last_mut().unwrap().insert_dummy(MemoryTypes::Register(Registers::G1));
                                     let obj = create_var_pos(scopes);
                                     temp_code.extend(&[
                                         Freeze,
@@ -706,7 +708,9 @@ fn get_scope(
                 merge_code(&mut code.code, &expr_code.code, 0);
             }
             crate::codeblock_parser::Nodes::Expr { expr, line } => {
+                println!("scope before: {max_scope_len}");
                 expression(objects, expr, other_scopes, code, context, &fun, &mut max_scope_len)?;
+                println!("scope after: {max_scope_len}");
             }
             crate::codeblock_parser::Nodes::Block { body, line } => {
                 let scope = open_scope!(body, code);
@@ -746,6 +750,7 @@ fn get_scope(
             }
         }
     }
+    println!("scope len: {max_scope_len}");
     Ok(max_scope_len)
 }
 
@@ -814,10 +819,10 @@ fn flip_stack_access(len: usize, code: &mut Code) {
     for instr in code.code.iter_mut() {
         match instr {
             Read(from, _) => {
-                *from = len - *from + 1;
+                *from = len - *from + 0;
             }
             Write(to, _) => {
-                *to = len - *to + 1;
+                *to = len - *to + 0;
             }
             _ => (),
         }
