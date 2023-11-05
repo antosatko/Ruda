@@ -345,7 +345,14 @@ pub mod dictionary {
                 };
                 let alias = match try_get_ident(&node) {
                     Some(alias) => alias,
-                    None => path.split("/").last().unwrap().to_string(),
+                    None =>{
+                        let alias = path.split("/").last().unwrap();
+                        if alias.starts_with("#") {
+                            alias[1..].to_string()
+                        } else {
+                            alias.to_string()
+                        }
+                    },
                 };
                 dictionary.imports.push(Import {
                     path,

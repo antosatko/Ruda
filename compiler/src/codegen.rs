@@ -340,6 +340,7 @@ fn gen_value(
         },
         Position::StructField(_, _) => todo!(),
         Position::Import(_) => todo!(),
+        Position::BinImport(_) => todo!(),
         Position::Variable(var) => {
             let var = match find_var(&scopes, &var) {
                 Some(var) => var,
@@ -411,6 +412,19 @@ fn traverse_tail(
                             scope_len,
                         );
                     }
+                    Position::BinImport(fname) => {
+                        let root = identify_root(objects, &ident, Some(scopes), &fname, &node.1)?;
+                        return traverse_tail(
+                            objects,
+                            tail,
+                            context,
+                            scopes,
+                            code,
+                            fun,
+                            root,
+                            scope_len,
+                        );
+                    }
                     Position::Variable(vname) => {
                         todo!()
                     }
@@ -428,6 +442,7 @@ fn traverse_tail(
                     }
                 },
                 expression_parser::TailNodes::Index(idx) => match &pos {
+                    Position::BinImport(_) => Err(CodegenError::CannotIndexFile(node.1.clone()))?,
                     Position::Function(_) => {
                         Err(CodegenError::CannotIndexFunction(node.1.clone()))?
                     }
@@ -1237,6 +1252,7 @@ enum Position {
     Function(FunctionKind),
     StructField(InnerPath, StructField),
     Import(String),
+    BinImport(String),
     Variable(String),
     Pointer(ShallowType),
     ReturnValue(ShallowType),

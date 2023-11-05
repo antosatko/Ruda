@@ -11,5 +11,6 @@ fun danda(): number {
 }
 
 fun main(): number {
+    io.println("Hello, world!")
     return dada.danda()
 }
