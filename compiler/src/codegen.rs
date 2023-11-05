@@ -1,18 +1,20 @@
 use std::collections::HashMap;
+use std::io::ErrorKind;
 use std::net;
 use std::thread::Scope;
 
 use runtime::runtime_types::{
-    self, Instructions, Stack, Types, CODE_PTR_REG, GENERAL_REG1, POINTER_REG, RETURN_REG, GENERAL_REG3, MEMORY_REG1, MEMORY_REG3, Memory,
+    self, Instructions, Memory, Stack, Types, CODE_PTR_REG, GENERAL_REG1, GENERAL_REG3,
+    MEMORY_REG1, MEMORY_REG3, POINTER_REG, RETURN_REG,
 };
 
 use crate::codeblock_parser::Nodes;
-use crate::expression_parser::{self, ValueType};
+use crate::expression_parser::{self, FunctionCall, ValueType};
 use crate::intermediate::dictionary::{
-    ConstValue, Function, ShTypeBuilder, ShallowType, TypeComparison, self, Arg,
+    self, Arg, ConstValue, Function, ShTypeBuilder, ShallowType, TypeComparison,
 };
-use crate::lexer::tokenizer::{Tokens, Operators};
-use crate::tree_walker::tree_walker::{Line, Err};
+use crate::lexer::tokenizer::{Operators, Tokens};
+use crate::tree_walker::tree_walker::{Err, Line};
 use crate::{intermediate, prep_objects::Context};
 
 use crate::libloader::{MemoryTypes, Registers};
@@ -51,10 +53,7 @@ fn call_main(main: &Function, context: &mut runtime_types::Context) -> Result<()
     let consts_len = context.memory.stack.data.len();
     context.code.data.extend(&[
         End,
-        ReserveStack(
-            consts_len,
-            0,
-        ),
+        ReserveStack(consts_len, 0),
         ReserveStack(main.stack_size.unwrap(), main.pointers.unwrap_or(0)),
         Goto(main.location.unwrap()),
     ]);
@@ -95,6 +94,7 @@ pub enum CodegenError {
     CanCallOnlyFunctions(Line),
     // (expected, got, comparison, line)
     ArgTypeMismatch(Arg, ShallowType, TypeComparison, Line),
+    CannotAttachMethodsToFunctions(Line),
 }
 
 pub fn stringify(
@@ -169,7 +169,9 @@ fn expression(
                                     Move(GENERAL_REG1, POINTER_REG),
                                 ]);
                                 for value in values {
-                                    arr_.push(expression(objects, value, scopes, code, context, &fun, scope_len)?);
+                                    arr_.push(expression(
+                                        objects, value, scopes, code, context, &fun, scope_len,
+                                    )?);
                                 }
                             }
                         }
@@ -256,7 +258,7 @@ fn find_import<'a>(objects: &'a Context, ident: &'a str, file_name: &'a str) -> 
                     return Some(&import.path);
                 }
             }
-        },
+        }
         None => None?,
     };
     None
@@ -274,7 +276,7 @@ fn find_fun<'a>(objects: &'a Context, ident: &'a str, file_name: &'a str) -> Opt
                     }));
                 }
             }
-        },
+        }
         None => None?,
     };
     match objects.1.get(ident) {
@@ -288,7 +290,7 @@ fn find_fun<'a>(objects: &'a Context, ident: &'a str, file_name: &'a str) -> Opt
                     }));
                 }
             }
-        },
+        }
         None => None?,
     };
     None
@@ -311,26 +313,40 @@ fn gen_value(
     scope_len: &mut usize,
 ) -> Result<ShallowType, CodegenError> {
     use Instructions::*;
-    let root = identify_root(objects, value, context, scopes, code, fun)?;
-    let pos = traverse_tail(objects, &mut value.tail.iter(), context, scopes, code, fun, root, scope_len)?;
-    let return_kind = match pos {
-        Position::Function(fun) => {
-            match fun {
-                FunctionKind::Fun(fun) => {
-                    let fun = fun.get(objects)?;
-                    fun.return_type.clone().unwrap()
-                }
-                _ => todo!()
+    let root = identify_root(
+        objects,
+        &value.root.0,
+        Some(scopes),
+        &fun.file,
+        &value.root.1,
+    )?;
+    let pos = traverse_tail(
+        objects,
+        &mut value.tail.iter(),
+        context,
+        scopes,
+        code,
+        fun,
+        root,
+        scope_len,
+    )?;
+    let kind = match pos {
+        Position::Function(fun) => match fun {
+            FunctionKind::Fun(fun) => {
+                let fun = fun.get(objects)?;
+                fun.return_type.clone().unwrap()
             }
-        }
+            _ => todo!(),
+        },
         Position::StructField(_, _) => todo!(),
         Position::Import(_) => todo!(),
         Position::Variable(var) => {
             let var = match find_var(&scopes, &var) {
                 Some(var) => var,
-                None => {
-                    Err(CodegenError::VariableNotFound(var.clone(), value.root.1.clone()))?
-                }
+                None => Err(CodegenError::VariableNotFound(
+                    var.clone(),
+                    value.root.1.clone(),
+                ))?,
             };
             let pos_cloned = var.pos.clone();
             code.read(&pos_cloned, GENERAL_REG1);
@@ -339,28 +355,31 @@ fn gen_value(
         Position::Pointer(kind) => kind,
         Position::ReturnValue(kind) => kind,
     };
-    Ok(return_kind)
+    Ok(kind)
 }
 
 fn identify_root(
     objects: &Context,
-    value: &expression_parser::Variable,
-    context: &mut runtime_types::Context,
-    scopes: &mut Vec<ScopeCached>,
-    code: &mut Code,
-    fun: &InnerPath,
+    ident: &str,
+    scopes: Option<&mut Vec<ScopeCached>>,
+    file: &str,
+    line: &Line,
 ) -> Result<Position, CodegenError> {
-    let root = &value.root.0;
-    if find_var(scopes, &root).is_some() {
-        return Ok(Position::Variable(root.clone()));
+    if let Some(scopes) = scopes {
+        if find_var(scopes, &ident).is_some() {
+            return Ok(Position::Variable(ident.to_string()));
+        }
     }
-    if find_import(objects, &root, &fun.file).is_some() {
-        return Ok(Position::Import(root.clone()));
+    if let Some(import) = find_import(objects, &ident, &file) {
+        return Ok(Position::Import(import.to_string()));
     }
-    if let Some(fun) = find_fun(objects, &root, &fun.file) {
+    if let Some(fun) = find_fun(objects, &ident, &file) {
         return Ok(Position::Function(fun));
     }
-    Err(CodegenError::VariableNotFound(root.clone(), value.root.1.clone()))?
+    Err(CodegenError::VariableNotFound(
+        ident.to_string(),
+        line.clone(),
+    ))?
 }
 
 fn traverse_tail(
@@ -378,33 +397,58 @@ fn traverse_tail(
     match tail.next() {
         Some(node) => {
             match &node.0 {
-                expression_parser::TailNodes::Nested(_) => todo!(),
-                expression_parser::TailNodes::Index(idx) => {
-                    match &pos {
-                        Position::Function(_) => Err(CodegenError::CannotIndexFunction(node.1.clone()))?,
-                        Position::StructField(_, _) => todo!(),
-                        Position::Import(_) => Err(CodegenError::CannotIndexFile(node.1.clone()))?,
-                        Position::Variable(var) => {
-                            let var = match find_var(&scopes, &var) {
-                                Some(var) => var,
-                                None => {
-                                    Err(CodegenError::VariableNotFound(var.clone(), node.1.clone()))?
-                                }
-                            };
-                            let pos_cloned = var.pos.clone();
-                            let index_kind = expression(objects, idx, scopes, code, context, &fun, scope_len)?;
-                            code.push(Move(GENERAL_REG1, GENERAL_REG3));
-                            code.read(&pos_cloned, GENERAL_REG1);
-                        }
-                        Position::Pointer(_) => todo!(),
-                        Position::ReturnValue(_) => todo!(),
+                expression_parser::TailNodes::Nested(ident) => match &pos {
+                    Position::Import(fname) => {
+                        let root = identify_root(objects, &ident, Some(scopes), &fname, &node.1)?;
                     }
-                }
+                    Position::Variable(vname) => {
+                        todo!()
+                    }
+                    Position::StructField(path, kind) => {
+                        todo!()
+                    }
+                    Position::Function(_) => {
+                        Err(CodegenError::CannotAttachMethodsToFunctions(node.1.clone()))?
+                    }
+                    Position::ReturnValue(val) => {
+                        todo!()
+                    }
+                    Position::Pointer(ptr) => {
+                        todo!()
+                    }
+                },
+                expression_parser::TailNodes::Index(idx) => match &pos {
+                    Position::Function(_) => {
+                        Err(CodegenError::CannotIndexFunction(node.1.clone()))?
+                    }
+                    Position::StructField(_, _) => todo!(),
+                    Position::Import(_) => Err(CodegenError::CannotIndexFile(node.1.clone()))?,
+                    Position::Variable(var) => {
+                        let var = match find_var(&scopes, &var) {
+                            Some(var) => var,
+                            None => {
+                                Err(CodegenError::VariableNotFound(var.clone(), node.1.clone()))?
+                            }
+                        };
+                        let pos_cloned = var.pos.clone();
+                        let index_kind =
+                            expression(objects, idx, scopes, code, context, &fun, scope_len)?;
+                        code.push(Move(GENERAL_REG1, GENERAL_REG3));
+                        code.read(&pos_cloned, GENERAL_REG1);
+                    }
+                    Position::Pointer(ptr) => {
+                        todo!()
+                    }
+                    Position::ReturnValue(_) => todo!(),
+                },
                 expression_parser::TailNodes::Call(call_params) => {
                     match &pos {
                         Position::Function(fun_kind) => {
                             match fun_kind {
                                 FunctionKind::Fun(fun_path) => {
+                                    // legacy code
+                                    // keep it in case there is a problem with function calls (copilot is cooking good :D)
+                                    /*
                                     let mut temp_code = Code { code: Vec::new() };
                                     let mut called_fun = fun_path.get(objects)?;
                                     // setup stack TODO: avoid object creation
@@ -418,21 +462,25 @@ fn traverse_tail(
                                     };
                                     *scope_len += 1;
                                     let obj = create_var_pos(scopes);
-                                    temp_code.extend(&[
-                                        Freeze,
-                                        AllocateStatic(called_fun.args.len()),
-                                    ]);
+                                    temp_code
+                                        .extend(&[Freeze, AllocateStatic(called_fun.args.len())]);
                                     temp_code.write(POINTER_REG, &obj);
                                     // setup args
                                     let mut args = Vec::new();
                                     for (idx, arg) in call_params.args.iter().enumerate() {
-                                        let kind = expression(objects, arg, scopes, &mut temp_code, context, &fun, scope_len)?;
+                                        let kind = expression(
+                                            objects,
+                                            arg,
+                                            scopes,
+                                            &mut temp_code,
+                                            context,
+                                            &fun,
+                                            scope_len,
+                                        )?;
                                         args.push(kind);
                                         temp_code.read(&obj, POINTER_REG);
-                                        temp_code.extend(&[
-                                            IndexStatic(idx),
-                                            WritePtr(GENERAL_REG1),
-                                        ])
+                                        temp_code
+                                            .extend(&[IndexStatic(idx), WritePtr(GENERAL_REG1)])
                                     }
                                     // type check
                                     let called_fun = fun_path.get(objects)?;
@@ -448,9 +496,10 @@ fn traverse_tail(
                                         }
                                     }
                                     // move args
-                                    temp_code.extend(&[
-                                        ReserveStack(called_fun.stack_size.unwrap(), called_fun.pointers.unwrap_or(0)),
-                                    ]);
+                                    temp_code.extend(&[ReserveStack(
+                                        called_fun.stack_size.unwrap(),
+                                        called_fun.pointers.unwrap_or(0),
+                                    )]);
                                     if args.len() > 0 {
                                         temp_code.read(&obj, POINTER_REG);
                                     }
@@ -469,15 +518,29 @@ fn traverse_tail(
                                         Move(RETURN_REG, GENERAL_REG1),
                                     ]);
                                     merge_code(&mut code.code, &temp_code.code, stack_len);
-                                    return Ok(Position::ReturnValue(called_fun.return_type.clone().unwrap_or(ShTypeBuilder::new().set_name("null").build())));
-                                },
+                                    return Ok(Position::ReturnValue(
+                                        called_fun.return_type.clone().unwrap_or(
+                                            ShTypeBuilder::new().set_name("null").build(),
+                                        ),
+                                    ));
+                                    */
+                                    call_fun(
+                                        objects,
+                                        fun_path,
+                                        context,
+                                        scopes,
+                                        code,
+                                        scope_len,
+                                        call_params,
+                                    )?;
+                                }
                                 FunctionKind::Binary(fun) => todo!("binary function call"),
                                 FunctionKind::Dynamic(fun) => todo!("dynamic function call"),
                             };
                         }
                         _ => Err(CodegenError::CanCallOnlyFunctions(node.1.clone()))?,
                     }
-                },
+                }
                 expression_parser::TailNodes::Cast(_) => todo!(),
             }
         }
@@ -486,6 +549,89 @@ fn traverse_tail(
         }
     }
     Ok(pos)
+}
+
+fn call_fun(
+    objects: &mut Context,
+    fun: &InnerPath,
+    context: &mut runtime_types::Context,
+    scopes: &mut Vec<ScopeCached>,
+    code: &mut Code,
+    scope_len: &mut usize,
+    call_params: &FunctionCall,
+) -> Result<ShallowType, CodegenError> {
+    use Instructions::*;
+    let mut temp_code = Code { code: Vec::new() };
+    let mut called_fun = fun.get(objects)?;
+    // setup stack TODO: avoid object creation
+    let stack_len = match called_fun.stack_size {
+        Some(len) => len,
+        None => {
+            gen_fun(objects, fun, context)?;
+            called_fun = fun.get(objects)?;
+            called_fun.stack_size.unwrap()
+        }
+    };
+    *scope_len += 1;
+    let obj = create_var_pos(scopes);
+    temp_code.extend(&[Freeze, AllocateStatic(called_fun.args.len())]);
+    temp_code.write(POINTER_REG, &obj);
+    // setup args
+    let mut args = Vec::new();
+    for (idx, arg) in call_params.args.iter().enumerate() {
+        let kind = expression(
+            objects,
+            arg,
+            scopes,
+            &mut temp_code,
+            context,
+            &fun,
+            scope_len,
+        )?;
+        args.push(kind);
+        temp_code.read(&obj, POINTER_REG);
+        temp_code.extend(&[IndexStatic(idx), WritePtr(GENERAL_REG1)])
+    }
+    // type check
+    let called_fun = fun.get(objects)?;
+    for (idx, arg) in args.iter().enumerate() {
+        let cmp = called_fun.args[idx].kind.cmp(&arg);
+        if cmp.is_not_equal() {
+            return Err(CodegenError::ArgTypeMismatch(
+                called_fun.args[idx].clone(),
+                arg.clone(),
+                cmp,
+                called_fun.args[idx].line.clone(),
+            ));
+        }
+    }
+    // move args
+    temp_code.extend(&[ReserveStack(
+        called_fun.stack_size.unwrap(),
+        called_fun.pointers.unwrap_or(0),
+    )]);
+    if args.len() > 0 {
+        temp_code.read(&obj, POINTER_REG);
+    }
+    for (idx, _) in args.iter().enumerate() {
+        temp_code.extend(&[
+            // moves ptr by 1
+            IndexStatic(1),
+            ReadPtr(GENERAL_REG1),
+            Write(idx + 1, GENERAL_REG1),
+        ]);
+    }
+    // call
+    temp_code.extend(&[
+        Jump(called_fun.location.unwrap()),
+        Unfreeze,
+        Move(RETURN_REG, GENERAL_REG1),
+    ]);
+    merge_code(&mut code.code, &temp_code.code, stack_len);
+    Ok(called_fun
+        .return_type
+        .clone()
+        .unwrap_or(ShTypeBuilder::new().set_name("null").build()))
 }
 
 fn get_scope(
@@ -537,7 +683,15 @@ fn get_scope(
                 let pos = create_var_pos(&other_scopes);
                 let expr_kind = match expr {
                     Some(expr) => {
-                        let expr_kind = expression(objects, expr, other_scopes, code, context, &fun, &mut max_scope_len)?;
+                        let expr_kind = expression(
+                            objects,
+                            expr,
+                            other_scopes,
+                            code,
+                            context,
+                            &fun,
+                            &mut max_scope_len,
+                        )?;
                         code.write(GENERAL_REG1, &pos);
                         expr_kind
                     }
@@ -592,7 +746,15 @@ fn get_scope(
                 let mut expr_code = Code { code: Vec::new() };
                 let mut block_code = Code { code: Vec::new() };
                 let mut gotos = Vec::new();
-                let kind = expression(objects, cond, other_scopes, &mut expr_code, context, &fun, &mut max_scope_len)?;
+                let kind = expression(
+                    objects,
+                    cond,
+                    other_scopes,
+                    &mut expr_code,
+                    context,
+                    &fun,
+                    &mut max_scope_len,
+                )?;
                 if kind.cmp(&bool_type).is_not_equal() {
                     return Err(CodegenError::ExpectedBool(line.clone()));
                 }
@@ -606,7 +768,15 @@ fn get_scope(
                 for elif in elif {
                     let mut expr_code = Code { code: Vec::new() };
                     let mut block_code = Code { code: Vec::new() };
-                    let kind = expression(objects, &elif.0, other_scopes, &mut expr_code, context, &fun, &mut max_scope_len)?;
+                    let kind = expression(
+                        objects,
+                        &elif.0,
+                        other_scopes,
+                        &mut expr_code,
+                        context,
+                        &fun,
+                        &mut max_scope_len,
+                    )?;
                     if kind.cmp(&bool_type).is_not_equal() {
                         return Err(CodegenError::ExpectedBool(elif.2.clone()));
                     }
@@ -650,7 +820,15 @@ fn get_scope(
                 use Instructions::*;
                 let mut expr_code = Code { code: Vec::new() };
                 let mut block_code = Code { code: Vec::new() };
-                let kind = expression(objects, cond, other_scopes, &mut expr_code, context, &fun, &mut max_scope_len)?;
+                let kind = expression(
+                    objects,
+                    cond,
+                    other_scopes,
+                    &mut expr_code,
+                    context,
+                    &fun,
+                    &mut max_scope_len,
+                )?;
                 if kind.cmp(&bool_type).is_not_equal() {
                     return Err(CodegenError::ExpectedBool(line.clone()));
                 }
@@ -676,7 +854,15 @@ fn get_scope(
                 let mut expr_code = Code { code: Vec::new() };
                 let kind = match expr {
                     Some(expr) => {
-                        let kind = expression(objects, expr, other_scopes, &mut expr_code, context, &fun, &mut max_scope_len)?;
+                        let kind = expression(
+                            objects,
+                            expr,
+                            other_scopes,
+                            &mut expr_code,
+                            context,
+                            &fun,
+                            &mut max_scope_len,
+                        )?;
                         expr_code.push(Move(GENERAL_REG1, RETURN_REG));
                         kind
                     }
@@ -709,7 +895,15 @@ fn get_scope(
             }
             crate::codeblock_parser::Nodes::Expr { expr, line } => {
                 println!("scope before: {max_scope_len}");
-                expression(objects, expr, other_scopes, code, context, &fun, &mut max_scope_len)?;
+                expression(
+                    objects,
+                    expr,
+                    other_scopes,
+                    code,
+                    context,
+                    &fun,
+                    &mut max_scope_len,
+                )?;
                 println!("scope after: {max_scope_len}");
             }
             crate::codeblock_parser::Nodes::Block { body, line } => {
@@ -746,7 +940,75 @@ fn get_scope(
                 use Instructions::*;
                 let mut expr_code = Code { code: Vec::new() };
                 let mut target_code = Code { code: Vec::new() };
-                // let expr_kind = expression(objects, expr, other_scopes, &mut expr_code, context)?;
+                let mut conclusion_code = Code { code: Vec::new() };
+                match target {
+                    ValueType::Value(val) => {
+                        let root = identify_root(
+                            objects,
+                            &val.root.0,
+                            Some(other_scopes),
+                            &fun.file,
+                            &val.root.1,
+                        )?;
+                        let pos = traverse_tail(
+                            objects,
+                            &mut val.tail.iter(),
+                            context,
+                            other_scopes,
+                            &mut target_code,
+                            fun,
+                            root,
+                            &mut max_scope_len,
+                        )?;
+                        match pos {
+                            Position::Variable(var) => {
+                                let var = match find_var(other_scopes, &var) {
+                                    Some(var) => var.clone(),
+                                    None => Err(CodegenError::VariableNotFound(
+                                        var.clone(),
+                                        val.root.1.clone(),
+                                    ))?,
+                                };
+                                let expr = expression(
+                                    objects,
+                                    expr,
+                                    other_scopes,
+                                    &mut expr_code,
+                                    context,
+                                    &fun,
+                                    &mut max_scope_len,
+                                )?;
+                                if let Operators::Equal = op {
+                                    if let Some(kind) = &var.kind {
+                                        let cmp = kind.cmp(&expr);
+                                        if cmp.is_not_equal() {
+                                            return Err(CodegenError::VariableTypeMismatch(
+                                                kind.clone(),
+                                                expr,
+                                                cmp,
+                                                line.clone(),
+                                            ));
+                                        }
+                                    }
+                                    conclusion_code.write(GENERAL_REG1, &var.pos);
+                                } else {
+                                    todo!("other operators (need basic operators first)")
+                                }
+                                merge_code(&mut code.code, &target_code.code, 0);
+                                merge_code(&mut code.code, &expr_code.code, 0);
+                                merge_code(&mut code.code, &conclusion_code.code, 0);
+                            }
+                            Position::Pointer(_) => todo!(),
+                            _ => todo!(),
+                        }
+                    }
+                    ValueType::Parenthesis(_, _) => todo!(),
+                    _ => {
+                        unreachable!(
+                            "target not handled properly by the compiler, please report this bug"
+                        )
+                    }
+                }
             }
         }
     }
@@ -754,22 +1016,6 @@ fn get_scope(
     Ok(max_scope_len)
 }
 
-fn call_fun(
-    objects: &Context,
-    fun: &InnerPath,
-    args: &Vec<expression_parser::ValueType>,
-    scopes: &mut Vec<ScopeCached>,
-    code: &mut Code,
-    context: &mut runtime_types::Context,
-) -> Result<(), CodegenError> {
-    let fun = fun.get(objects)?;
-    use Instructions::*;
-    code.extend(&[
-        ReserveStack(fun.stack_size.unwrap(), fun.pointers.unwrap_or(0)),
-        Jump(fun.location.unwrap()),
-    ]);
-    Ok(())
-}
 fn create_var_pos(scopes: &Vec<ScopeCached>) -> MemoryTypes {
     let len = {
         let mut len = 0;
@@ -898,16 +1144,19 @@ struct ScopeCached {
 
 impl ScopeCached {
     pub fn insert_dummy(&mut self, pos: MemoryTypes) {
-        self.variables.insert(self.variables.len().to_string(), Variable {
-            kind: None,
-            pos,
-            value: None,
-            line: Line { line: 0, column: 0 },
-        });
+        self.variables.insert(
+            self.variables.len().to_string(),
+            Variable {
+                kind: None,
+                pos,
+                value: None,
+                line: Line { line: 0, column: 0 },
+            },
+        );
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Variable {
     kind: Option<ShallowType>,
     pos: MemoryTypes,

@@ -1,4 +1,4 @@
-// import "std.io"
+import "danda.rd" as dada
 
 // use std.io
 
@@ -12,18 +12,5 @@ fun danda(): number {
 }
 
 fun main(): number {
-    let a: number?
-    let b = 8
-    danda()
-    danda()
-    danda()
-    danda()
-    danda()
-    danda()
-    danda()
-    let c = 51
-    danda();
-    &"dfg"
-    danda()
-    return danda()
+    return dada.danda()
 }
