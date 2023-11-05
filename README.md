@@ -1,6 +1,8 @@
 # Ruda
 ![Lines of Code](https://aschey.tech/tokei/github/it-2001/Ruda?labelColor=badbe6&color=32a852&style=for-the-badge&label=Lines&logo=https://simpleicons.org/icons/rust.svg)
 
+> “25 000+ lines of code is a big project” - @ThePrimeagen
+
 <a><img src="logo.png" align="middle" height="256" width="256" ></a>
 ## Table of Contents
 
