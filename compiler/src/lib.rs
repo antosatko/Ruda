@@ -1,3 +1,5 @@
+use intermediate::dictionary;
+
 use crate::ast_parser::ast_parser::{generate_ast as gen_ast, Head, HeadParam};
 use crate::intermediate::AnalyzationError::ErrType;
 use crate::lexer::tokenizer::Tokens;
@@ -106,9 +108,9 @@ pub enum LinkingError {
 
 pub type Dictionaries = HashMap<String, intermediate::dictionary::Dictionary>;
 
-pub fn read_source(root: &str, main: &str) -> Result<String, ErrorOrigin> {
+pub fn read_source(root: &str, main: &str) -> Result<Option<String>, ErrorOrigin> {
     if main.starts_with("#") {
-        return Ok(String::new());
+        return Ok(None);
     }
     let root = std::path::PathBuf::from(root);
     let mut string = String::new();
@@ -131,7 +133,7 @@ pub fn read_source(root: &str, main: &str) -> Result<String, ErrorOrigin> {
             )));
         }
     };
-    Ok(string)
+    Ok(Some(string))
 }
 
 pub fn new_imports(imports: &mut Vec<String>, new: Vec<String>) {
@@ -157,7 +159,7 @@ pub fn build_dictionaries(
         .to_str()
         .expect("internal error 0. please contact the developer.");
     let main = match read_source(root, main_) {
-        Ok(main) => main,
+        Ok(main) => main.unwrap(),
         Err(err) => {
             return Err((err, main_.to_string()));
         }
@@ -176,15 +178,25 @@ pub fn build_dictionaries(
             return Err((err, root.to_string()));
         }
     };
+    let mut i = 0;
+    while i < imports.len() {
+        if imports[i].starts_with("#") {
+            imports.remove(i);
+        } else {
+            i += 1;
+        }
+    }
     loop {
         let mut found_imports = Vec::new();
         for import in &imports {
             if !dictionaries.contains_key(import) {
                 match read_source(root, import) {
                     Ok(main) => {
-                        // remove for prod
-                        println!("Building {}", import);
-                        match build_dictionary(&main, ast) {
+                        if main.is_none() {
+                            found_imports.push(import.clone());
+                            continue;
+                        }
+                        match build_dictionary(&main.unwrap(), ast) {
                             Ok(res) => {
                                 if res.1.len() > 0 {
                                     return Err((
@@ -229,12 +241,12 @@ pub fn build_dictionaries(
 pub fn build_binaries(
     paths: &Vec<String>,
     ast: &mut (HashMap<String, Head>, Vec<HeadParam>),
-) -> Result<Vec<libloader::Dictionary>, String> {
-    let mut binaries = Vec::new();
+    binaries: &mut Vec<libloader::Dictionary>,
+) -> Result<(), String> {
     for path in paths {
         binaries.push(libload(&path, ast)?);
     }
-    Ok(binaries)
+    Ok(())
 }
 
 pub fn build_std_lib(ast: &mut (HashMap<String, Head>, Vec<HeadParam>)) -> Result<Vec<(libloader::Dictionary, String)>, String> {
@@ -267,7 +279,9 @@ pub fn build_std_lib(ast: &mut (HashMap<String, Head>, Vec<HeadParam>)) -> Resul
         };
         let filename = match file.file_name().to_str() {
             Some(name) => {
-                name.strip_suffix(".dll").unwrap_or(&name).to_string()
+                let mut tmp = String::from("#");
+                tmp.push_str(name.strip_suffix(".dll").unwrap());
+                tmp
             }
             None => {
                 return Err(format!("Could not read stdlib directory."));

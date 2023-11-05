@@ -71,6 +71,7 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
     };
     println!("Dictionary generated.");
     println!("{:?}", dictionaries);
+    // BEWARE: this part is what you call a technical debt
     let mut bin_paths = Vec::new();
     let mut lib_names = Vec::new();
     for (lib_name, lib_path) in &profile.1.binaries {
@@ -90,22 +91,8 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
         lib_names.push(lib_name.to_string());
     }
     let mut temp_ast = (registry, Vec::new());
-    let mut binaries = match build_binaries(&bin_paths, &mut temp_ast) {
-        Ok(binaries) => binaries,
-        Err(err) => {
-            println!("Failed to load binaries.");
-            println!("{}", err);
-            return;
-        }
-    };
-    let mut binaries = {
-        let mut bins = HashMap::new();
-        for (idx, libname) in lib_names.iter().enumerate() {
-            bins.insert(libname.to_string(), binaries.remove(0));
-        }
-        bins
-    };
-    let std_lib = match build_std_lib(&mut temp_ast) {
+    let mut bins = HashMap::new();
+    let mut std_lib = match build_std_lib(&mut temp_ast) {
         Ok(std_lib) => std_lib,
         Err(err) => {
             println!("Failed to load std lib.");
@@ -113,13 +100,47 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
             return;
         }
     };
-    for bin in std_lib {
-        println!("{:?}", bin.1);
-        binaries.insert(bin.1, bin.0);
+    let mut dicts = Vec::new();
+    let mut names = Vec::new();
+    for _ in 0..std_lib.len() {
+        let take = std_lib.remove(0);
+        dicts.push(take.0);
+        names.push(take.1);
+    }
+    drop(std_lib);
+    match build_binaries(&bin_paths, &mut temp_ast, &mut dicts) {
+        Ok(()) => {},
+        Err(err) => {
+            println!("Failed to load binaries.");
+            println!("{}", err);
+            return;
+        }
+    };
+    for _ in 0..names.len() {
+        bins.insert(names.remove(0), dicts.remove(0));
+    }
+    println!("{:?}", bins.keys());
+    for (_, libname) in lib_names.iter().enumerate() {
+        bins.insert(libname.to_string(), dicts.remove(0));
+    }
+    const LIB_COUNT: usize = 4;
+    const STD_LIBS: [&str; LIB_COUNT] = ["#io", "#string", "#fs", "#algo"];
+    let mut count = LIB_COUNT;
+    for (name, bin) in bins.iter_mut() {
+        match STD_LIBS.iter().position(|&lib| lib == name) {
+            Some(idx) => {
+                bin.id = idx;
+            }
+            None => {
+                bin.id = count;
+                count += 1;
+            }
+        }
+        
     }
     println!("Binaries generated.");
-    println!("{:?}", binaries);
-    let mut context = Context::new(dictionaries, binaries);
+    println!("{:?}", dicts);
+    let mut context = Context::new(dictionaries, bins);
     match prep_objects::prep(&mut context) {
         Ok(_) => {
             println!("Objects prepared.");

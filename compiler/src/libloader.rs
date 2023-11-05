@@ -364,6 +364,7 @@ pub struct Dictionary {
     pub consts: Vec<Const>,
     pub traits: Vec<Trait>,
     pub user_data: Vec<UserData>,
+    pub id: usize,
 }
 
 impl Dictionary {
@@ -376,6 +377,7 @@ impl Dictionary {
             consts: Vec::new(),
             traits: Vec::new(),
             user_data: Vec::new(),
+            id: 0,
         }
     }
 }
