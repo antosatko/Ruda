@@ -1,6 +1,5 @@
 import "danda.rd" as dada
-
-// use std.io
+import "#io"
 
 fun empty(): number{
     69

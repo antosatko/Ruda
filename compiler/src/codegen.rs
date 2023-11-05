@@ -400,6 +400,16 @@ fn traverse_tail(
                 expression_parser::TailNodes::Nested(ident) => match &pos {
                     Position::Import(fname) => {
                         let root = identify_root(objects, &ident, Some(scopes), &fname, &node.1)?;
+                        return traverse_tail(
+                            objects,
+                            tail,
+                            context,
+                            scopes,
+                            code,
+                            fun,
+                            root,
+                            scope_len,
+                        );
                     }
                     Position::Variable(vname) => {
                         todo!()

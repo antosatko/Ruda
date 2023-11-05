@@ -89,7 +89,8 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
         bin_paths.push(lib_path.to_string());
         lib_names.push(lib_name.to_string());
     }
-    let mut binaries = match build_binaries(&bin_paths, &mut (registry, Vec::new())) {
+    let mut temp_ast = (registry, Vec::new());
+    let mut binaries = match build_binaries(&bin_paths, &mut temp_ast) {
         Ok(binaries) => binaries,
         Err(err) => {
             println!("Failed to load binaries.");
@@ -97,13 +98,25 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
             return;
         }
     };
-    let binaries = {
+    let mut binaries = {
         let mut bins = HashMap::new();
         for (idx, libname) in lib_names.iter().enumerate() {
             bins.insert(libname.to_string(), binaries.remove(0));
         }
         bins
     };
+    let std_lib = match build_std_lib(&mut temp_ast) {
+        Ok(std_lib) => std_lib,
+        Err(err) => {
+            println!("Failed to load std lib.");
+            println!("{}", err);
+            return;
+        }
+    };
+    for bin in std_lib {
+        println!("{:?}", bin.1);
+        binaries.insert(bin.1, bin.0);
+    }
     println!("Binaries generated.");
     println!("{:?}", binaries);
     let mut context = Context::new(dictionaries, binaries);

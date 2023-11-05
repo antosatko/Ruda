@@ -107,6 +107,9 @@ pub enum LinkingError {
 pub type Dictionaries = HashMap<String, intermediate::dictionary::Dictionary>;
 
 pub fn read_source(root: &str, main: &str) -> Result<String, ErrorOrigin> {
+    if main.starts_with("#") {
+        return Ok(String::new());
+    }
     let root = std::path::PathBuf::from(root);
     let mut string = String::new();
     let path = root.join(main);
@@ -229,15 +232,51 @@ pub fn build_binaries(
 ) -> Result<Vec<libloader::Dictionary>, String> {
     let mut binaries = Vec::new();
     for path in paths {
-        match libload(&path, ast) {
-            Ok(lib) => {
-                binaries.push(lib);
-            }
-            Err(err) => {
-                return Err(err);
-            }
-        }
+        binaries.push(libload(&path, ast)?);
     }
+    Ok(binaries)
+}
+
+pub fn build_std_lib(ast: &mut (HashMap<String, Head>, Vec<HeadParam>)) -> Result<Vec<(libloader::Dictionary, String)>, String> {
+    let mut binaries = Vec::new();
+    let mut path = env::var("RUDA_PATH").unwrap_or_else(|_| ".".to_string());
+    path.push_str("/stdlib");
+    if !std::path::Path::new(&path).exists() {
+        return Err(format!("Could not find stdlib at '{}'.", path));
+    }
+    let path = std::path::PathBuf::from(path);
+    let dir = match std::fs::read_dir(path) {
+        Ok(dir) => dir,
+        Err(err) => {
+            return Err(format!("Could not read stdlib directory. {}", err));
+        }
+    };
+    for file in dir {
+        let file = match file {
+            Ok(file) => file,
+            Err(err) => {
+                return Err(format!("Could not read stdlib directory. {}", err));
+            }
+        };
+        let path = file.path();
+        let path = match path.to_str() {
+            Some(path) => path,
+            None => {
+                return Err(format!("Could not read stdlib directory."));
+            }
+        };
+        let filename = match file.file_name().to_str() {
+            Some(name) => {
+                name.strip_suffix(".dll").unwrap_or(&name).to_string()
+            }
+            None => {
+                return Err(format!("Could not read stdlib directory."));
+            }
+        };
+        let lib = libload(path, ast)?;
+        binaries.push((lib, filename));
+    }
+
     Ok(binaries)
 }
 
