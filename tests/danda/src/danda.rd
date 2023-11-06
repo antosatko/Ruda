@@ -1,3 +1,3 @@
-fun danda(): number {
-    return 5
+fun danda(a: number): number {
+    return a
 }

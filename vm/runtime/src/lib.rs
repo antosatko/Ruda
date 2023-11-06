@@ -172,6 +172,7 @@ impl Context {
             Write(stack_offset, register) => {
                 let end = self.stack_end();
                 self.memory.stack.data[end - stack_offset] = self.memory.registers[register];
+                println!("stack: {:?}", self.memory.stack.data[..end].as_ref());
                 self.next_line();
             }
             Read(stack_offset, reg) => {
@@ -240,10 +241,7 @@ impl Context {
                             self.memory.registers[cash_reg] = self.memory.heap.data[u_size][idx];
                         }
                         PointerTypes::Object => {
-                            return self.panic_rt(ErrTypes::InvalidType(
-                                self.memory.registers[POINTER_REG],
-                                Types::Pointer(0, PointerTypes::Heap(0)),
-                            ));
+                            self.memory.registers[cash_reg] = self.memory.heap.data[u_size][0];
                         }
                         PointerTypes::String => {
                             return self.panic_rt(ErrTypes::InvalidType(
@@ -334,11 +332,9 @@ impl Context {
                             self.memory.registers[POINTER_REG] =
                                 Types::Pointer(u_size + index, PointerTypes::Stack);
                         }
-                        PointerTypes::Heap(_) => {
-                            return self.panic_rt(ErrTypes::WrongTypeOperation(
-                                self.memory.registers[POINTER_REG],
-                                self.code.data[self.code.ptr],
-                            ));
+                        PointerTypes::Heap(loc) => {
+                            self.memory.registers[POINTER_REG] =
+                                Types::Pointer(u_size, PointerTypes::Heap(loc + index));
                         }
                         PointerTypes::Char(_) => {
                             return self.panic_rt(ErrTypes::WrongTypeOperation(

@@ -309,6 +309,15 @@ pub enum MemoryTypes {
     Register(Registers),
 }
 
+impl MemoryTypes {
+    pub fn add(&self, n: i64) -> Self {
+        match self {
+            MemoryTypes::Stack(num) => MemoryTypes::Stack(((*num as i64) + n) as usize),
+            MemoryTypes::Register(reg) => MemoryTypes::Register(*reg),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum Registers {
     G1,

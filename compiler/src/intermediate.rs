@@ -343,11 +343,13 @@ pub mod dictionary {
                 } else {
                     unreachable!("Path not specified");
                 };
+                let mut kind = ImportKinds::Rd;
                 let alias = match try_get_ident(&node) {
                     Some(alias) => alias,
                     None =>{
                         let alias = path.split("/").last().unwrap();
                         if alias.starts_with("#") {
+                            kind = ImportKinds::Dll;
                             alias[1..].to_string()
                         } else {
                             alias.to_string()
@@ -358,6 +360,7 @@ pub mod dictionary {
                     path,
                     alias,
                     line: node.line,
+                    kind,
                 });
             }
             "KWFun" => {
@@ -865,6 +868,12 @@ pub mod dictionary {
         pub path: String,
         pub alias: String,
         pub line: Line,
+        pub kind: ImportKinds,
+    }
+    #[derive(Debug, Clone)]
+    pub enum ImportKinds {
+        Dll,
+        Rd,
     }
     #[derive(Debug)]
     pub struct Trait {

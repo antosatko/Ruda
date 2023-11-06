@@ -1,7 +1,5 @@
 use std::collections::HashMap;
-use std::io::ErrorKind;
-use std::net;
-use std::thread::Scope;
+use intermediate::dictionary::ImportKinds;
 
 use runtime::runtime_types::{
     self, Instructions, Memory, Stack, Types, CODE_PTR_REG, GENERAL_REG1, GENERAL_REG3,
@@ -17,7 +15,7 @@ use crate::lexer::tokenizer::{Operators, Tokens};
 use crate::tree_walker::tree_walker::{Err, Line};
 use crate::{intermediate, prep_objects::Context};
 
-use crate::libloader::{MemoryTypes, Registers};
+use crate::libloader::{MemoryTypes, Registers, self};
 
 pub fn gen(
     objects: &mut Context,
@@ -95,6 +93,8 @@ pub enum CodegenError {
     // (expected, got, comparison, line)
     ArgTypeMismatch(Arg, ShallowType, TypeComparison, Line),
     CannotAttachMethodsToFunctions(Line),
+    ImportIsNotAValidValue(Line),
+    IncorrectArgs(Line),
 }
 
 pub fn stringify(
@@ -111,8 +111,24 @@ fn gen_fun<'a>(
     context: &'a mut runtime_types::Context,
 ) -> Result<(), CodegenError> {
     let mut code = Code { code: Vec::new() };
-    let mut scopes = Vec::new();
+    let mut args_scope_len = 0;
+    let mut scopes = vec![ScopeCached {
+        variables: HashMap::new(),
+    }];
     let this_fun = fun.get(objects)?;
+    for arg in this_fun.args.iter() {
+        let pos = create_var_pos(&scopes);
+        scopes[0].variables.insert(
+            arg.identifier.clone(),
+            Variable {
+                kind: Some(arg.kind.clone()),
+                pos,
+                value: None,
+                line: arg.line.clone(),
+            },
+        );
+        args_scope_len += 1;
+    }
     let scope_len = get_scope(
         objects,
         &this_fun.code.clone(),
@@ -120,14 +136,14 @@ fn gen_fun<'a>(
         &mut scopes,
         &mut code,
         fun,
-    )?;
-    println!("flipping with size: {scope_len}");
+    )? + args_scope_len;
+    println!("scope_len: {}", scope_len);
+    println!("variables: {:#?}", scopes);
     flip_stack_access(scope_len, &mut code);
     code.push(Instructions::Return);
     let pos = merge_code(&mut context.code.data, &code.code, scope_len);
     let this_fun = fun.get_mut(objects)?;
     this_fun.location = Some(pos.0);
-    println!("this_fun.stack_size: {scope_len}");
     this_fun.stack_size = Some(scope_len);
     Ok(())
 }
@@ -250,12 +266,12 @@ fn find_var<'a>(scopes: &'a Vec<ScopeCached>, ident: &'a str) -> Option<&'a Vari
     None
 }
 
-fn find_import<'a>(objects: &'a Context, ident: &'a str, file_name: &'a str) -> Option<&'a str> {
+fn find_import<'a>(objects: &'a Context, ident: &'a str, file_name: &'a str) -> Option<(&'a str, intermediate::dictionary::ImportKinds)> {
     match objects.0.get(file_name) {
         Some(dictionary) => {
             for import in dictionary.imports.iter() {
                 if import.alias == ident {
-                    return Some(&import.path);
+                    return Some((&import.path, import.kind.clone()));
                 }
             }
         }
@@ -273,20 +289,22 @@ fn find_fun<'a>(objects: &'a Context, ident: &'a str, file_name: &'a str) -> Opt
                         file: file_name.to_string(),
                         block: None,
                         ident: ident.to_string(),
+                        kind: ImportKinds::Rd
                     }));
                 }
             }
         }
-        None => None?,
+        None => (),
     };
-    match objects.1.get(ident) {
+    match objects.1.get(file_name) {
         Some(dictionary) => {
             for fun in dictionary.functions.iter() {
                 if fun.name.clone() == ident {
-                    return Some(FunctionKind::Fun(InnerPath {
+                    return Some(FunctionKind::Binary(InnerPath {
                         file: file_name.to_string(),
                         block: None,
                         ident: ident.to_string(),
+                        kind: ImportKinds::Dll
                     }));
                 }
             }
@@ -339,8 +357,8 @@ fn gen_value(
             _ => todo!(),
         },
         Position::StructField(_, _) => todo!(),
-        Position::Import(_) => todo!(),
-        Position::BinImport(_) => todo!(),
+        Position::Import(_) => Err(CodegenError::ImportIsNotAValidValue(value.root.1.clone()))?,
+        Position::BinImport(_) => Err(CodegenError::ImportIsNotAValidValue(value.root.1.clone()))?,
         Position::Variable(var) => {
             let var = match find_var(&scopes, &var) {
                 Some(var) => var,
@@ -371,8 +389,15 @@ fn identify_root(
             return Ok(Position::Variable(ident.to_string()));
         }
     }
-    if let Some(import) = find_import(objects, &ident, &file) {
-        return Ok(Position::Import(import.to_string()));
+    if let Some((fname, kind)) = find_import(objects, &ident, &file) {
+        match kind {
+            dictionary::ImportKinds::Dll => {
+                return Ok(Position::BinImport(fname.to_string()));
+            }
+            dictionary::ImportKinds::Rd => {
+                return Ok(Position::Import(fname.to_string()));
+            }
+        }
     }
     if let Some(fun) = find_fun(objects, &ident, &file) {
         return Ok(Position::Function(fun));
@@ -406,6 +431,7 @@ fn traverse_tail(
             match &node.0 {
                 expression_parser::TailNodes::Nested(ident) => match &pos {
                     Position::Import(fname) => {
+                        println!("ruda: importing {ident} from {fname}");
                         let root = identify_root(objects, &ident, Some(scopes), &fname, &node.1)?;
                         return traverse_tail(
                             objects,
@@ -419,17 +445,9 @@ fn traverse_tail(
                         );
                     }
                     Position::BinImport(fname) => {
+                        println!("bin: importing {ident} from {fname}");
                         let root = identify_root(objects, &ident, Some(scopes), &fname, &node.1)?;
-                        return traverse_tail(
-                            objects,
-                            tail,
-                            context,
-                            scopes,
-                            code,
-                            fun,
-                            root,
-                            scope_len,
-                        );
+                        todo!("root: {root:?}");
                     }
                     Position::Variable(vname) => {
                         todo!()
@@ -563,6 +581,7 @@ fn traverse_tail(
                                         code,
                                         scope_len,
                                         call_params,
+                                        &node.1,
                                     )?;
                                 }
                                 FunctionKind::Binary(fun) => todo!("binary function call"),
@@ -582,6 +601,38 @@ fn traverse_tail(
     Ok(pos)
 }
 
+fn call_binary(
+    objects: &mut Context,
+    fun: &InnerPath,
+    context: &mut runtime_types::Context,
+    scopes: &mut Vec<ScopeCached>,
+    code: &mut Code,
+    scope_len: &mut usize,
+    call_params: &FunctionCall,
+) -> Result<ShallowType, CodegenError> {
+    use Instructions::*;
+    let mut temp_code = Code { code: Vec::new() };
+    let mut called_fun = fun.get_bin(objects)?;
+    // setup arguments (stack is not needed)
+    let args = called_fun.args.len();
+    let mut args = Vec::new();
+    for (idx, arg) in call_params.args.iter().enumerate() {
+        let kind = expression(
+            objects,
+            arg,
+            scopes,
+            &mut temp_code,
+            context,
+            &fun,
+            scope_len,
+        )?;
+        args.push(kind);
+    }
+
+    
+    todo!("binary function call")
+}
+
 fn call_fun(
     objects: &mut Context,
     fun: &InnerPath,
@@ -590,6 +641,7 @@ fn call_fun(
     code: &mut Code,
     scope_len: &mut usize,
     call_params: &FunctionCall,
+    line: &Line,
 ) -> Result<ShallowType, CodegenError> {
     use Instructions::*;
     let mut temp_code = Code { code: Vec::new() };
@@ -605,6 +657,16 @@ fn call_fun(
     };
     *scope_len += 1;
     let obj = create_var_pos(scopes);
+    let scopes_len = scopes.len();
+    scopes[scopes_len-1].variables.insert(
+        scope_len.to_string(),
+        Variable {
+            kind: Some(ShallowType::empty()),
+            pos: obj.clone(),
+            value: None,
+            line: line.clone(),
+        },
+    );
     temp_code.extend(&[Freeze, AllocateStatic(called_fun.args.len())]);
     temp_code.write(POINTER_REG, &obj);
     // setup args
@@ -626,6 +688,9 @@ fn call_fun(
     // type check
     let called_fun = fun.get(objects)?;
     for (idx, arg) in args.iter().enumerate() {
+        if idx >= called_fun.args.len() {
+            Err(CodegenError::IncorrectArgs(line.clone()))?;
+        }
         let cmp = called_fun.args[idx].kind.cmp(&arg);
         if cmp.is_not_equal() {
             return Err(CodegenError::ArgTypeMismatch(
@@ -637,19 +702,21 @@ fn call_fun(
         }
     }
     // move args
+    let next_stack_size = called_fun.stack_size.unwrap();
     temp_code.extend(&[ReserveStack(
-        called_fun.stack_size.unwrap(),
+        next_stack_size,
         called_fun.pointers.unwrap_or(0),
     )]);
     if args.len() > 0 {
-        temp_code.read(&obj, POINTER_REG);
+        temp_code.read(&obj.add(-(next_stack_size as i64)), POINTER_REG);
     }
     for (idx, _) in args.iter().enumerate() {
         temp_code.extend(&[
             // moves ptr by 1
-            IndexStatic(1),
             ReadPtr(GENERAL_REG1),
-            Write(idx + 1, GENERAL_REG1),
+            IndexStatic(1),
+            // tu to čte špatně a dělá mi to naschvál
+            Write(idx+next_stack_size-1, GENERAL_REG1),
         ]);
     }
     // call
@@ -712,6 +779,16 @@ fn get_scope(
                 }
                 max_scope_len += 1;
                 let pos = create_var_pos(&other_scopes);
+                let cache = last!(other_scopes);
+                cache.variables.insert(
+                    ident.clone(),
+                    Variable {
+                        kind: None,
+                        pos,
+                        value: try_get_const_val(),
+                        line: line.clone(),
+                    },
+                );
                 let expr_kind = match expr {
                     Some(expr) => {
                         let expr_kind = expression(
@@ -755,15 +832,7 @@ fn get_scope(
                     ));
                 }
                 let cache = last!(other_scopes);
-                cache.variables.insert(
-                    ident.clone(),
-                    Variable {
-                        kind: Some(kind.clone()),
-                        pos,
-                        value: try_get_const_val(),
-                        line: line.clone(),
-                    },
-                );
+                cache.variables.get_mut(ident).unwrap().kind = Some(kind);
             }
             crate::codeblock_parser::Nodes::If {
                 cond,
@@ -925,7 +994,6 @@ fn get_scope(
                 merge_code(&mut code.code, &expr_code.code, 0);
             }
             crate::codeblock_parser::Nodes::Expr { expr, line } => {
-                println!("scope before: {max_scope_len}");
                 expression(
                     objects,
                     expr,
@@ -935,7 +1003,6 @@ fn get_scope(
                     &fun,
                     &mut max_scope_len,
                 )?;
-                println!("scope after: {max_scope_len}");
             }
             crate::codeblock_parser::Nodes::Block { body, line } => {
                 let scope = open_scope!(body, code);
@@ -1043,7 +1110,6 @@ fn get_scope(
             }
         }
     }
-    println!("scope len: {max_scope_len}");
     Ok(max_scope_len)
 }
 
@@ -1169,6 +1235,7 @@ fn new_const(
     Ok(idx)
 }
 
+#[derive(Debug, Clone)]
 struct ScopeCached {
     variables: HashMap<String, Variable>,
 }
@@ -1269,6 +1336,7 @@ pub struct InnerPath {
     file: String,
     block: Option<String>,
     ident: String,
+    kind: ImportKinds,
 }
 
 impl InnerPath {
@@ -1277,6 +1345,7 @@ impl InnerPath {
             file: "main.rd".to_string(),
             block: None,
             ident: "main".to_string(),
+            kind: ImportKinds::Rd,
         }
     }
     pub fn get_mut<'a>(&'a self, objects: &'a mut Context) -> Result<&mut Function, CodegenError> {
@@ -1310,6 +1379,28 @@ impl InnerPath {
             None => {
                 for fun in file.functions.iter() {
                     if fun.identifier.clone().unwrap().as_ref() == self.ident {
+                        return Ok(fun);
+                    }
+                }
+                Err(CodegenError::FunctionNotFound(self.clone()))
+            }
+        }
+    }
+    pub fn get_bin<'a>(
+        &'a self,
+        objects: &'a mut Context,
+    ) -> Result<&libloader::Function, CodegenError> {
+        let file = match objects.1.get(&self.file) {
+            Some(f) => f,
+            None => {
+                return Err(CodegenError::FunctionNotFound(self.clone()));
+            }
+        };
+        match &self.block {
+            Some(b) => Err(CodegenError::FunctionNotFound(self.clone())),
+            None => {
+                for fun in file.functions.iter() {
+                    if fun.name == self.ident {
                         return Ok(fun);
                     }
                 }
