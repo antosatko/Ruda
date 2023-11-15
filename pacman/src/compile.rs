@@ -91,7 +91,7 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
         lib_names.push(lib_name.to_string());
     }
     let mut temp_ast = (registry, Vec::new());
-    let mut bins = HashMap::new();
+    let mut binaries = HashMap::new();
     let mut std_lib = match build_std_lib(&mut temp_ast) {
         Ok(std_lib) => std_lib,
         Err(err) => {
@@ -117,16 +117,16 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
         }
     };
     for _ in 0..names.len() {
-        bins.insert(names.remove(0), dicts.remove(0));
+        binaries.insert(names.remove(0), dicts.remove(0));
     }
-    println!("{:?}", bins.keys());
+    println!("{:?}", binaries.keys());
     for (_, libname) in lib_names.iter().enumerate() {
-        bins.insert(libname.to_string(), dicts.remove(0));
+        binaries.insert(libname.to_string(), dicts.remove(0));
     }
     const LIB_COUNT: usize = 4;
     const STD_LIBS: [&str; LIB_COUNT] = ["#io", "#string", "#fs", "#algo"];
     let mut count = LIB_COUNT;
-    for (name, bin) in bins.iter_mut() {
+    for (name, bin) in binaries.iter_mut() {
         match STD_LIBS.iter().position(|&lib| lib == name) {
             Some(idx) => {
                 bin.id = idx;
@@ -140,7 +140,7 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
     }
     println!("Binaries generated.");
     println!("{:?}", dicts);
-    let mut context = Context::new(dictionaries, bins);
+    let mut context = Context::new(dictionaries, binaries);
     match prep_objects::prep(&mut context) {
         Ok(_) => {
             println!("Objects prepared.");

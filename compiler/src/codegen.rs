@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::Pointer;
 use intermediate::dictionary::ImportKinds;
 
 use runtime::runtime_types::{
@@ -1166,6 +1167,9 @@ fn flip_stack_access(len: usize, code: &mut Code) {
             }
             Write(to, _) => {
                 *to = len - *to + 0;
+            }
+            Ptr(pos) => {
+                *pos = len - *pos + 0;
             }
             _ => (),
         }

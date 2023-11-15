@@ -10,5 +10,6 @@ fun danda(n: number): number {
 }
 
 fun main(): number {
+    danda(6)
     return danda(6)
 }
