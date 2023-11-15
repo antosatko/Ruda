@@ -7,6 +7,10 @@ root_dir = os.path.join(os.getcwd(), "build")  # Where to put Ruda
 current_dir = os.getcwd()  # Current directory (don't change this)
 source_libs = os.path.join(current_dir, "stdlib")  # Where to find the stdlib source code
 
+# Copy LICENSE
+shutil.copy("LICENSE", root_dir)
+
+
 # Create bin folder
 bin_dir = os.path.join(root_dir, "bin")
 os.makedirs(bin_dir, exist_ok=True)
@@ -136,6 +140,3 @@ shutil.copy(registry_ast, root_dir)
 if not os.path.exists(os.path.join(root_dir, "Ruda.toml")):
     shutil.copy(os.path.join(pacman_dir, "templates", "Ruda.toml"), root_dir)
 
-
-# Copy LICENSE
-shutil.copy("LICENSE", root_dir)
