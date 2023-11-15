@@ -135,3 +135,7 @@ shutil.copy(registry_ast, root_dir)
 # Copy Ruda.toml if it isn't already there
 if not os.path.exists(os.path.join(root_dir, "Ruda.toml")):
     shutil.copy(os.path.join(pacman_dir, "templates", "Ruda.toml"), root_dir)
+
+
+# Copy LICENSE
+shutil.copy("LICENSE", root_dir)
