@@ -1296,7 +1296,7 @@ pub mod runtime_types {
     pub const GENERAL_REG3: usize = 2;
     pub const MEMORY_REG1: usize = 3;
     pub const MEMORY_REG2: usize = 4;
-    pub const MEMORY_REG3: usize = 5;
+    pub const ARGS_REG: usize = 5;
     pub const POINTER_REG: usize = REGISTER_SIZE - 3;
     pub const RETURN_REG: usize = REGISTER_SIZE - 2;
     pub const CODE_PTR_REG: usize = REGISTER_SIZE - 1;

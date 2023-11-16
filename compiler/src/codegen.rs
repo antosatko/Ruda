@@ -4,7 +4,7 @@ use intermediate::dictionary::ImportKinds;
 
 use runtime::runtime_types::{
     self, Instructions, Memory, Stack, Types, CODE_PTR_REG, GENERAL_REG1, GENERAL_REG3,
-    MEMORY_REG1, MEMORY_REG3, POINTER_REG, RETURN_REG,
+    MEMORY_REG1, ARGS_REG, POINTER_REG, RETURN_REG,
 };
 
 use crate::codeblock_parser::Nodes;
@@ -138,14 +138,12 @@ fn gen_fun<'a>(
         &mut code,
         fun,
     )? + args_scope_len;
-    println!("scope_len: {}", scope_len);
-    println!("variables: {:#?}", scopes);
     flip_stack_access(scope_len, &mut code);
     code.push(Instructions::Return);
     let mut args_code = Code{ code: Vec::new() };
     for (idx, arg) in scopes[0].variables.iter().enumerate() {
         args_code.extend(&[
-            Instructions::Move(MEMORY_REG3, POINTER_REG),
+            Instructions::Move(ARGS_REG, POINTER_REG),
             Instructions::IndexStatic(idx),
             Instructions::ReadPtr(GENERAL_REG1),
             Instructions::Write(scope_len-idx, GENERAL_REG1)
@@ -721,7 +719,7 @@ fn call_fun(
         called_fun.pointers.unwrap_or(0),
     )]);
     if args.len() > 0 {
-        temp_code.read(&obj.add(-(next_stack_size as i64)), MEMORY_REG3);
+        temp_code.read(&obj.add(-(next_stack_size as i64)), ARGS_REG);
     }
     /*for (idx, _) in args.iter().enumerate() {
         temp_code.extend(&[

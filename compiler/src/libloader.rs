@@ -7,7 +7,7 @@ use crate::{
     tree_walker::tree_walker::{generate_tree,  Line, Node},
 };
 use intermediate::dictionary::*;
-use runtime::runtime_types::{GENERAL_REG1, GENERAL_REG2, GENERAL_REG3, MEMORY_REG1, MEMORY_REG2, MEMORY_REG3, POINTER_REG, RETURN_REG, CODE_PTR_REG};
+use runtime::runtime_types::{GENERAL_REG1, GENERAL_REG2, GENERAL_REG3, MEMORY_REG1, MEMORY_REG2, ARGS_REG, POINTER_REG, RETURN_REG, CODE_PTR_REG};
 
 pub fn load(
     string: &[u8],
@@ -325,7 +325,7 @@ pub enum Registers {
     G3,
     G4,
     G5,
-    G6,
+    Args,
     Ptr,
     Ret,
     CodePtr,
@@ -339,7 +339,7 @@ impl Registers {
             "g3" => Some(Registers::G3),
             "g4" => Some(Registers::G4),
             "g5" => Some(Registers::G5),
-            "g6" => Some(Registers::G6),
+            "args" => Some(Registers::Args),
             "ptr" => Some(Registers::Ptr),
             "ret" => Some(Registers::Ret),
             "cptr" => Some(Registers::CodePtr),
@@ -356,7 +356,7 @@ impl Registers {
             Registers::G3 => GENERAL_REG3,
             Registers::G4 => MEMORY_REG1,
             Registers::G5 => MEMORY_REG2,
-            Registers::G6 => MEMORY_REG3,
+            Registers::Args => ARGS_REG,
             Registers::Ptr => POINTER_REG,
             Registers::Ret => RETURN_REG,
             Registers::CodePtr => CODE_PTR_REG,
