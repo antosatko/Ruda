@@ -142,7 +142,19 @@ fn gen_fun<'a>(
     println!("variables: {:#?}", scopes);
     flip_stack_access(scope_len, &mut code);
     code.push(Instructions::Return);
-    let pos = merge_code(&mut context.code.data, &code.code, scope_len);
+    let mut args_code = Code{ code: Vec::new() };
+    for (idx, arg) in scopes[0].variables.iter().enumerate() {
+        args_code.extend(&[
+            Instructions::Move(MEMORY_REG3, POINTER_REG),
+            Instructions::IndexStatic(idx),
+            Instructions::ReadPtr(GENERAL_REG1),
+            Instructions::Write(scope_len-idx, GENERAL_REG1)
+        ]);
+    }
+    let mut temp = Vec::new();
+    merge_code(&mut temp, &args_code.code, scope_len);
+    merge_code(&mut temp, &code.code, scope_len);
+    let pos = merge_code(&mut context.code.data, &temp, scope_len);
     let this_fun = fun.get_mut(objects)?;
     this_fun.location = Some(pos.0);
     this_fun.stack_size = Some(scope_len);
@@ -709,9 +721,9 @@ fn call_fun(
         called_fun.pointers.unwrap_or(0),
     )]);
     if args.len() > 0 {
-        temp_code.read(&obj.add(-(next_stack_size as i64)), POINTER_REG);
+        temp_code.read(&obj.add(-(next_stack_size as i64)), MEMORY_REG3);
     }
-    for (idx, _) in args.iter().enumerate() {
+    /*for (idx, _) in args.iter().enumerate() {
         temp_code.extend(&[
             // moves ptr by 1
             ReadPtr(GENERAL_REG1),
@@ -719,7 +731,7 @@ fn call_fun(
             // tu to čte špatně a dělá mi to naschvál
             Write(idx+next_stack_size-1, GENERAL_REG1),
         ]);
-    }
+    }*/
     // call
     temp_code.extend(&[
         Jump(called_fun.location.unwrap()),
