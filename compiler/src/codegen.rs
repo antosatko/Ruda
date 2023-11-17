@@ -1,5 +1,7 @@
+use core::panic;
 use std::collections::HashMap;
 use std::fmt::Pointer;
+use std::vec;
 use intermediate::dictionary::ImportKinds;
 
 use runtime::runtime_types::{
@@ -10,7 +12,7 @@ use runtime::runtime_types::{
 use crate::codeblock_parser::Nodes;
 use crate::expression_parser::{self, FunctionCall, ValueType};
 use crate::intermediate::dictionary::{
-    self, Arg, ConstValue, Function, ShTypeBuilder, ShallowType, TypeComparison,
+    self, Arg, ConstValue, Function, ShTypeBuilder, ShallowType, TypeComparison, Correction,
 };
 use crate::lexer::tokenizer::{Operators, Tokens};
 use crate::tree_walker::tree_walker::{Err, Line};
@@ -41,7 +43,8 @@ pub fn gen(
         .data
         .extend(consts.iter().map(|c| c.to_runtime()));
     let main_path = InnerPath::main();
-    gen_fun(objects, &main_path, &mut vm_context)?;
+    //gen_fun(objects, &main_path, &mut vm_context)?;
+    gen_all_funs(objects, &mut vm_context)?;
     call_main(main_path.get(objects)?, &mut vm_context)?;
     Ok(vm_context)
 }
@@ -53,7 +56,6 @@ fn call_main(main: &Function, context: &mut runtime_types::Context) -> Result<()
     context.code.data.extend(&[
         End,
         ReserveStack(consts_len, 0),
-        ReserveStack(main.stack_size.unwrap(), main.pointers.unwrap_or(0)),
         Goto(main.location.unwrap()),
     ]);
     // swap all returns in main with end
@@ -66,6 +68,49 @@ fn call_main(main: &Function, context: &mut runtime_types::Context) -> Result<()
         }
     }
 
+    Ok(())
+}
+
+fn gen_all_funs(
+    objects: &mut Context,
+    context: &mut runtime_types::Context,
+) -> Result<(), CodegenError> {
+    let keys = objects.0.keys().map(|s| s.clone()).collect::<Vec<_>>();
+    for file in keys {
+        for fun in 0..objects.0.get(&file).unwrap().functions.len() {
+            let fun = InnerPath {
+                file: file.clone(),
+                block: None,
+                ident: objects.0.get(&file).unwrap().functions[fun].identifier.clone().unwrap(),
+                kind: ImportKinds::Rd
+            };
+            gen_fun(objects, &fun, context)?;
+        }
+    }
+    fix_corrections(objects, context)?;
+    Ok(())
+}
+
+fn fix_corrections(
+    objects: &mut Context,
+    context: &mut runtime_types::Context,
+) -> Result<(), CodegenError> {
+    let keys = objects.0.keys().map(|s| s.clone()).collect::<Vec<_>>();
+    for file in keys {
+        for fun in 0..objects.0.get(&file).unwrap().functions.len() {
+            let fun = InnerPath {
+                file: file.clone(),
+                block: None,
+                ident: objects.0.get(&file).unwrap().functions[fun].identifier.clone().unwrap(),
+                kind: ImportKinds::Rd
+            };
+            while let Some(corerction) = fun.get_mut(objects)?.corrections.pop() {
+                let pos = fun.get(objects)?.location.unwrap() + corerction.location;
+                let other_pos = corerction.function.get(objects)?.location.unwrap();
+                context.code.data[pos] = Instructions::Jump(other_pos);
+            }
+        }
+    }
     Ok(())
 }
 
@@ -106,11 +151,12 @@ pub fn stringify(
     stringify(context, Some(&shlibs))
 }
 
+/// Returns whether the function was successfully generated
 fn gen_fun<'a>(
     objects: &'a mut Context,
     fun: &'a InnerPath,
     context: &'a mut runtime_types::Context,
-) -> Result<(), CodegenError> {
+) -> Result<bool, CodegenError> {
     let mut code = Code { code: Vec::new() };
     let mut args_scope_len = 0;
     let mut scopes = vec![ScopeCached {
@@ -140,7 +186,7 @@ fn gen_fun<'a>(
     )? + args_scope_len;
     flip_stack_access(scope_len, &mut code);
     code.push(Instructions::Return);
-    let mut args_code = Code{ code: Vec::new() };
+    let mut args_code = Code{ code: vec![Instructions::ReserveStack(scope_len, 0)] };
     for (idx, arg) in scopes[0].variables.iter().enumerate() {
         args_code.extend(&[
             Instructions::Move(ARGS_REG, POINTER_REG),
@@ -152,11 +198,13 @@ fn gen_fun<'a>(
     let mut temp = Vec::new();
     merge_code(&mut temp, &args_code.code, scope_len);
     merge_code(&mut temp, &code.code, scope_len);
+    println!("fun: {temp:?}");
     let pos = merge_code(&mut context.code.data, &temp, scope_len);
     let this_fun = fun.get_mut(objects)?;
+    println!("pos: {pos:?}");
     this_fun.location = Some(pos.0);
     this_fun.stack_size = Some(scope_len);
-    Ok(())
+    Ok(true)
 }
 
 /// evaluates expression at runtime and puts result in reg1
@@ -214,15 +262,16 @@ fn expression(
                             if depth > 1 {
                                 Err(CodegenError::ReferenceString(depth, lit.line.clone()))?;
                             }
-                            code.extend(&[ReadConst(pos, GENERAL_REG1), Debug(GENERAL_REG1)]);
+                            code.extend(&[ReadConst(pos, GENERAL_REG1)]);
+                            return_kind = ShTypeBuilder::new().set_name("string").set_refs(depth).build();
                         }
                         expression_parser::Ref::None => {
                             code.extend(&[
                                 ReadConst(pos, POINTER_REG),
                                 Cal(1, 3),
                                 Move(RETURN_REG, GENERAL_REG1),
-                                Debug(GENERAL_REG1),
                             ]);
+                            return_kind = ShTypeBuilder::new().set_name("string").build();
                         }
                     }
                 }
@@ -365,7 +414,11 @@ fn gen_value(
                 let fun = fun.get(objects)?;
                 fun.return_type.clone().unwrap()
             }
-            _ => todo!(),
+            FunctionKind::Binary(fun) => {
+                let fun = fun.get_bin(objects)?;
+                fun.return_type.clone()
+            },
+            _ => todo!()
         },
         Position::StructField(_, _) => todo!(),
         Position::Import(_) => Err(CodegenError::ImportIsNotAValidValue(value.root.1.clone()))?,
@@ -458,7 +511,16 @@ fn traverse_tail(
                     Position::BinImport(fname) => {
                         println!("bin: importing {ident} from {fname}");
                         let root = identify_root(objects, &ident, Some(scopes), &fname, &node.1)?;
-                        todo!("root: {root:?}");
+                        return traverse_tail(
+                            objects,
+                            tail,
+                            context,
+                            scopes,
+                            code,
+                            fun,
+                            root,
+                            scope_len,
+                        );
                     }
                     Position::Variable(vname) => {
                         todo!()
@@ -506,85 +568,7 @@ fn traverse_tail(
                         Position::Function(fun_kind) => {
                             match fun_kind {
                                 FunctionKind::Fun(fun_path) => {
-                                    // legacy code
-                                    // keep it in case there is a problem with function calls (copilot is cooking good :D)
-                                    /*
-                                    let mut temp_code = Code { code: Vec::new() };
-                                    let mut called_fun = fun_path.get(objects)?;
-                                    // setup stack TODO: avoid object creation
-                                    let stack_len = match called_fun.stack_size {
-                                        Some(len) => len,
-                                        None => {
-                                            gen_fun(objects, fun_path, context)?;
-                                            called_fun = fun_path.get(objects)?;
-                                            called_fun.stack_size.unwrap()
-                                        }
-                                    };
-                                    *scope_len += 1;
-                                    let obj = create_var_pos(scopes);
-                                    temp_code
-                                        .extend(&[Freeze, AllocateStatic(called_fun.args.len())]);
-                                    temp_code.write(POINTER_REG, &obj);
-                                    // setup args
-                                    let mut args = Vec::new();
-                                    for (idx, arg) in call_params.args.iter().enumerate() {
-                                        let kind = expression(
-                                            objects,
-                                            arg,
-                                            scopes,
-                                            &mut temp_code,
-                                            context,
-                                            &fun,
-                                            scope_len,
-                                        )?;
-                                        args.push(kind);
-                                        temp_code.read(&obj, POINTER_REG);
-                                        temp_code
-                                            .extend(&[IndexStatic(idx), WritePtr(GENERAL_REG1)])
-                                    }
-                                    // type check
-                                    let called_fun = fun_path.get(objects)?;
-                                    for (idx, arg) in args.iter().enumerate() {
-                                        let cmp = called_fun.args[idx].kind.cmp(&arg);
-                                        if cmp.is_not_equal() {
-                                            return Err(CodegenError::ArgTypeMismatch(
-                                                called_fun.args[idx].clone(),
-                                                arg.clone(),
-                                                cmp,
-                                                node.1.clone(),
-                                            ));
-                                        }
-                                    }
-                                    // move args
-                                    temp_code.extend(&[ReserveStack(
-                                        called_fun.stack_size.unwrap(),
-                                        called_fun.pointers.unwrap_or(0),
-                                    )]);
-                                    if args.len() > 0 {
-                                        temp_code.read(&obj, POINTER_REG);
-                                    }
-                                    for (idx, _) in args.iter().enumerate() {
-                                        temp_code.extend(&[
-                                            // moves ptr by 1
-                                            IndexStatic(1),
-                                            ReadPtr(GENERAL_REG1),
-                                            Write(idx + 1, GENERAL_REG1),
-                                        ]);
-                                    }
-                                    // call
-                                    temp_code.extend(&[
-                                        Jump(called_fun.location.unwrap()),
-                                        // Unfreeze,
-                                        Move(RETURN_REG, GENERAL_REG1),
-                                    ]);
-                                    merge_code(&mut code.code, &temp_code.code, stack_len);
-                                    return Ok(Position::ReturnValue(
-                                        called_fun.return_type.clone().unwrap_or(
-                                            ShTypeBuilder::new().set_name("null").build(),
-                                        ),
-                                    ));
-                                    */
-                                    call_fun(
+                                    let (fun_kind, correction) = call_fun(
                                         objects,
                                         fun_path,
                                         context,
@@ -594,8 +578,28 @@ fn traverse_tail(
                                         call_params,
                                         &node.1,
                                     )?;
+                                    // add correction to the function struct
+                                    let fun = fun_path.get_mut(objects)?;
+                                    match correction {
+                                        Some(correction) => {
+                                            fun.corrections.push(correction);
+                                        }
+                                        None => {}
+                                    }
                                 }
-                                FunctionKind::Binary(fun) => todo!("binary function call"),
+                                FunctionKind::Binary(fun) => {
+                                    let kind = call_binary(
+                                        objects,
+                                        fun,
+                                        context,
+                                        scopes,
+                                        code,
+                                        scope_len,
+                                        call_params,
+                                        &node.1,
+                                    )?;
+                                    return_kind = kind;
+                                }
                                 FunctionKind::Dynamic(fun) => todo!("dynamic function call"),
                             };
                         }
@@ -620,52 +624,14 @@ fn call_binary(
     code: &mut Code,
     scope_len: &mut usize,
     call_params: &FunctionCall,
-) -> Result<ShallowType, CodegenError> {
-    use Instructions::*;
-    let mut temp_code = Code { code: Vec::new() };
-    let mut called_fun = fun.get_bin(objects)?;
-    // setup arguments (stack is not needed)
-    let args = called_fun.args.len();
-    let mut args = Vec::new();
-    for (idx, arg) in call_params.args.iter().enumerate() {
-        let kind = expression(
-            objects,
-            arg,
-            scopes,
-            &mut temp_code,
-            context,
-            &fun,
-            scope_len,
-        )?;
-        args.push(kind);
-    }
-
-    
-    todo!("binary function call")
-}
-
-fn call_fun(
-    objects: &mut Context,
-    fun: &InnerPath,
-    context: &mut runtime_types::Context,
-    scopes: &mut Vec<ScopeCached>,
-    code: &mut Code,
-    scope_len: &mut usize,
-    call_params: &FunctionCall,
     line: &Line,
 ) -> Result<ShallowType, CodegenError> {
     use Instructions::*;
+    let lib_id = objects.1.get(&fun.file).unwrap().id;
     let mut temp_code = Code { code: Vec::new() };
-    let mut called_fun = fun.get(objects)?;
-    // setup stack TODO: avoid object creation
-    let stack_len = match called_fun.stack_size {
-        Some(len) => len,
-        None => {
-            gen_fun(objects, fun, context)?;
-            called_fun = fun.get(objects)?;
-            called_fun.stack_size.unwrap()
-        }
-    };
+    // setup arguments (stack is not needed)
+    let args_len = fun.get_bin(objects)?.args.len();
+    let mut args = Vec::new();
     *scope_len += 1;
     let obj = create_var_pos(scopes);
     let scopes_len = scopes.len();
@@ -678,7 +644,72 @@ fn call_fun(
             line: line.clone(),
         },
     );
-    temp_code.extend(&[Freeze, AllocateStatic(called_fun.args.len())]);
+    let called_fun = fun.get_bin(objects)?;
+    temp_code.extend(&[Freeze, AllocateStatic(called_fun.args.len().max(call_params.args.len()))]);
+    temp_code.write(POINTER_REG, &obj);
+    for (idx, arg) in call_params.args.iter().enumerate() {
+        let kind = expression(
+            objects,
+            arg,
+            scopes,
+            &mut temp_code,
+            context,
+            &fun,
+            scope_len,
+        )?;
+        args.push(kind);
+        temp_code.read(&obj, POINTER_REG);
+        temp_code.extend(&[IndexStatic(idx), WritePtr(GENERAL_REG1)])
+    }
+    // type check
+    for (idx, arg) in args.iter().enumerate() {
+        if idx >= args_len {
+            Err(CodegenError::IncorrectArgs(line.clone()))?;
+        }
+        let cmp = fun.get_bin(objects)?.args[idx].1.cmp(&arg);
+        if cmp.is_not_equal() {
+            println!("arg: {arg:?}");
+            todo!("type mismatch in binary function call");
+        }
+    }
+    temp_code.read(&obj, ARGS_REG);
+    let called_fun = fun.get_bin(objects)?;
+    // call
+    temp_code.extend(&[
+        Cal(lib_id, called_fun.assign),
+        Unfreeze,
+        Move(RETURN_REG, GENERAL_REG1),
+    ]);
+    merge_code(&mut code.code, &temp_code.code, *scope_len);
+    Ok(called_fun.return_type.clone())
+}
+
+fn call_fun(
+    objects: &mut Context,
+    fun: &InnerPath,
+    context: &mut runtime_types::Context,
+    scopes: &mut Vec<ScopeCached>,
+    code: &mut Code,
+    scope_len: &mut usize,
+    call_params: &FunctionCall,
+    line: &Line,
+) -> Result<(ShallowType, Option<Correction>), CodegenError> {
+    use Instructions::*;
+    let mut temp_code = Code { code: Vec::new() };
+    let called_fun = fun.get(objects)?;
+    *scope_len += 1;
+    let obj = create_var_pos(scopes);
+    let scopes_len = scopes.len();
+    scopes[scopes_len-1].variables.insert(
+        scope_len.to_string(),
+        Variable {
+            kind: Some(ShallowType::empty()),
+            pos: obj.clone(),
+            value: None,
+            line: line.clone(),
+        },
+    );
+    temp_code.extend(&[Freeze, AllocateStatic(called_fun.args.len().max(call_params.args.len()))]);
     temp_code.write(POINTER_REG, &obj);
     // setup args
     let mut args = Vec::new();
@@ -712,35 +743,27 @@ fn call_fun(
             ));
         }
     }
-    // move args
-    let next_stack_size = called_fun.stack_size.unwrap();
-    temp_code.extend(&[ReserveStack(
-        next_stack_size,
-        called_fun.pointers.unwrap_or(0),
-    )]);
-    if args.len() > 0 {
-        temp_code.read(&obj.add(-(next_stack_size as i64)), ARGS_REG);
-    }
-    /*for (idx, _) in args.iter().enumerate() {
-        temp_code.extend(&[
-            // moves ptr by 1
-            ReadPtr(GENERAL_REG1),
-            IndexStatic(1),
-            // tu to čte špatně a dělá mi to naschvál
-            Write(idx+next_stack_size-1, GENERAL_REG1),
-        ]);
-    }*/
+    temp_code.read(&obj, ARGS_REG);
+    let correction = match called_fun.location {
+        Some(_) => None,
+        None => Some(Correction {
+            // Jump instruction
+            location: temp_code.code.len(),
+            function: fun.clone(),
+        }),
+    };
     // call
     temp_code.extend(&[
-        Jump(called_fun.location.unwrap()),
+        // Its fine if this is 0, it will be corrected later
+        Jump(called_fun.location.unwrap_or(0)),
         Unfreeze,
         Move(RETURN_REG, GENERAL_REG1),
     ]);
-    merge_code(&mut code.code, &temp_code.code, stack_len);
-    Ok(called_fun
+    merge_code(&mut code.code, &temp_code.code, *scope_len);
+    Ok((called_fun
         .return_type
         .clone()
-        .unwrap_or(ShTypeBuilder::new().set_name("null").build()))
+        .unwrap_or(ShTypeBuilder::new().set_name("null").build()), correction))
 }
 
 fn get_scope(

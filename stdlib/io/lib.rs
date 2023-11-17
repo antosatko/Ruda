@@ -43,8 +43,17 @@ impl lib::Library for Foo {
             }
             // std::println
             1 => {
+                let args = match m.registers[runtime_types::ARGS_REG] {
+                    Types::Pointer(u_size, PointerTypes::Object) => u_size,
+                    _ => {
+                        return Err(runtime_error::ErrTypes::Message(
+                            format!("Invalid argument {:?}", m.registers[runtime_types::POINTER_REG]),
+                        ))
+                    }
+                };
+                let args = &m.heap.data[args];
                 if let Types::Pointer(u_size, PointerTypes::String) =
-                    m.registers[runtime_types::POINTER_REG]
+                    args[0]
                 {
                     let string = &m.strings.pool[u_size];
                     println!("{}", string);

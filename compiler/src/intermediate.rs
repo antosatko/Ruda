@@ -6,7 +6,7 @@ pub mod dictionary {
         expression_parser::{self, get_args, ValueType},
         lexer::tokenizer::{Operators, Tokens},
         libloader::{self, Const},
-        tree_walker::tree_walker::{self, ArgNodeType, Err, Line, Node},
+        tree_walker::tree_walker::{self, ArgNodeType, Err, Line, Node}, codegen::InnerPath,
     };
     use core::panic;
     use std::{collections::HashMap, fs::DirEntry, io::Read};
@@ -680,6 +680,7 @@ pub mod dictionary {
             code,
             line: node.line,
             pointers: None,
+            corrections: Vec::new(),
         }
     }
     pub fn public(node: &Node) -> bool {
@@ -979,6 +980,13 @@ pub mod dictionary {
         pub code: Vec<codeblock_parser::Nodes>,
         pub line: Line,
         pub pointers: Option<usize>,
+        pub corrections: Vec<Correction>,
+    }
+    /// used to correct function calls
+    #[derive(Debug, Clone)]
+    pub struct Correction {
+        pub location: usize,
+        pub function: InnerPath,
     }
     #[derive(Debug)]
     pub struct Overload {

@@ -172,11 +172,10 @@ impl Context {
             Write(stack_offset, register) => {
                 let end = self.stack_end();
                 self.memory.stack.data[end - stack_offset] = self.memory.registers[register];
-                println!("stack: {:?}", self.memory.stack.data[..end].as_ref());
                 self.next_line();
             }
             Read(stack_offset, reg) => {
-                // print stack offset and end
+                // println!("{:?}", self.memory.stack.data);
                 let end = self.stack_end();
                 self.memory.registers[reg] = self.memory.stack.data[end - stack_offset];
                 self.next_line();
@@ -525,8 +524,8 @@ impl Context {
                 }
             }
             Return => {
-                self.code.ptr = self.memory.stack.call_stack[self.memory.stack.ptr].code_ptr;
                 self.memory.stack.ptr -= 1;
+                self.code.ptr = self.memory.stack.call_stack[self.memory.stack.ptr].code_ptr;
                 self.next_line();
             }
             Back => {
@@ -789,8 +788,6 @@ impl Context {
                         self.code.data[self.code.ptr],
                     ));
                 }
-                /*self.memory.stack.call_stack[self.memory.stack.ptr].code_ptr = self.code.ptr;
-                self.code.ptr = self.memory.non_primitives[obj].methods[trt][method];*/
             }
             End => {
                 return false;
@@ -1166,7 +1163,8 @@ impl Context {
                 self.code.data[*a], self.code.data[*b]
             ),
             Instructions::Return => format!(
-                "destination: {}; value: {}",
+                "destination: {}. {}; value: {}",
+                self.memory.stack.call_stack[self.memory.stack.ptr].code_ptr,
                 self.code.data[self.memory.stack.call_stack[self.memory.stack.ptr].code_ptr],
                 self.memory.registers[RETURN_REG].to_str(&self.memory)
             ),
@@ -1240,7 +1238,7 @@ impl Context {
             ),
             Instructions::Len(_) => DEF,
             Instructions::Type(_, _) => DEF,
-            Instructions::Jump(dest) => format!("destination: {}", self.code.data[*dest]),
+            Instructions::Jump(dest) => format!("destination: {}. {}", *dest, self.code.data[*dest]),
             Instructions::Freeze => DEF,
             Instructions::Back => format!(
                 "destination: {}",

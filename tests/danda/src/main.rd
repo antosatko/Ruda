@@ -13,7 +13,5 @@ fun danda(n: number, a: number): number {
 }
 
 fun main(): number {
-    let nevim = danda(30, 16)
-    danda(6)
-    return danda(1, nevim)
+    io.println("hello world")
 }
