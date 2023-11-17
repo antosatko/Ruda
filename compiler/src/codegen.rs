@@ -85,12 +85,9 @@ fn gen_all_funs(
                 kind: ImportKinds::Rd
             };
             gen_fun(objects, &fun, context)?;
-            println!("ctx_len: {}", context.code.data.len());
         }
     }
-    println!("code: {:?}", context.code.data);
     fix_corrections(objects, context)?;
-    println!("code: {:?}", context.code.data);
     Ok(())
 }
 
@@ -107,11 +104,8 @@ fn fix_corrections(
                 ident: objects.0.get(&file).unwrap().functions[fun].identifier.clone().unwrap(),
                 kind: ImportKinds::Rd
             };
-            println!("fun: {:?}", fun);
             while let Some(correction) = fun.get_mut(objects)?.corrections.pop() {
-                println!("correction: {:?}", correction);
                 let pos = fun.get(objects)?.location.unwrap() + correction.location;
-                println!("fun pos: {:?}", pos - correction.location);
                 let other_pos = correction.function.get(objects)?.location.unwrap();
                 context.code.data[pos] = Instructions::Jump(other_pos);
             }
@@ -204,10 +198,8 @@ fn gen_fun<'a>(
     let mut temp = Vec::new();
     merge_code(&mut temp, &args_code.code, scope_len);
     merge_code(&mut temp, &code.code, scope_len);
-    println!("fun: {temp:?}");
     let pos = merge_code(&mut context.code.data, &temp, scope_len);
     let this_fun = fun.get_mut(objects)?;
-    println!("pos: {pos:?}");
     this_fun.location = Some(pos.0);
     this_fun.instrs_end = pos.1;
     this_fun.stack_size = Some(scope_len);
@@ -502,7 +494,6 @@ fn traverse_tail(
             match &node.0 {
                 expression_parser::TailNodes::Nested(ident) => match &pos {
                     Position::Import(fname) => {
-                        println!("ruda: importing {ident} from {fname}");
                         let root = identify_root(objects, &ident, Some(scopes), &fname, &node.1)?;
                         return traverse_tail(
                             objects,
@@ -516,7 +507,6 @@ fn traverse_tail(
                         );
                     }
                     Position::BinImport(fname) => {
-                        println!("bin: importing {ident} from {fname}");
                         let root = identify_root(objects, &ident, Some(scopes), &fname, &node.1)?;
                         return traverse_tail(
                             objects,
@@ -761,8 +751,6 @@ fn call_fun(
             function: fun.clone(),
         }),
     };
-    println!("writing correction: {:?}", correction);
-    println!("from fun: {:?}", this);
     // call
     temp_code.extend(&[
         // Its fine if this is 0, it will be corrected later
