@@ -25,7 +25,7 @@ More examples will be inside `examples/` directory.
 ### Hello world
 
 ```Ruda
-import "std.io"
+import "#io"
 
 fun main() {
     io.println("Hello world")
