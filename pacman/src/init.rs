@@ -1,10 +1,10 @@
 use crate::args::ProjectKind;
 use std::path::Path;
 
-const MAIN: &str = include_str!("..\\templates\\init\\main.rd");
-const LIB: &str = include_str!("..\\templates\\init\\lib.rd");
-const CONFIG: &str = include_str!("..\\templates\\init\\Ruda.toml");
-const GITIGNORE: &str = include_str!("..\\templates\\init\\.gitignore");
+const MAIN: &str = include_str!("../templates/init/main.rd");
+const LIB: &str = include_str!("../templates/init/lib.rd");
+const CONFIG: &str = include_str!("../templates/init/Ruda.toml");
+const GITIGNORE: &str = include_str!("../templates/init/.gitignore");
 
 pub fn init(
     path: &str,
