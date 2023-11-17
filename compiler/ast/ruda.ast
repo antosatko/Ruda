@@ -146,11 +146,9 @@ type_ident_null [nodes
 "
 [int; 60]
 "
-array_decl type size
+array_decl type
 	[
 	type set="type"
-	; ?
-		expression set="size"
 	];
 
 

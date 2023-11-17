@@ -616,7 +616,7 @@ pub mod dictionary {
                             identifier: String::from("self"),
                             kind: ShallowType {
                                 is_fun: None,
-                                is_array: None,
+                                is_array: false,
                                 refs: count_refs(&arg),
                                 main: vec![String::from("Self")],
                                 generics: Vec::new(),
@@ -736,7 +736,7 @@ pub mod dictionary {
             let refs = count_refs(&node);
             return ShallowType {
                 is_fun: Some(Box::new(fun)),
-                is_array: None,
+                is_array: false,
                 refs,
                 main: vec![],
                 generics: Vec::new(),
@@ -744,7 +744,7 @@ pub mod dictionary {
                 nullable
             };
         }
-        let mut is_array = None;
+        let mut is_array = false;
         let refs = count_refs(node);
         let main = if let Some(type_ident) =
             try_step_inside_arr(step_inside_val(&node, "main"), "nodes")
@@ -771,10 +771,7 @@ pub mod dictionary {
             }
             // length will be calculated later since it might be a constant or an expression with constant value
             // consts will be evaluated after the dictionary is loaded
-            is_array = Some(Array {
-                len: 0,
-                kinds: vec![],
-            });
+            is_array = true;
             main
         };
         ShallowType {
@@ -1217,7 +1214,7 @@ pub mod dictionary {
             let res = match self {
                 ConstValue::Number(_) => ShallowType {
                     is_fun: None,
-                    is_array: None,
+                    is_array: false,
                     refs: 0,
                     main: vec![String::from("number")],
                     generics: Vec::new(),
@@ -1226,7 +1223,7 @@ pub mod dictionary {
                 },
                 ConstValue::Int(_) => ShallowType {
                     is_fun: None,
-                    is_array: None,
+                    is_array: false,
                     refs: 0,
                     main: vec![String::from("int")],
                     generics: Vec::new(),
@@ -1235,7 +1232,7 @@ pub mod dictionary {
                 },
                 ConstValue::Float(_) => ShallowType {
                     is_fun: None,
-                    is_array: None,
+                    is_array: false,
                     refs: 0,
                     main: vec![String::from("float")],
                     generics: Vec::new(),
@@ -1244,7 +1241,7 @@ pub mod dictionary {
                 },
                 ConstValue::Char(_) => ShallowType {
                     is_fun: None,
-                    is_array: None,
+                    is_array: false,
                     refs: 0,
                     main: vec![String::from("char")],
                     generics: Vec::new(),
@@ -1253,7 +1250,7 @@ pub mod dictionary {
                 },
                 ConstValue::Bool(_) => ShallowType {
                     is_fun: None,
-                    is_array: None,
+                    is_array: false,
                     refs: 0,
                     main: vec![String::from("bool")],
                     generics: Vec::new(),
@@ -1262,7 +1259,7 @@ pub mod dictionary {
                 },
                 ConstValue::Usize(_) => ShallowType {
                     is_fun: None,
-                    is_array: None,
+                    is_array: false,
                     refs: 0,
                     main: vec![String::from("usize")],
                     generics: Vec::new(),
@@ -1271,7 +1268,7 @@ pub mod dictionary {
                 },
                 ConstValue::String(_) => ShallowType {
                     is_fun: None,
-                    is_array: None,
+                    is_array: false,
                     refs: 0,
                     main: vec![String::from("string")],
                     generics: Vec::new(),
@@ -1280,7 +1277,7 @@ pub mod dictionary {
                 },
                 ConstValue::Null => ShallowType {
                     is_fun: None,
-                    is_array: None,
+                    is_array: false,
                     refs: 0,
                     main: vec![String::from("null")],
                     generics: Vec::new(),
@@ -1291,25 +1288,14 @@ pub mod dictionary {
                 ConstValue::Array(arr) => {
                     let mut res = ShallowType {
                         is_fun: None,
-                        is_array: None,
+                        is_array: false,
                         refs: 0,
                         main: vec![],
                         generics: Vec::new(),
                         line: Line { line: 0, column: 0 },
                         nullable: false,
                     };
-                    let mut array_desc = Array {
-                        len: arr.len(),
-                        kinds: Vec::new(),
-                    };
-                    for val in arr {
-                        let kind = val.gen_type()?;
-                        // if it is not already in the array, add it
-                        if !array_desc.kinds.iter().any(|x| x.cmp(&kind).is_equal()) {
-                            array_desc.kinds.push(kind);
-                        }
-                    }
-                    res.is_array = Some(array_desc);
+                    res.is_array = true;
                     res
                 }
                 ConstValue::Undefined => ShallowType::empty(),
@@ -1337,17 +1323,11 @@ pub mod dictionary {
     }*/
     type GenericExpr = Vec<ShallowType>;
 
-    #[derive(Debug, Clone)]
-    pub struct Array {
-        pub len: usize,
-        pub kinds: Vec<ShallowType>,
-    }
-
     #[derive(Clone)]
     pub struct ShallowType {
         pub is_fun: Option<Box<Function>>,
         /// if Some then it is an array of that length
-        pub is_array: Option<Array>,
+        pub is_array: bool,
         pub refs: usize,
         pub main: NestedIdent,
         pub generics: GenericExpr,
@@ -1369,7 +1349,7 @@ pub mod dictionary {
                 write!(f, ")")?;
                 return Ok(());
             }
-            if self.is_array.is_some() {
+            if self.is_array {
                 write!(f, "[")?;
             }
             for (i, part) in self.main.iter().enumerate() {
@@ -1378,8 +1358,8 @@ pub mod dictionary {
                     write!(f, ".")?;
                 }
             }
-            if self.is_array.is_some() {
-                write!(f, "; {}]", self.is_array.as_ref().unwrap().len)?;
+            if self.is_array {
+                write!(f, "]")?;
             }
             if !self.generics.is_empty() {
                 write!(f, "<")?;
@@ -1398,7 +1378,7 @@ pub mod dictionary {
         pub fn empty() -> Self {
             ShallowType {
                 is_fun: None,
-                is_array: None,
+                is_array: false,
                 refs: 0,
                 main: vec![],
                 generics: vec![],
@@ -1417,18 +1397,9 @@ pub mod dictionary {
             if self.refs != other.refs {
                 return TypeComparison::ReferenceDiff(self.refs as i32 - other.refs as i32);
             }
-            // check if one of them as an array and if so return difference in array length
-            if self.is_array.is_some() || other.is_array.is_some() {
-                if self.is_array.is_none() {
-                    return TypeComparison::NotEqual;
-                }
-                if other.is_array.is_none() {
-                    return TypeComparison::NotEqual;
-                }
-                return TypeComparison::ArrayDiff(
-                    self.is_array.as_ref().unwrap().len,
-                    other.is_array.as_ref().unwrap().len,
-                );
+            // check if both are arrays and if not return false
+            if self.is_array != other.is_array {
+                return TypeComparison::NotEqual
             }
             if self.main != other.main {
                 return TypeComparison::NotEqual;
@@ -1451,7 +1422,7 @@ pub mod dictionary {
     pub struct ShTypeBuilder {
         pub is_fun: Option<Box<Function>>,
         /// if Some then it is an array of that length
-        pub is_array: Option<Array>,
+        pub is_array: bool,
         pub refs: usize,
         pub path: NestedIdent,
         pub generics: GenericExpr,
@@ -1464,7 +1435,7 @@ pub mod dictionary {
         pub fn new() -> Self {
             ShTypeBuilder {
                 is_fun: None,
-                is_array: None,
+                is_array: false,
                 refs: 0,
                 path: vec![],
                 generics: vec![],
@@ -1497,8 +1468,8 @@ pub mod dictionary {
             self.is_fun = Some(Box::new(fun));
             self
         }
-        pub fn set_arr_len(mut self, array: Array) -> Self {
-            self.is_array = Some(array);
+        pub fn set_array(mut self, array: bool) -> Self {
+            self.is_array = array;
             self
         }
         pub fn set_refs(mut self, refs: usize) -> Self {
