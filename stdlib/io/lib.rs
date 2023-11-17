@@ -26,11 +26,24 @@ impl lib::Library for Foo {
         mem: PublicData,
     ) -> Result<Types, runtime_error::ErrTypes> {
         let m = mem.memory;
+        macro_rules! get_args {
+            () => {
+                match m.args() {
+                    Some(args) => args,
+                    None => {
+                        return Err(runtime_error::ErrTypes::Message(format!(
+                            "Couldn't get args, this is probably a bug in the compiler",
+                        )))
+                    }
+                }
+            };
+        }
         match id {
             // std::print
             0 => {
+                let args = get_args!();
                 if let Types::Pointer(u_size, PointerTypes::String) =
-                    m.registers[runtime_types::POINTER_REG]
+                    args[0]
                 {
                     let string = &m.strings.pool[u_size];
                     print!("{}", string);
@@ -43,15 +56,7 @@ impl lib::Library for Foo {
             }
             // std::println
             1 => {
-                let args = match m.registers[runtime_types::ARGS_REG] {
-                    Types::Pointer(u_size, PointerTypes::Object) => u_size,
-                    _ => {
-                        return Err(runtime_error::ErrTypes::Message(
-                            format!("Invalid argument {:?}", m.registers[runtime_types::POINTER_REG]),
-                        ))
-                    }
-                };
-                let args = &m.heap.data[args];
+                let args = get_args!();
                 if let Types::Pointer(u_size, PointerTypes::String) =
                     args[0]
                 {
@@ -135,8 +140,9 @@ fn register() -> String {
     
     fun print(msg=reg.ptr: string) > 0i
     fun println(msg=reg.ptr: string) > 1i
-    fun args(): &[string] > 2i
-    fun vmargs(): &[string] > 3i
+    fun read(): string > 2i
+    fun args(): &[string] > 3i
+    fun vmargs(): &[string] > 4i
     "#.to_string()
 }
 

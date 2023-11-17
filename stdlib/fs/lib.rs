@@ -24,12 +24,25 @@ pub struct Foo {
 impl lib::Library for Foo {
     fn call(&mut self, id: usize, mem: PublicData) -> Result<Types, runtime_error::ErrTypes> {
         let m = mem.memory;
+        macro_rules! get_args {
+            () => {
+                match m.args() {
+                    Some(args) => args,
+                    None => {
+                        return Err(runtime_error::ErrTypes::Message(format!(
+                            "Couldn't get args, this is probably a bug in the compiler",
+                        )))
+                    }
+                }
+            };
+        }
         match id {
             // std::file_read
             0 => {
                 use std::io::prelude::*;
+                let args = get_args!();
                 if let Types::Pointer(u_size, PointerTypes::String) =
-                    m.registers[runtime_types::POINTER_REG]
+                    args[0]
                 {
                     let string = m.strings.to_string(u_size);
                     let mut file = match File::open(string) {
@@ -65,8 +78,9 @@ impl lib::Library for Foo {
             // std::file_write
             1 => {
                 use std::io::prelude::*;
+                let args = get_args!();
                 if let Types::Pointer(u_size, PointerTypes::String) =
-                    m.registers[runtime_types::POINTER_REG]
+                    args[0]
                 {
                     let string = m.strings.to_string(u_size);
                     let mut file = match File::create(string) {
@@ -106,8 +120,9 @@ impl lib::Library for Foo {
             2 => {
                 use std::fs::OpenOptions;
                 use std::io::prelude::*;
+                let args = get_args!();
                 if let Types::Pointer(u_size, PointerTypes::String) =
-                    m.registers[runtime_types::POINTER_REG]
+                    args[0]
                 {
                     let string = m.strings.to_string(u_size);
                     let mut file = match OpenOptions::new().append(true).open(string) {
@@ -120,7 +135,7 @@ impl lib::Library for Foo {
                         Ok(file) => file,
                     };
                     if let Types::Pointer(u_size, PointerTypes::String) =
-                        m.registers[runtime_types::GENERAL_REG1]
+                        args[1]
                     {
                         let string = m.strings.to_string(u_size);
                         match file.write_all(string.as_bytes()) {
@@ -147,8 +162,9 @@ impl lib::Library for Foo {
             // std::file_open
             // returns index of file handle
             3 => {
+                let args = get_args!();
                 if let Types::Pointer(u_size, PointerTypes::String) =
-                    m.registers[runtime_types::POINTER_REG]
+                    args[0]
                 {
                     let string = m.strings.to_string(u_size);
                     let file = match File::options().read(true).write(true).create(true).open(string) {
@@ -172,8 +188,9 @@ impl lib::Library for Foo {
             // takes index of file handle
             // returns bool
             4 => {
+                let args = get_args!();
                 if let Types::Pointer(u_size, PointerTypes::UserData) =
-                    m.registers[runtime_types::POINTER_REG]
+                    args[0]
                 {
                     let any = &mut m.user_data.data[u_size];
                     let file = match FileH::from_ud(any.as_mut()) {
@@ -184,7 +201,7 @@ impl lib::Library for Foo {
                 } else {
                     return Err(runtime_error::ErrTypes::Message(format!(
                         "Expected File handle, got {:#}",
-                        m.registers[runtime_types::POINTER_REG]
+                        args[0]
                     )));
                 }
             }
@@ -193,8 +210,9 @@ impl lib::Library for Foo {
             // returns string
             5 => {
                 use std::io::prelude::*;
+                let args = get_args!();
                 if let Types::Pointer(u_size, PointerTypes::UserData) =
-                    m.registers[runtime_types::POINTER_REG]
+                    args[0]
                 {
                     let any = &mut m.user_data.data[u_size];
                     let file = match FileH::from_ud(any.as_mut()) {

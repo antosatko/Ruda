@@ -20,13 +20,12 @@ pub fn run(path: &str, profile: &str, _args: Vec<String>, debug: bool) {
     // build dependencies
     build_deps(&profile.1, profile.1._3rdparty as usize);
     // compile
-    compile::compile(path, profile);
-
-    // run
-    run::run(path, &profile, &_args, debug);
+    if compile::compile(path, profile) {
+        run::run(path, &profile, &_args, debug);
+    }
 }
 
-pub fn build(path: &str, profile: &str) {
+pub fn build(path: &str, profile: &str) -> bool {
     let config = config::read(path);
     let profile = match config.profile.get(profile) {
         Some(prof) => (profile, prof),
@@ -38,7 +37,7 @@ pub fn build(path: &str, profile: &str) {
     // build dependencies
     build_deps(&profile.1, config._3rdparty as usize);
     // compile
-    compile::compile(path, profile);
+    compile::compile(path, profile)
 }
 
 /// Build dependencies for a profile
@@ -112,8 +111,7 @@ pub fn restore(path: &str, profile: &str, compile: bool, run: bool, args: Vec<St
     // compile
     if compile || run {
         build_deps(&profile.1, profile.1._3rdparty as usize);
-        compile::compile(path, profile);
-        if run {
+        if run && compile::compile(path, profile){
             run::run(path, &profile, &args, debug);
         }
     }

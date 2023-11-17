@@ -4,7 +4,7 @@ use crate::{config::{self, Runtime}, sum};
 
 use compiler::prep_objects::Context;
 
-pub fn compile(path: &str, profile: (&str, &config::Profile)) {
+pub fn compile(path: &str, profile: (&str, &config::Profile)) -> bool{
     // determine if we have to compile for current profile
     let mut compile = false;
     // check if there is directory for the profile
@@ -22,14 +22,14 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
         compile = true;
     }
     if !compile {
-        return;
+        return true;
     }
     // compile
     let ruda_path = match std::env::var("RUDA_PATH") {
         Ok(path) => path,
         Err(err) => {
             println!("RUDA_PATH not found. {}\nProject not compiled.", err);
-            return;
+            return false;
         }
     };
     let main_file = match profile.1.kind {
@@ -46,7 +46,7 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
         Some(file) => file,
         None => {
             println!("Failed to convert path to string.");
-            return;
+            return false;
         }
     };
     println!("Compiling... {} {}", path, profile.0);
@@ -57,7 +57,7 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
             println!("{}", err);
             println!("Close all programs that use Ruda and try again.");
             println!("If that doesn't help, try to reinstall Ruda.");
-            return;
+            return false;
         }
     };
     println!("AST generated.");
@@ -66,7 +66,7 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
         Err(err) => {
             println!("Failed to load dictionaries.");
             println!("Err: '{}':{}", err.1, err.0);
-            return;
+            return false;
         }
     };
     println!("Dictionary generated.");
@@ -78,13 +78,13 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
         let lib_path = std::path::Path::new(path).join(lib_path);
         if !lib_path.exists() {
             println!("{} does not exist.", lib_path.to_str().unwrap());
-            return;
+            return false;
         }
         let lib_path = match lib_path.to_str() {
             Some(path) => path,
             None => {
                 println!("Failed to convert path to string.");
-                return;
+                return false;
             }
         };
         bin_paths.push(lib_path.to_string());
@@ -97,7 +97,7 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
         Err(err) => {
             println!("Failed to load std lib.");
             println!("{}", err);
-            return;
+            return false;
         }
     };
     let mut dicts = Vec::new();
@@ -113,7 +113,7 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
         Err(err) => {
             println!("Failed to load binaries.");
             println!("{}", err);
-            return;
+            return false;
         }
     };
     for _ in 0..names.len() {
@@ -149,7 +149,7 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
         Err(err) => {
             println!("Failed to prepare objects.");
             // TODO: println!("{}", err);
-            return;
+            return false;
         }
     }
 
@@ -167,7 +167,7 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
         }
         Err(err) => {
             println!("Failed to generate code: {:?}", err);
-            return;
+            return false;
         }
     };
 
@@ -180,4 +180,6 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) {
 
     // TODO: uncomment for prod
     sum::write_sums(path, profile.0, &sum::sum(path, profile.0));
+
+    true
 }

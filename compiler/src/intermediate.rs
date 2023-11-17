@@ -358,7 +358,7 @@ pub mod dictionary {
                 };
                 dictionary.imports.push(Import {
                     path,
-                    alias,
+                    alias: alias.strip_suffix(".rd").unwrap_or(&alias).to_string(),
                     line: node.line,
                     kind,
                 });
@@ -674,6 +674,7 @@ pub mod dictionary {
             args,
             stack_size: None,
             location: None,
+            instrs_end: 0,
             return_type: kind,
             generics,
             public: false,
@@ -970,6 +971,7 @@ pub mod dictionary {
         pub stack_size: Option<usize>,
         /// location in bytecode, so runtime knows where to jump
         pub location: Option<usize>,
+        pub instrs_end: usize,
         pub return_type: Option<ShallowType>,
         pub can_yeet: bool,
         pub generics: Vec<GenericDecl>,

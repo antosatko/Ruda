@@ -59,7 +59,7 @@ fn call_main(main: &Function, context: &mut runtime_types::Context) -> Result<()
         Goto(main.location.unwrap()),
     ]);
     // swap all returns in main with end
-    for i in main.location.unwrap()..context.code.data.len() {
+    for i in main.location.unwrap()..main.instrs_end {
         match context.code.data[i] {
             Return => {
                 context.code.data[i] = End;
@@ -85,9 +85,12 @@ fn gen_all_funs(
                 kind: ImportKinds::Rd
             };
             gen_fun(objects, &fun, context)?;
+            println!("ctx_len: {}", context.code.data.len());
         }
     }
+    println!("code: {:?}", context.code.data);
     fix_corrections(objects, context)?;
+    println!("code: {:?}", context.code.data);
     Ok(())
 }
 
@@ -104,9 +107,12 @@ fn fix_corrections(
                 ident: objects.0.get(&file).unwrap().functions[fun].identifier.clone().unwrap(),
                 kind: ImportKinds::Rd
             };
-            while let Some(corerction) = fun.get_mut(objects)?.corrections.pop() {
-                let pos = fun.get(objects)?.location.unwrap() + corerction.location;
-                let other_pos = corerction.function.get(objects)?.location.unwrap();
+            println!("fun: {:?}", fun);
+            while let Some(correction) = fun.get_mut(objects)?.corrections.pop() {
+                println!("correction: {:?}", correction);
+                let pos = fun.get(objects)?.location.unwrap() + correction.location;
+                println!("fun pos: {:?}", pos - correction.location);
+                let other_pos = correction.function.get(objects)?.location.unwrap();
                 context.code.data[pos] = Instructions::Jump(other_pos);
             }
         }
@@ -203,6 +209,7 @@ fn gen_fun<'a>(
     let this_fun = fun.get_mut(objects)?;
     println!("pos: {pos:?}");
     this_fun.location = Some(pos.0);
+    this_fun.instrs_end = pos.1;
     this_fun.stack_size = Some(scope_len);
     Ok(true)
 }
@@ -577,9 +584,10 @@ fn traverse_tail(
                                         scope_len,
                                         call_params,
                                         &node.1,
+                                        fun,
                                     )?;
                                     // add correction to the function struct
-                                    let fun = fun_path.get_mut(objects)?;
+                                    let fun = fun.get_mut(objects)?;
                                     match correction {
                                         Some(correction) => {
                                             fun.corrections.push(correction);
@@ -693,6 +701,7 @@ fn call_fun(
     scope_len: &mut usize,
     call_params: &FunctionCall,
     line: &Line,
+    this: &InnerPath,
 ) -> Result<(ShallowType, Option<Correction>), CodegenError> {
     use Instructions::*;
     let mut temp_code = Code { code: Vec::new() };
@@ -748,10 +757,12 @@ fn call_fun(
         Some(_) => None,
         None => Some(Correction {
             // Jump instruction
-            location: temp_code.code.len(),
+            location: temp_code.code.len()+1, // DANDANDANDA
             function: fun.clone(),
         }),
     };
+    println!("writing correction: {:?}", correction);
+    println!("from fun: {:?}", this);
     // call
     temp_code.extend(&[
         // Its fine if this is 0, it will be corrected later

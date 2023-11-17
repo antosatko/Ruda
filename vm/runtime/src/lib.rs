@@ -1548,6 +1548,13 @@ pub mod runtime_types {
             }
             Types::Void
         }
+        pub fn args(&self) -> Option<&[Types]> {
+            let ptr = match self.registers[ARGS_REG] {
+                Types::Pointer(ptr, PointerTypes::Object) => ptr,
+                _ => return None,
+            };
+            Some(&self.heap.data[ptr])
+        }
         /// GC
         pub fn gc_sweep(&mut self) {
             if self.gc.disabled {
