@@ -3,13 +3,15 @@ import shutil
 import platform
 
 # User-defined variables (change to your liking)
-root_dir = os.path.join(os.getcwd(), "build")  # Where to put Ruda
 current_dir = os.getcwd()  # Current directory (don't change this)
+root_dir = os.path.join(current_dir, "build")  # Where to put Ruda
 source_libs = os.path.join(current_dir, "stdlib")  # Where to find the stdlib source code
 
-# Copy LICENSE
-shutil.copy("LICENSE", root_dir)
+os.makedirs(root_dir, exist_ok=True)
 
+
+# Copy LICENSE
+shutil.copy("LICENSE", os.path.join(root_dir, "LICENSE"))
 
 # Create bin folder
 bin_dir = os.path.join(root_dir, "bin")
@@ -89,8 +91,16 @@ platform_extensions = {
     "Darwin": ".dylib"  # If targeting macOS
 }
 
+# Define a dictionary to map file prefexes for different platforms
+platform_prefixes = {
+    "Windows": "",
+    "Linux": "lib",
+    "Darwin": "lib"  # If targeting macOS
+}
+
 # Determine the file extension based on the platform
 executable_ext = platform_extensions.get(platform.system(), "")
+executable_pre = platform_prefixes.get(platform.system(), "")
 
 
 stdlib_binaries = {
@@ -113,10 +123,16 @@ for folder in os.listdir(source_libs):
         old_stdlib_path = os.path.join(stdlib_dir, binary_name)
         if os.path.exists(old_stdlib_path):
             os.remove(old_stdlib_path)
-
+        
         print("Copying new " + binary_name)
+
+        temp_bin_name = binary_name
+
+        binary_name = executable_pre + binary_name
         # Copy new stdlib
         shutil.copy(os.path.join(folder_path, "target", "release", binary_name), stdlib_dir)
+
+        os.rename(os.path.join(stdlib_dir, binary_name), os.path.join(stdlib_dir, temp_bin_name))
 
 # Copy AST files
 path_to_ast = os.path.join(current_dir, "compiler", "ast")
