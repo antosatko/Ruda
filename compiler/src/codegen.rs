@@ -1558,7 +1558,147 @@ fn native_operand(
                 None?
             }
         }
-        _ => todo!("other operators"),
+        Operators::Minus => {
+            if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+                code.extend(&[Sub(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
+                return Some(left.clone());
+            } else {
+                None?
+            }
+        }
+        Operators::Star => {
+            if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+                code.extend(&[Mul(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
+                return Some(left.clone());
+            } else {
+                None?
+            }
+        }
+        Operators::Slash => {
+            if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+                code.extend(&[Div(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
+                return Some(left.clone());
+            } else {
+                None?
+            }
+        }
+        Operators::Mod => {
+            if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+                code.extend(&[Mod(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
+                return Some(left.clone());
+            } else {
+                None?
+            }
+        }
+        Operators::Equal => {
+            if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
+                code.extend(&[Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
+                return Some(ShTypeBuilder::new().set_name("bool").build());
+            } else {
+                None?
+            }
+        }
+        Operators::AddEq => {
+            if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+                code.extend(&[Add(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
+                return Some(left.clone());
+            } else {
+                None?
+            }
+        }
+        Operators::SubEq => {
+            if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+                code.extend(&[Sub(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
+                return Some(left.clone());
+            } else {
+                None?
+            }
+        }
+        Operators::MulEq => {
+            if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+                code.extend(&[Mul(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
+                return Some(left.clone());
+            } else {
+                None?
+            }
+        }
+        Operators::DivEq => {
+            if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+                code.extend(&[Div(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
+                return Some(left.clone());
+            } else {
+                None?
+            }
+        }
+        Operators::DoubleEq => {
+            if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
+                code.extend(&[Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
+                return Some(ShTypeBuilder::new().set_name("bool").build());
+            } else {
+                None?
+            }
+        }
+        Operators::NotEqual => {
+            if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
+                code.extend(&[Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1), Not(GENERAL_REG1, GENERAL_REG1)]);
+                return Some(ShTypeBuilder::new().set_name("bool").build());
+            } else {
+                None?
+            }
+        }
+        Operators::And => {
+            if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
+                code.extend(&[And(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
+                return Some(ShTypeBuilder::new().set_name("bool").build());
+            } else {
+                None?
+            }
+        }
+        Operators::Or => {
+            if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
+                code.extend(&[Or(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
+                return Some(ShTypeBuilder::new().set_name("bool").build());
+            } else {
+                None?
+            }
+        }
+        Operators::Ampersant => {
+            if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
+                code.extend(&[And(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
+                return Some(ShTypeBuilder::new().set_name("bool").build());
+            } else {
+                None?
+            }
+        }
+        Operators::Pipe => {
+            if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
+                code.extend(&[Or(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
+                return Some(ShTypeBuilder::new().set_name("bool").build());
+            } else {
+                None?
+            }
+        }
+        Operators::AngleBracket(side) => match side {
+            false => {
+                if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+                    code.extend(&[Less(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
+                    return Some(ShTypeBuilder::new().set_name("bool").build());
+                } else {
+                    None?
+                }
+            }
+            true => {
+                if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+                    code.extend(&[Grt(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
+                    return Some(ShTypeBuilder::new().set_name("bool").build());
+                } else {
+                    None?
+                }
+            }
+        }
+        Operators::LessEq => todo!("add to runtime"),
+        Operators::MoreEq => todo!("add to runtime"),
+        Operators::Not => unreachable!("not is not a binary operator, this is a bug in compiler"),
     }
     None
 }

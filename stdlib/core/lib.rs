@@ -39,8 +39,17 @@ impl lib::Library for DynLib {
             // core::str_cpy
             0 => {
                 if let Types::Pointer(u_size, PointerTypes::String) = m.registers[GENERAL_REG1] {
-                    let str = m.strings.to_str(u_size).to_string();
-                    let pos = m.strings.from_str(&str);
+                    let str = m.strings.to_string(u_size);
+                    let pos = match str == "" {
+                        true => {
+                            let pos = m.strings.from_str("5");
+                            m.strings.pool[pos].clear();
+                            pos
+                        }
+                        false => {
+                            m.strings.from_str(&str)
+                        }
+                    };
                     return Ok(Types::Pointer(pos, PointerTypes::String))
                 } else {
                     return Err(runtime_error::ErrTypes::Message(format!(
