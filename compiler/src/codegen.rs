@@ -1548,6 +1548,7 @@ fn native_operand(
                     Swap(GENERAL_REG1, GENERAL_REG2),
                     Cal(CORE_LIB, 1),
                     Move(RETURN_REG, GENERAL_REG2),
+                    Swap(GENERAL_REG1, GENERAL_REG2),
                     Cal(CORE_LIB, 2),
                     Move(RETURN_REG, GENERAL_REG1),
                 ]);

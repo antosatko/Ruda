@@ -105,9 +105,9 @@ pub fn list_into_tree(list: &mut Vec<ValueType>) -> Result<ValueType, TreeTransf
         return Ok(list.pop().unwrap());
     }
     for op in &ORDER_OF_OPERATIONS {
-        let mut i = 0;
+        let mut i = list.len() - 1;
         // if the list consists of only 1 value and it is not an operator, return it
-        while i < list.len() {
+        while i > 0 {
             if let ValueType::Operator(op2, line) = list[i] {
                 if *op == op2 {
                     if i == 0 {
@@ -147,7 +147,7 @@ pub fn list_into_tree(list: &mut Vec<ValueType>) -> Result<ValueType, TreeTransf
                     return Ok(ValueType::Expression(Box::new(result)));
                 }
             }
-            i += 1;
+            i -= 1;
         }
     }
     return Err(TreeTransformError::NotImplementedCuzLazy);
