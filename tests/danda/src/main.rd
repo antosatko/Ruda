@@ -2,5 +2,5 @@ import "#io"
 import "#fs"
 
 fun main(): number {
-    io.println(1+  "sdf" + 5 + "danda") 
+    io.println("Hello, world!" + ('g' + 6c)) 
 }  

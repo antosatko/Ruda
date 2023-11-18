@@ -292,6 +292,7 @@ fn expression(
                 expression_parser::Literals::Char(c) => {
                     let pos = new_const(context, &ConstValue::Char(*c))?;
                     code.push(ReadConst(pos, GENERAL_REG1));
+                    return_kind = ShTypeBuilder::new().set_name("char").build();
                 }
             }
         }

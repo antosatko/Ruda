@@ -578,6 +578,16 @@ impl Context {
                     Types::Int(num1) => operation!(Int, add, num1, r1, r2, res),
                     Types::Float(num1) => operation!(Float, add, num1, r1, r2, res),
                     Types::Usize(num1) => operation!(Usize, add, num1, r1, r2, res),
+                    Types::Char(char1) => {
+                        if let Types::Char(char2) = self.memory.registers[r2] {
+                            self.memory.registers[res] = Types::Char((char1 as u8 + char2 as u8) as char);
+                        } else {
+                            return self.panic_rt(ErrTypes::WrongTypeOperation(
+                                self.memory.registers[r2],
+                                self.code.data[self.code.ptr],
+                            ));
+                        }
+                    },
                     _ => {
                         return self.panic_rt(ErrTypes::WrongTypeOperation(
                             self.memory.registers[r1],
@@ -592,6 +602,16 @@ impl Context {
                     Types::Int(num1) => operation!(Int, sub, num1, r1, r2, res),
                     Types::Float(num1) => operation!(Float, sub, num1, r1, r2, res),
                     Types::Usize(num1) => operation!(Usize, sub, num1, r1, r2, res),
+                    Types::Char(char1) => {
+                        if let Types::Char(char2) = self.memory.registers[r2] {
+                            self.memory.registers[res] = Types::Char((char1 as u8 - char2 as u8) as char);
+                        } else {
+                            return self.panic_rt(ErrTypes::WrongTypeOperation(
+                                self.memory.registers[r2],
+                                self.code.data[self.code.ptr],
+                            ));
+                        }
+                    },
                     _ => {
                         return self.panic_rt(ErrTypes::WrongTypeOperation(
                             self.memory.registers[r1],
@@ -606,6 +626,16 @@ impl Context {
                     Types::Int(num1) => operation!(Int, mul, num1, r1, r2, res),
                     Types::Float(num1) => operation!(Float, mul, num1, r1, r2, res),
                     Types::Usize(num1) => operation!(Usize, mul, num1, r1, r2, res),
+                    Types::Char(char1) => {
+                        if let Types::Char(char2) = self.memory.registers[r2] {
+                            self.memory.registers[res] = Types::Char((char1 as u8 * char2 as u8) as char);
+                        } else {
+                            return self.panic_rt(ErrTypes::WrongTypeOperation(
+                                self.memory.registers[r2],
+                                self.code.data[self.code.ptr],
+                            ));
+                        }
+                    },
                     _ => {
                         return self.panic_rt(ErrTypes::WrongTypeOperation(
                             self.memory.registers[r1],
@@ -620,6 +650,16 @@ impl Context {
                     Types::Int(num1) => operation!(Int, div, num1, r1, r2, res),
                     Types::Float(num1) => operation!(Float, div, num1, r1, r2, res),
                     Types::Usize(num1) => operation!(Usize, div, num1, r1, r2, res),
+                    Types::Char(char1) => {
+                        if let Types::Char(char2) = self.memory.registers[r2] {
+                            self.memory.registers[res] = Types::Char((char1 as u8 / char2 as u8) as char);
+                        } else {
+                            return self.panic_rt(ErrTypes::WrongTypeOperation(
+                                self.memory.registers[r2],
+                                self.code.data[self.code.ptr],
+                            ));
+                        }
+                    },
                     _ => {
                         return self.panic_rt(ErrTypes::WrongTypeOperation(
                             self.memory.registers[r1],
@@ -634,6 +674,16 @@ impl Context {
                     Types::Int(num1) => operation!(Int, %, num1, r1, r2, res),
                     Types::Float(num1) => operation!(Float, %, num1, r1, r2, res),
                     Types::Usize(num1) => operation!(Usize, %, num1, r1, r2, res),
+                    Types::Char(char1) => {
+                        if let Types::Char(char2) = self.memory.registers[r2] {
+                            self.memory.registers[res] = Types::Char((char1 as u8 % char2 as u8) as char);
+                        } else {
+                            return self.panic_rt(ErrTypes::WrongTypeOperation(
+                                self.memory.registers[r2],
+                                self.code.data[self.code.ptr],
+                            ));
+                        }
+                    },
                     _ => {
                         return self.panic_rt(ErrTypes::WrongTypeOperation(
                             self.memory.registers[r1],
