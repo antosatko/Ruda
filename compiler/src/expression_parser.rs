@@ -61,7 +61,13 @@ pub fn expr_into_tree(node: &Node, errors: &mut Vec<ErrType>) -> ValueType {
     }
     let mut transform = transform_expr(&nodes, errors);
     let res = list_into_tree(&mut transform);
-    if let Ok(val) = res {
+    if let Ok(mut val) = res {
+        match &mut val {
+            ValueType::Expression(val) => {
+                val.is_root = true;
+            }
+            _ => {}
+        }
         return val;
     } else {
         println!("error occured while parsing expression: {:?}", res);
@@ -130,6 +136,7 @@ pub fn list_into_tree(list: &mut Vec<ValueType>) -> Result<ValueType, TreeTransf
                         return Err(TreeTransformError::NoValue(line.clone()));
                     }
                     let res = list_into_tree(&mut right);
+                    result.line = line;
                     if let Ok(right) = res {
                         result.right = Some(right);
                     } else {
@@ -439,6 +446,7 @@ pub struct ExprNode {
     pub right: Option<ValueType>,
     pub operator: Option<Operators>,
     pub line: Line,
+    pub is_root: bool,
 }
 impl ExprNode {
     pub fn new(
@@ -446,12 +454,14 @@ impl ExprNode {
         right: Option<ValueType>,
         operator: Option<Operators>,
         line: Line,
+        is_root: bool,
     ) -> ExprNode {
         ExprNode {
             left,
             right,
             operator,
             line,
+            is_root,
         }
     }
     pub fn blank() -> ExprNode {
@@ -460,6 +470,7 @@ impl ExprNode {
             right: None,
             operator: None,
             line: Line::from((0, 0)),
+            is_root: false,
         }
     }
 }
@@ -481,6 +492,12 @@ impl ValueType {
     }
     pub fn value(val: Literal) -> ValueType {
         ValueType::Literal(val)
+    }
+    pub fn is_expression(&self) -> bool {
+        match self {
+            ValueType::Expression(_) => true,
+            _ => false,
+        }
     }
 }
 #[derive(Debug, Clone)]

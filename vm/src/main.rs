@@ -70,6 +70,7 @@ fn main() {
                 ShLib { path: "string".to_string(), owns: stringify::LibOwner::Standard},
                 ShLib { path: "fs".to_string(), owns: stringify::LibOwner::Standard},
                 ShLib { path: "algo".to_string(), owns: stringify::LibOwner::Standard},
+                ShLib { path: "core".to_string(), owns: stringify::LibOwner::Standard},
             ];
             for (idx, lib) in data.shared_libs.iter().enumerate() {
                 ctx.libs.push(test::test::load_lib(&lib.into_real_path(&src, &ruda_path), idx));

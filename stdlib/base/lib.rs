@@ -23,6 +23,18 @@ impl lib::Library for DynLib {
         mem: PublicData,
     ) -> Result<Types, runtime_error::ErrTypes> {
         let _m = mem.memory;
+        macro_rules! get_args {
+            () => {
+                match m.args() {
+                    Some(args) => args,
+                    None => {
+                        return Err(runtime_error::ErrTypes::Message(format!(
+                            "Couldn't get args, this is probably a bug in the compiler",
+                        )))
+                    }
+                }
+            };
+        }
         match id {
             0 => {
 

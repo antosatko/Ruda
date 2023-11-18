@@ -233,21 +233,23 @@ fn get_assign(node: &Node) -> usize {
     panic!("hruzostrasna pohroma");
 }
 fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>) -> Function {
-    let mut args: Vec<(String, ShallowType, MemoryTypes)> = Vec::new();
+    let mut args: Vec<(String, ShallowType, MemoryTypes, Line)> = Vec::new();
     for arg in step_inside_arr(node, "arguments") {
         if let Tokens::Text(txt) = &arg.name {
             if txt == "self_arg" {
                 let ident = "self".to_string();
                 let arg_type = ShallowType::empty();
                 let mem_loc = get_mem_loc(&arg);
-                args.push((ident, arg_type, mem_loc));
+                let line = arg.line;
+                args.push((ident, arg_type, mem_loc, line));
                 continue;
             }
         }
         let ident = get_ident(&arg);
         let mem_loc = get_mem_loc(&arg);
         let arg_type = get_type(step_inside_val(&arg, "type"), errors);
-        args.push((ident, arg_type, mem_loc));
+        let line = arg.line;
+        args.push((ident, arg_type, mem_loc, line));
     }
     let return_type = if let Tokens::Text(txt) = &step_inside_val(node, "type").name {
         if txt == "type_specifier" {
@@ -401,7 +403,7 @@ pub struct UserData {
 #[derive(Debug)]
 pub struct Function {
     pub name: String,
-    pub args: Vec<(String, ShallowType, MemoryTypes)>,
+    pub args: Vec<(String, ShallowType, MemoryTypes, Line)>,
     pub return_type: ShallowType,
     pub errorable: bool,
     pub assign: usize,

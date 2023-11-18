@@ -22,6 +22,18 @@ impl lib::Library for String {
         mem: PublicData,
     ) -> Result<runtime_types::Types, runtime_error::ErrTypes> {
         let m = mem.memory;
+        macro_rules! get_args {
+            () => {
+                match m.args() {
+                    Some(args) => args,
+                    None => {
+                        return Err(runtime_error::ErrTypes::Message(format!(
+                            "Couldn't get args, this is probably a bug in the compiler",
+                        )))
+                    }
+                }
+            };
+        }
         match id {
             // string::concat
             0 => {

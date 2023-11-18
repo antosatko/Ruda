@@ -1419,6 +1419,24 @@ pub mod dictionary {
         pub fn is_null(&self) -> bool {
             self.main == vec![String::from("null")]
         }
+        pub fn is_number(&self) -> bool {
+            let temp = format!("{:?}", self);
+            temp == "number" || temp == "int" || temp == "float" || temp == "char" || temp == "usize"
+        }
+        pub fn is_string(&self) -> bool {
+            format!("{:?}", self) == "string"
+        }
+        pub fn is_primitive(&self) -> bool {
+            let temp = format!("{:?}", self);
+            temp == "number"
+                || temp == "int"
+                || temp == "float"
+                || temp == "char"
+                || temp == "usize"
+                || temp == "bool"
+                || temp == "null"
+                || temp == "string"
+        }
     }
 
     pub struct ShTypeBuilder {

@@ -1,24 +1,26 @@
 use core::panic;
+use intermediate::dictionary::ImportKinds;
 use std::collections::HashMap;
 use std::fmt::Pointer;
 use std::vec;
-use intermediate::dictionary::ImportKinds;
 
 use runtime::runtime_types::{
-    self, Instructions, Memory, Stack, Types, CODE_PTR_REG, GENERAL_REG1, GENERAL_REG3,
-    MEMORY_REG1, ARGS_REG, POINTER_REG, RETURN_REG,
+    self, Instructions, Memory, Stack, Types, ARGS_REG, CODE_PTR_REG, GENERAL_REG1, GENERAL_REG2,
+    GENERAL_REG3, MEMORY_REG1, POINTER_REG, RETURN_REG,
 };
 
 use crate::codeblock_parser::Nodes;
-use crate::expression_parser::{self, FunctionCall, ValueType};
+use crate::expression_parser::{self, traverse_da_fokin_value, FunctionCall, ValueType};
 use crate::intermediate::dictionary::{
-    self, Arg, ConstValue, Function, ShTypeBuilder, ShallowType, TypeComparison, Correction,
+    self, Arg, ConstValue, Correction, Function, ShTypeBuilder, ShallowType, TypeComparison,
 };
-use crate::lexer::tokenizer::{Operators, Tokens};
+use crate::lexer::tokenizer::{self, Operators, Tokens};
 use crate::tree_walker::tree_walker::{Err, Line};
 use crate::{intermediate, prep_objects::Context};
 
-use crate::libloader::{MemoryTypes, Registers, self};
+use crate::libloader::{self, MemoryTypes, Registers};
+
+const CORE_LIB: usize = 4;
 
 pub fn gen(
     objects: &mut Context,
@@ -81,8 +83,11 @@ fn gen_all_funs(
             let fun = InnerPath {
                 file: file.clone(),
                 block: None,
-                ident: objects.0.get(&file).unwrap().functions[fun].identifier.clone().unwrap(),
-                kind: ImportKinds::Rd
+                ident: objects.0.get(&file).unwrap().functions[fun]
+                    .identifier
+                    .clone()
+                    .unwrap(),
+                kind: ImportKinds::Rd,
             };
             gen_fun(objects, &fun, context)?;
         }
@@ -101,8 +106,11 @@ fn fix_corrections(
             let fun = InnerPath {
                 file: file.clone(),
                 block: None,
-                ident: objects.0.get(&file).unwrap().functions[fun].identifier.clone().unwrap(),
-                kind: ImportKinds::Rd
+                ident: objects.0.get(&file).unwrap().functions[fun]
+                    .identifier
+                    .clone()
+                    .unwrap(),
+                kind: ImportKinds::Rd,
             };
             while let Some(correction) = fun.get_mut(objects)?.corrections.pop() {
                 let pos = fun.get(objects)?.location.unwrap() + correction.location;
@@ -141,6 +149,8 @@ pub enum CodegenError {
     CannotAttachMethodsToFunctions(Line),
     ImportIsNotAValidValue(Line),
     IncorrectArgs(Line),
+    ExressionNotHandledProperly(Line),
+    InvalidOperator(ShallowType, ShallowType, Operators, Line),
 }
 
 pub fn stringify(
@@ -186,13 +196,15 @@ fn gen_fun<'a>(
     )? + args_scope_len;
     flip_stack_access(scope_len, &mut code);
     code.push(Instructions::Return);
-    let mut args_code = Code{ code: vec![Instructions::ReserveStack(scope_len, 0)] };
+    let mut args_code = Code {
+        code: vec![Instructions::ReserveStack(scope_len, 0)],
+    };
     for (idx, arg) in scopes[0].variables.iter().enumerate() {
         args_code.extend(&[
             Instructions::Move(ARGS_REG, POINTER_REG),
             Instructions::IndexStatic(idx),
             Instructions::ReadPtr(GENERAL_REG1),
-            Instructions::Write(scope_len-idx, GENERAL_REG1)
+            Instructions::Write(scope_len - idx, GENERAL_REG1),
         ]);
     }
     let mut temp = Vec::new();
@@ -262,12 +274,15 @@ fn expression(
                                 Err(CodegenError::ReferenceString(depth, lit.line.clone()))?;
                             }
                             code.extend(&[ReadConst(pos, GENERAL_REG1)]);
-                            return_kind = ShTypeBuilder::new().set_name("string").set_refs(depth).build();
+                            return_kind = ShTypeBuilder::new()
+                                .set_name("string")
+                                .set_refs(depth)
+                                .build();
                         }
                         expression_parser::Ref::None => {
                             code.extend(&[
-                                ReadConst(pos, POINTER_REG),
-                                Cal(1, 3),
+                                ReadConst(pos, GENERAL_REG1),
+                                Cal(CORE_LIB, 0),
                                 Move(RETURN_REG, GENERAL_REG1),
                             ]);
                             return_kind = ShTypeBuilder::new().set_name("string").build();
@@ -293,7 +308,53 @@ fn expression(
             }
             return_kind = kind;
         }
-        ValueType::Expression(_) => todo!(),
+        ValueType::Expression(expr) => {
+            let left = match expr.left.as_ref() {
+                Some(left) => left,
+                None => Err(CodegenError::ExressionNotHandledProperly(expr.line.clone()))?,
+            };
+            let right = match expr.right.as_ref() {
+                Some(right) => right,
+                None => Err(CodegenError::ExressionNotHandledProperly(expr.line.clone()))?,
+            };
+            let left_kind = expression(objects, left, scopes, code, context, &fun, scope_len)?;
+            *scope_len += 1;
+            let var = create_var_pos(scopes);
+            let len = scopes.len();
+            scopes[len - 1].variables.insert(
+                scope_len.to_string(),
+                Variable {
+                    kind: Some(left_kind.clone()),
+                    pos: var.clone(),
+                    value: None,
+                    line: expr.line.clone(),
+                },
+            );
+            code.write(GENERAL_REG1, &var);
+            let right_kind = expression(objects, right, scopes, code, context, &fun, scope_len)?;
+            code.read(&var, GENERAL_REG2);
+            code.push(Swap(GENERAL_REG1, GENERAL_REG2));
+            let op = match &expr.operator {
+                Some(op) => op,
+                None => Err(CodegenError::ExressionNotHandledProperly(expr.line.clone()))?,
+            };
+            let kind = match native_operand(
+                objects,
+                &op,
+                &left_kind,
+                &right_kind,
+                code,
+                context,
+                &fun,
+                &expr.line,
+            ) {
+                Some(kind) => kind,
+                None => {
+                    todo!("non native operand");
+                }
+            };
+            return_kind = kind;
+        }
         ValueType::Operator(_, line) => unreachable!(
             "operator not handled properly by the compiler at {line}, please report this bug"
         ),
@@ -325,7 +386,11 @@ fn find_var<'a>(scopes: &'a Vec<ScopeCached>, ident: &'a str) -> Option<&'a Vari
     None
 }
 
-fn find_import<'a>(objects: &'a Context, ident: &'a str, file_name: &'a str) -> Option<(&'a str, intermediate::dictionary::ImportKinds)> {
+fn find_import<'a>(
+    objects: &'a Context,
+    ident: &'a str,
+    file_name: &'a str,
+) -> Option<(&'a str, intermediate::dictionary::ImportKinds)> {
     match objects.0.get(file_name) {
         Some(dictionary) => {
             for import in dictionary.imports.iter() {
@@ -348,7 +413,7 @@ fn find_fun<'a>(objects: &'a Context, ident: &'a str, file_name: &'a str) -> Opt
                         file: file_name.to_string(),
                         block: None,
                         ident: ident.to_string(),
-                        kind: ImportKinds::Rd
+                        kind: ImportKinds::Rd,
                     }));
                 }
             }
@@ -363,7 +428,7 @@ fn find_fun<'a>(objects: &'a Context, ident: &'a str, file_name: &'a str) -> Opt
                         file: file_name.to_string(),
                         block: None,
                         ident: ident.to_string(),
-                        kind: ImportKinds::Dll
+                        kind: ImportKinds::Dll,
                     }));
                 }
             }
@@ -416,8 +481,8 @@ fn gen_value(
             FunctionKind::Binary(fun) => {
                 let fun = fun.get_bin(objects)?;
                 fun.return_type.clone()
-            },
-            _ => todo!()
+            }
+            _ => todo!(),
         },
         Position::StructField(_, _) => todo!(),
         Position::Import(_) => Err(CodegenError::ImportIsNotAValidValue(value.root.1.clone()))?,
@@ -465,16 +530,16 @@ fn identify_root(
     if let Some(fun) = find_fun(objects, &ident, &file) {
         return Ok(Position::Function(fun));
     }
-    // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE 
-    // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE 
-    // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE 
+    // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE
+    // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE
+    // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE
     Err(CodegenError::VariableNotFound(
         ident.to_string(),
         line.clone(),
     ))?
-    // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE 
-    // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE 
-    // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE 
+    // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE
+    // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE
+    // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE
 }
 
 fn traverse_tail(
@@ -496,27 +561,13 @@ fn traverse_tail(
                     Position::Import(fname) => {
                         let root = identify_root(objects, &ident, Some(scopes), &fname, &node.1)?;
                         return traverse_tail(
-                            objects,
-                            tail,
-                            context,
-                            scopes,
-                            code,
-                            fun,
-                            root,
-                            scope_len,
+                            objects, tail, context, scopes, code, fun, root, scope_len,
                         );
                     }
                     Position::BinImport(fname) => {
                         let root = identify_root(objects, &ident, Some(scopes), &fname, &node.1)?;
                         return traverse_tail(
-                            objects,
-                            tail,
-                            context,
-                            scopes,
-                            code,
-                            fun,
-                            root,
-                            scope_len,
+                            objects, tail, context, scopes, code, fun, root, scope_len,
                         );
                     }
                     Position::Variable(vname) => {
@@ -633,7 +684,7 @@ fn call_binary(
     *scope_len += 1;
     let obj = create_var_pos(scopes);
     let scopes_len = scopes.len();
-    scopes[scopes_len-1].variables.insert(
+    scopes[scopes_len - 1].variables.insert(
         scope_len.to_string(),
         Variable {
             kind: Some(ShallowType::empty()),
@@ -643,7 +694,10 @@ fn call_binary(
         },
     );
     let called_fun = fun.get_bin(objects)?;
-    temp_code.extend(&[Freeze, AllocateStatic(called_fun.args.len().max(call_params.args.len()))]);
+    temp_code.extend(&[
+        Freeze,
+        AllocateStatic(called_fun.args.len().max(call_params.args.len())),
+    ]);
     temp_code.write(POINTER_REG, &obj);
     for (idx, arg) in call_params.args.iter().enumerate() {
         let kind = expression(
@@ -666,8 +720,18 @@ fn call_binary(
         }
         let cmp = fun.get_bin(objects)?.args[idx].1.cmp(&arg);
         if cmp.is_not_equal() {
-            println!("arg: {arg:?}");
-            todo!("type mismatch in binary function call");
+            let expected = fun.get_bin(objects)?.args[idx].1.clone();
+            let ident = fun.get_bin(objects)?.args[idx].0.clone();
+            return Err(CodegenError::ArgTypeMismatch(
+                Arg {
+                    identifier: ident,
+                    kind: expected,
+                    line: fun.get_bin(objects)?.args[idx].3.clone(),
+                },
+                arg.clone(),
+                cmp,
+                line.clone(),
+            ));
         }
     }
     temp_code.read(&obj, ARGS_REG);
@@ -699,7 +763,7 @@ fn call_fun(
     *scope_len += 1;
     let obj = create_var_pos(scopes);
     let scopes_len = scopes.len();
-    scopes[scopes_len-1].variables.insert(
+    scopes[scopes_len - 1].variables.insert(
         scope_len.to_string(),
         Variable {
             kind: Some(ShallowType::empty()),
@@ -708,7 +772,10 @@ fn call_fun(
             line: line.clone(),
         },
     );
-    temp_code.extend(&[Freeze, AllocateStatic(called_fun.args.len().max(call_params.args.len()))]);
+    temp_code.extend(&[
+        Freeze,
+        AllocateStatic(called_fun.args.len().max(call_params.args.len())),
+    ]);
     temp_code.write(POINTER_REG, &obj);
     // setup args
     let mut args = Vec::new();
@@ -747,7 +814,7 @@ fn call_fun(
         Some(_) => None,
         None => Some(Correction {
             // Jump instruction
-            location: temp_code.code.len()+1, // DANDANDANDA
+            location: temp_code.code.len() + 1, // DANDANDANDA
             function: fun.clone(),
         }),
     };
@@ -759,10 +826,13 @@ fn call_fun(
         Move(RETURN_REG, GENERAL_REG1),
     ]);
     merge_code(&mut code.code, &temp_code.code, *scope_len);
-    Ok((called_fun
-        .return_type
-        .clone()
-        .unwrap_or(ShTypeBuilder::new().set_name("null").build()), correction))
+    Ok((
+        called_fun
+            .return_type
+            .clone()
+            .unwrap_or(ShTypeBuilder::new().set_name("null").build()),
+        correction,
+    ))
 }
 
 fn get_scope(
@@ -1444,4 +1514,49 @@ impl InnerPath {
             }
         }
     }
+}
+
+fn native_operand(
+    objects: &mut Context,
+    op: &tokenizer::Operators,
+    left: &ShallowType,
+    right: &ShallowType,
+    code: &mut Code,
+    context: &mut runtime_types::Context,
+    fun: &InnerPath,
+    line: &Line,
+) -> Option<ShallowType> {
+    use Instructions::*;
+    match op {
+        Operators::Plus => {
+            if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+                code.extend(&[Add(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
+                return Some(left.clone());
+            } else if left.is_string() && right.is_string() {
+                code.extend(&[Cal(CORE_LIB, 2), Move(RETURN_REG, GENERAL_REG1)]);
+                return Some(ShTypeBuilder::new().set_name("string").build());
+            } else if left.is_string() && right.is_primitive() {
+                code.extend(&[
+                    Cal(CORE_LIB, 1),
+                    Move(RETURN_REG, GENERAL_REG2),
+                    Cal(CORE_LIB, 2),
+                    Move(RETURN_REG, GENERAL_REG1),
+                ]);
+                return Some(ShTypeBuilder::new().set_name("string").build());
+            } else if left.is_primitive() && right.is_string() {
+                code.extend(&[
+                    Swap(GENERAL_REG1, GENERAL_REG2),
+                    Cal(CORE_LIB, 1),
+                    Move(RETURN_REG, GENERAL_REG2),
+                    Cal(CORE_LIB, 2),
+                    Move(RETURN_REG, GENERAL_REG1),
+                ]);
+                return Some(ShTypeBuilder::new().set_name("string").build());
+            } else {
+                None?
+            }
+        }
+        _ => todo!("other operators"),
+    }
+    None
 }

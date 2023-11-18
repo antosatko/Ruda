@@ -123,8 +123,8 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) -> bool{
     for (_, libname) in lib_names.iter().enumerate() {
         binaries.insert(libname.to_string(), dicts.remove(0));
     }
-    const LIB_COUNT: usize = 4;
-    const STD_LIBS: [&str; LIB_COUNT] = ["#io", "#string", "#fs", "#algo"];
+    const LIB_COUNT: usize = 5;
+    const STD_LIBS: [&str; LIB_COUNT] = ["#io", "#string", "#fs", "#algo", "#core"];
     let mut count = LIB_COUNT;
     for (name, bin) in binaries.iter_mut() {
         match STD_LIBS.iter().position(|&lib| lib == name) {
