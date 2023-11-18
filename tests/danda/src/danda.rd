@@ -1,3 +1,5 @@
-fun danda(a: number): number {
-    return a
+import "#io"
+
+fun greet(name: string) {
+    io.println("Hello, " + name + "!")
 }

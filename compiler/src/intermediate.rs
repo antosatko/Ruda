@@ -725,7 +725,6 @@ pub mod dictionary {
         refs
     }
     pub fn get_type(node: &Node, errors: &mut Vec<ErrType>) -> ShallowType {
-        println!("{:?}", node.nodes.keys());
         let nullable = if let Some(val) = try_step_inside_val(node, "optional") {
             val.name == Tokens::Optional
         } else {
@@ -1436,6 +1435,44 @@ pub mod dictionary {
                 || temp == "bool"
                 || temp == "null"
                 || temp == "string"
+        }
+        pub fn into_runtime(&self) -> Option<runtime_types::Types> {
+            if let Some(fun) = &self.is_fun {
+                return None;
+            }
+            if self.is_array {
+                return None;
+            }
+            let res = match format!("{:?}", self).as_str() {
+                "number" => runtime_types::Types::Float(0.0),
+                "int" => runtime_types::Types::Int(0),
+                "float" => runtime_types::Types::Float(0.0),
+                "char" => runtime_types::Types::Char(' '),
+                "usize" => runtime_types::Types::Usize(0),
+                "bool" => runtime_types::Types::Bool(false),
+                "null" => runtime_types::Types::Null,
+                _ => runtime_types::Types::Null,
+            };
+            Some(res)
+        }
+        pub fn into_const(&self) -> Option<ConstValue> {
+            if let Some(fun) = &self.is_fun {
+                return None;
+            }
+            if self.is_array {
+                return None;
+            }
+            let res = match format!("{:?}", self).as_str() {
+                "number" => ConstValue::Number(0.0),
+                "int" => ConstValue::Int(0),
+                "float" => ConstValue::Float(0.0),
+                "char" => ConstValue::Char(' '),
+                "usize" => ConstValue::Usize(0),
+                "bool" => ConstValue::Bool(false),
+                "null" => ConstValue::Null,
+                _ => ConstValue::Undefined,
+            };
+            Some(res)
         }
     }
 

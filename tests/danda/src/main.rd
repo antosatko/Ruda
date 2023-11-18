@@ -1,16 +1,13 @@
 import "#io"
 import "#fs"
 
+import "danda.rd"
+
 fun main(): number {
     let i = 0
-    while i < 5 {
-        io.println("" + i)
-        i = i+1
+    while i < 6 {
+        let str = "danda" + 6
+        danda.greet(str)
+        i = i+1c
     }
-    let a = io.read()
-    io.println(a)
-    io.println(a)
-    io.println(a)
-    io.println(a)
-    io.println(a)
 }  

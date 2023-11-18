@@ -218,6 +218,14 @@ pub fn build_dictionaries(
                 };
             }
         }
+        let mut i = 0;
+        while i < found_imports.len() {
+            if found_imports[i].starts_with("#") {
+                found_imports.remove(i);
+            } else {
+                i += 1;
+            }
+        }
         new_imports(&mut imports, found_imports);
         // check if all imports are in the dictionary
         let mut all = true;

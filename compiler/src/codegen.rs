@@ -151,6 +151,7 @@ pub enum CodegenError {
     IncorrectArgs(Line),
     ExressionNotHandledProperly(Line),
     InvalidOperator(ShallowType, ShallowType, Operators, Line),
+    CouldNotCast(ShallowType, ShallowType, Line),
 }
 
 pub fn stringify(
@@ -227,9 +228,11 @@ fn expression(
     context: &mut runtime_types::Context,
     fun: &InnerPath,
     scope_len: &mut usize,
+    expected_type: Option<ShallowType>,
 ) -> Result<ShallowType, CodegenError> {
     use Instructions::*;
     let mut return_kind = ShallowType::empty();
+    let mut line = Line {column: 0, line: 0};
     match expr {
         ValueType::Literal(lit) => {
             match &lit.value {
@@ -250,14 +253,16 @@ fn expression(
                         match arr {
                             expression_parser::ArrayRule::Fill { value, size } => todo!(),
                             expression_parser::ArrayRule::Explicit(values) => {
+                                let mut kind = None;
                                 code.extend(&[
                                     AllocateStatic(values.len() + 1),
                                     Move(GENERAL_REG1, POINTER_REG),
                                 ]);
                                 for value in values {
-                                    arr_.push(expression(
-                                        objects, value, scopes, code, context, &fun, scope_len,
+                                    kind = Some(expression(
+                                        objects, value, scopes, code, context, &fun, scope_len, kind
                                     )?);
+                                    arr_.push(kind.clone());
                                 }
                             }
                         }
@@ -298,7 +303,7 @@ fn expression(
         }
         ValueType::AnonymousFunction(_) => todo!(),
         ValueType::Parenthesis(expr, tail) => {
-            let kind = expression(objects, expr, scopes, code, context, &fun, scope_len)?;
+            let kind = expression(objects, expr, scopes, code, context, &fun, scope_len, None)?;
             for (node, line) in tail.iter() {
                 match node {
                     expression_parser::TailNodes::Nested(_) => todo!(),
@@ -318,7 +323,7 @@ fn expression(
                 Some(right) => right,
                 None => Err(CodegenError::ExressionNotHandledProperly(expr.line.clone()))?,
             };
-            let left_kind = expression(objects, left, scopes, code, context, &fun, scope_len)?;
+            let left_kind = expression(objects, left, scopes, code, context, &fun, scope_len, None)?;
             *scope_len += 1;
             let var = create_var_pos(scopes);
             let len = scopes.len();
@@ -332,7 +337,7 @@ fn expression(
                 },
             );
             code.write(GENERAL_REG1, &var);
-            let right_kind = expression(objects, right, scopes, code, context, &fun, scope_len)?;
+            let right_kind = expression(objects, right, scopes, code, context, &fun, scope_len, Some(left_kind.clone()))?;
             code.read(&var, GENERAL_REG2);
             code.push(Swap(GENERAL_REG1, GENERAL_REG2));
             let op = match &expr.operator {
@@ -363,17 +368,35 @@ fn expression(
             // check for inner const
             if value.is_true_simple() && value.root.0 == "true" {
                 code.push(ReadConst(1, GENERAL_REG1));
-                return Ok(ShTypeBuilder::new().set_name("bool").build());
+                return_kind = ShTypeBuilder::new().set_name("bool").build();
             } else if value.is_true_simple() && value.root.0 == "false" {
                 code.push(ReadConst(2, GENERAL_REG1));
-                return Ok(ShTypeBuilder::new().set_name("bool").build());
+                return_kind = ShTypeBuilder::new().set_name("bool").build();
             } else if value.is_true_simple() && value.root.0 == "null" {
                 code.push(ReadConst(0, GENERAL_REG1));
-                return Ok(ShTypeBuilder::new().set_name("null").build());
+                return_kind = ShTypeBuilder::new().set_name("null").build();
+            }else {
+                return_kind = gen_value(objects, value, context, scopes, code, fun, scope_len)?;
             }
-            return gen_value(objects, value, context, scopes, code, fun, scope_len);
         }
         ValueType::Blank => {}
+    }
+    if let Some(expected_type) = expected_type {
+        let cmp = expected_type.cmp(&return_kind);
+        if cmp.is_not_equal() {
+            match cast(objects, &mut return_kind, &expected_type, code, context, &fun, &line, GENERAL_REG1) {
+                Some(_) => {
+                    return_kind = expected_type;
+                },
+                None => {
+                    return Err(CodegenError::CouldNotCast(
+                        return_kind,
+                        expected_type,
+                        line.clone(),
+                    ));
+                }
+            }
+        }
     }
     Ok(return_kind)
 }
@@ -477,7 +500,7 @@ fn gen_value(
         Position::Function(fun) => match fun {
             FunctionKind::Fun(fun) => {
                 let fun = fun.get(objects)?;
-                fun.return_type.clone().unwrap()
+                fun.return_type.clone().unwrap_or(ShTypeBuilder::new().set_name("null").build())
             }
             FunctionKind::Binary(fun) => {
                 let fun = fun.get_bin(objects)?;
@@ -603,7 +626,7 @@ fn traverse_tail(
                         };
                         let pos_cloned = var.pos.clone();
                         let index_kind =
-                            expression(objects, idx, scopes, code, context, &fun, scope_len)?;
+                            expression(objects, idx, scopes, code, context, &fun, scope_len, Some(ShTypeBuilder::new().set_name("usize").build()))?;
                         code.push(Move(GENERAL_REG1, GENERAL_REG3));
                         code.read(&pos_cloned, GENERAL_REG1);
                     }
@@ -701,6 +724,7 @@ fn call_binary(
     ]);
     temp_code.write(POINTER_REG, &obj);
     for (idx, arg) in call_params.args.iter().enumerate() {
+        let expected = fun.get_bin(objects)?.args[idx].1.clone();
         let kind = expression(
             objects,
             arg,
@@ -709,6 +733,7 @@ fn call_binary(
             context,
             &fun,
             scope_len,
+            Some(expected.clone()),
         )?;
         args.push(kind);
         temp_code.read(&obj, POINTER_REG);
@@ -761,6 +786,7 @@ fn call_fun(
     use Instructions::*;
     let mut temp_code = Code { code: Vec::new() };
     let called_fun = fun.get(objects)?;
+    let expected = called_fun.return_type.clone();
     *scope_len += 1;
     let obj = create_var_pos(scopes);
     let scopes_len = scopes.len();
@@ -789,6 +815,7 @@ fn call_fun(
             context,
             &fun,
             scope_len,
+            expected.clone(),
         )?;
         args.push(kind);
         temp_code.read(&obj, POINTER_REG);
@@ -903,6 +930,7 @@ fn get_scope(
                             context,
                             &fun,
                             &mut max_scope_len,
+                            None,
                         )?;
                         code.write(GENERAL_REG1, &pos);
                         expr_kind
@@ -958,10 +986,8 @@ fn get_scope(
                     context,
                     &fun,
                     &mut max_scope_len,
+                    Some(bool_type.clone()),
                 )?;
-                if kind.cmp(&bool_type).is_not_equal() {
-                    return Err(CodegenError::ExpectedBool(line.clone()));
-                }
                 let scope = open_scope!(body, &mut block_code);
                 expr_code.push(Branch(
                     expr_code.code.len() + 1,
@@ -980,6 +1006,7 @@ fn get_scope(
                         context,
                         &fun,
                         &mut max_scope_len,
+                        Some(bool_type.clone()),
                     )?;
                     if kind.cmp(&bool_type).is_not_equal() {
                         return Err(CodegenError::ExpectedBool(elif.2.clone()));
@@ -1032,6 +1059,7 @@ fn get_scope(
                     context,
                     &fun,
                     &mut max_scope_len,
+                    Some(bool_type.clone()),
                 )?;
                 if kind.cmp(&bool_type).is_not_equal() {
                     return Err(CodegenError::ExpectedBool(line.clone()));
@@ -1066,6 +1094,7 @@ fn get_scope(
                             context,
                             &fun,
                             &mut max_scope_len,
+                            fun.get(objects)?.return_type.clone(),
                         )?;
                         expr_code.push(Move(GENERAL_REG1, RETURN_REG));
                         kind
@@ -1106,6 +1135,7 @@ fn get_scope(
                     context,
                     &fun,
                     &mut max_scope_len,
+                    None,
                 )?;
             }
             crate::codeblock_parser::Nodes::Block { body, line } => {
@@ -1179,6 +1209,7 @@ fn get_scope(
                                     context,
                                     &fun,
                                     &mut max_scope_len,
+                                    var.kind.clone(),
                                 )?;
                                 if let Operators::Equal = op {
                                     if let Some(kind) = &var.kind {
@@ -1533,22 +1564,24 @@ fn native_operand(
             if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
                 code.extend(&[Add(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(left.clone());
+            } else if left.is_number() && right.is_number() && left.cmp(right).is_not_equal() {
+                cast(objects, left, right, code, context, fun, line, GENERAL_REG2)?;
+                code.extend(&[Add(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
+                return Some(right.clone());
             } else if left.is_string() && right.is_string() {
                 code.extend(&[Cal(CORE_LIB, 2), Move(RETURN_REG, GENERAL_REG1)]);
                 return Some(ShTypeBuilder::new().set_name("string").build());
             } else if left.is_string() && right.is_primitive() {
+                cast(objects, right, &ShTypeBuilder::new().set_name("string").build(), code, context, fun, line, GENERAL_REG2)?;
                 code.extend(&[
-                    Cal(CORE_LIB, 1),
-                    Move(RETURN_REG, GENERAL_REG2),
                     Cal(CORE_LIB, 2),
                     Move(RETURN_REG, GENERAL_REG1),
                 ]);
                 return Some(ShTypeBuilder::new().set_name("string").build());
             } else if left.is_primitive() && right.is_string() {
+                code.push(Swap(GENERAL_REG1, GENERAL_REG2));
+                cast(objects, left, &ShTypeBuilder::new().set_name("string").build(), code, context, fun, line, GENERAL_REG2)?;
                 code.extend(&[
-                    Swap(GENERAL_REG1, GENERAL_REG2),
-                    Cal(CORE_LIB, 1),
-                    Move(RETURN_REG, GENERAL_REG2),
                     Swap(GENERAL_REG1, GENERAL_REG2),
                     Cal(CORE_LIB, 2),
                     Move(RETURN_REG, GENERAL_REG1),
@@ -1696,9 +1729,61 @@ fn native_operand(
                 }
             }
         }
-        Operators::LessEq => todo!("add to runtime"),
-        Operators::MoreEq => todo!("add to runtime"),
-        Operators::Not => unreachable!("not is not a binary operator, this is a bug in compiler"),
+        Operators::LessEq => {
+            if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+                code.extend(&[Grt(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1), Not(GENERAL_REG1, GENERAL_REG1)]);
+                return Some(ShTypeBuilder::new().set_name("bool").build());
+            } else {
+                None?
+            }
+        }
+        Operators::MoreEq => {
+            if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+                code.extend(&[Less(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1), Not(GENERAL_REG1, GENERAL_REG1)]);
+                return Some(ShTypeBuilder::new().set_name("bool").build());
+            } else {
+                None?
+            }
+        }
+        Operators::Not => unreachable!("'not' is not a binary operator, this is a bug in compiler"),
+    }
+    None
+}
+
+
+fn cast(
+    objects: &mut Context,
+    from: &ShallowType,
+    to: &ShallowType,
+    code: &mut Code,
+    context: &mut runtime_types::Context,
+    fun: &InnerPath,
+    line: &Line,
+    register: usize,
+) -> Option<()> {
+    use Instructions::*;
+    if from.cmp(to).is_equal() {
+        return Some(());
+    }
+    if from.is_primitive() && to.is_primitive() {
+        if to.is_string() {
+            if register != GENERAL_REG2 {
+                code.extend(&[Move(register, GENERAL_REG2)]);
+            }
+            code.extend(&[Cal(CORE_LIB, 1), Move(RETURN_REG, register)]);
+            return Some(());
+        }
+        if from.is_number() && to.is_number() {
+            let const_val = match new_const(context, &to.into_const()?) {
+                Ok(pos) => pos,
+                Err(_) => None?,
+            };
+            code.extend(&[
+                ReadConst(const_val, POINTER_REG),
+                Cast(register, POINTER_REG),
+            ]);
+            return Some(());
+        }
     }
     None
 }

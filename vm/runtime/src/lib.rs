@@ -580,14 +580,15 @@ impl Context {
                     Types::Usize(num1) => operation!(Usize, add, num1, r1, r2, res),
                     Types::Char(char1) => {
                         if let Types::Char(char2) = self.memory.registers[r2] {
-                            self.memory.registers[res] = Types::Char((char1 as u8 + char2 as u8) as char);
+                            self.memory.registers[res] =
+                                Types::Char((char1 as u8 + char2 as u8) as char);
                         } else {
                             return self.panic_rt(ErrTypes::WrongTypeOperation(
                                 self.memory.registers[r2],
                                 self.code.data[self.code.ptr],
                             ));
                         }
-                    },
+                    }
                     _ => {
                         return self.panic_rt(ErrTypes::WrongTypeOperation(
                             self.memory.registers[r1],
@@ -604,14 +605,15 @@ impl Context {
                     Types::Usize(num1) => operation!(Usize, sub, num1, r1, r2, res),
                     Types::Char(char1) => {
                         if let Types::Char(char2) = self.memory.registers[r2] {
-                            self.memory.registers[res] = Types::Char((char1 as u8 - char2 as u8) as char);
+                            self.memory.registers[res] =
+                                Types::Char((char1 as u8 - char2 as u8) as char);
                         } else {
                             return self.panic_rt(ErrTypes::WrongTypeOperation(
                                 self.memory.registers[r2],
                                 self.code.data[self.code.ptr],
                             ));
                         }
-                    },
+                    }
                     _ => {
                         return self.panic_rt(ErrTypes::WrongTypeOperation(
                             self.memory.registers[r1],
@@ -628,14 +630,15 @@ impl Context {
                     Types::Usize(num1) => operation!(Usize, mul, num1, r1, r2, res),
                     Types::Char(char1) => {
                         if let Types::Char(char2) = self.memory.registers[r2] {
-                            self.memory.registers[res] = Types::Char((char1 as u8 * char2 as u8) as char);
+                            self.memory.registers[res] =
+                                Types::Char((char1 as u8 * char2 as u8) as char);
                         } else {
                             return self.panic_rt(ErrTypes::WrongTypeOperation(
                                 self.memory.registers[r2],
                                 self.code.data[self.code.ptr],
                             ));
                         }
-                    },
+                    }
                     _ => {
                         return self.panic_rt(ErrTypes::WrongTypeOperation(
                             self.memory.registers[r1],
@@ -652,14 +655,15 @@ impl Context {
                     Types::Usize(num1) => operation!(Usize, div, num1, r1, r2, res),
                     Types::Char(char1) => {
                         if let Types::Char(char2) = self.memory.registers[r2] {
-                            self.memory.registers[res] = Types::Char((char1 as u8 / char2 as u8) as char);
+                            self.memory.registers[res] =
+                                Types::Char((char1 as u8 / char2 as u8) as char);
                         } else {
                             return self.panic_rt(ErrTypes::WrongTypeOperation(
                                 self.memory.registers[r2],
                                 self.code.data[self.code.ptr],
                             ));
                         }
-                    },
+                    }
                     _ => {
                         return self.panic_rt(ErrTypes::WrongTypeOperation(
                             self.memory.registers[r1],
@@ -676,14 +680,15 @@ impl Context {
                     Types::Usize(num1) => operation!(Usize, %, num1, r1, r2, res),
                     Types::Char(char1) => {
                         if let Types::Char(char2) = self.memory.registers[r2] {
-                            self.memory.registers[res] = Types::Char((char1 as u8 % char2 as u8) as char);
+                            self.memory.registers[res] =
+                                Types::Char((char1 as u8 % char2 as u8) as char);
                         } else {
                             return self.panic_rt(ErrTypes::WrongTypeOperation(
                                 self.memory.registers[r2],
                                 self.code.data[self.code.ptr],
                             ));
                         }
-                    },
+                    }
                     _ => {
                         return self.panic_rt(ErrTypes::WrongTypeOperation(
                             self.memory.registers[r1],
@@ -1092,6 +1097,7 @@ impl Context {
             Types::Int(num) => match registers[reg2] {
                 Types::Float(_) => return Ok(Types::Float(num as f64)),
                 Types::Usize(_) => return Ok(Types::Usize(num as usize)),
+                Types::Char(_) => return Ok(Types::Char(num as u8 as char)),
                 Types::Bool(_) => {
                     return if num == 0 {
                         Ok(Types::Bool(false))
@@ -1104,6 +1110,7 @@ impl Context {
             Types::Float(num) => match registers[reg2] {
                 Types::Int(_) => return Ok(Types::Int(num as i64)),
                 Types::Usize(_) => return Ok(Types::Usize(num as usize)),
+                Types::Char(_) => return Ok(Types::Char(num as u8 as char)),
                 Types::Bool(_) => {
                     return if num == 0f64 {
                         Ok(Types::Bool(false))
@@ -1116,8 +1123,22 @@ impl Context {
             Types::Usize(num) => match registers[reg2] {
                 Types::Int(_) => return Ok(Types::Int(num as i64)),
                 Types::Float(_) => return Ok(Types::Float(num as f64)),
+                Types::Char(_) => return Ok(Types::Char(num as u8 as char)),
                 Types::Bool(_) => {
                     return if num == 0 {
+                        Ok(Types::Bool(false))
+                    } else {
+                        Ok(Types::Bool(true))
+                    }
+                }
+                _ => return Err(ErrTypes::ImplicitCast(registers[reg1], registers[reg2])),
+            },
+            Types::Char(char) => match registers[reg2] {
+                Types::Int(_) => return Ok(Types::Int(char as i64)),
+                Types::Float(_) => return Ok(Types::Float(char as u8 as f64)),
+                Types::Usize(_) => return Ok(Types::Usize(char as usize)),
+                Types::Bool(_) => {
+                    return if char == '\0' {
                         Ok(Types::Bool(false))
                     } else {
                         Ok(Types::Bool(true))
@@ -1288,7 +1309,9 @@ impl Context {
             ),
             Instructions::Len(_) => DEF,
             Instructions::Type(_, _) => DEF,
-            Instructions::Jump(dest) => format!("destination: {}. {}", *dest, self.code.data[*dest]),
+            Instructions::Jump(dest) => {
+                format!("destination: {}. {}", *dest, self.code.data[*dest])
+            }
             Instructions::Freeze => DEF,
             Instructions::Back => format!(
                 "destination: {}",
