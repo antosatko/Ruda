@@ -1,7 +1,6 @@
 use core::panic;
 use intermediate::dictionary::ImportKinds;
 use std::collections::HashMap;
-use std::fmt::Pointer;
 use std::vec;
 
 use runtime::runtime_types::{
@@ -270,21 +269,79 @@ fn expression(
                 }
                 expression_parser::Literals::Array(arr) => {
                     let pos = {
-                        let mut arr_ = Vec::new();
                         match arr {
                             expression_parser::ArrayRule::Fill { value, size } => todo!(),
+                            // logic is pretty much the same as filling args in a function
                             expression_parser::ArrayRule::Explicit(values) => {
-                                let mut kind = None;
+                                let mut kind = match &expected_type {
+                                    Some(kind) => {
+                                        let mut temp = kind.clone();
+                                        temp.array_depth -= 1;
+                                        Some(temp)
+                                    },
+                                    None => None,
+                                };
                                 code.extend(&[
-                                    AllocateStatic(values.len() + 1),
-                                    Move(GENERAL_REG1, POINTER_REG),
+                                    AllocateStatic(values.len()),
                                 ]);
-                                for value in values {
-                                    kind = Some(expression(
-                                        objects, value, scopes, code, context, &fun, scope_len, kind
+                                *scope_len += 1;
+                                let obj = create_var_pos(scopes);
+                                let scopes_len = scopes.len();
+                                scopes[scopes_len - 1].variables.insert(
+                                    scope_len.to_string(),
+                                    Variable {
+                                        kind: Some(ShallowType::empty()),
+                                        pos: obj.clone(),
+                                        value: None,
+                                        line: lit.line.clone(),
+                                    },
+                                );
+                                code.write(POINTER_REG, &obj);
+                                for (idx, value) in values.iter().enumerate() {
+                                    let temp_kind = Some(expression(
+                                        objects,
+                                        value,
+                                        scopes,
+                                        code,
+                                        context,
+                                        &fun,
+                                        scope_len,
+                                        kind.clone(),
                                     )?);
-                                    arr_.push(kind.clone());
+                                    match &kind {
+                                        Some(kind) => {
+                                            match cast(
+                                                objects,
+                                                &mut kind.clone(),
+                                                &temp_kind.clone().unwrap(),
+                                                code,
+                                                context,
+                                                &fun,
+                                                &lit.line,
+                                                GENERAL_REG1,
+                                            ) {
+                                                Some(_) => {
+                                                    // do nothing
+                                                }
+                                                None => {
+                                                    Err(CodegenError::CouldNotCast(
+                                                        kind.clone(),
+                                                        temp_kind.clone().unwrap(),
+                                                        lit.line.clone(),
+                                                    ))?;
+                                                }
+                                            }
+                                        }
+                                        None => {
+                                            kind = temp_kind.clone();
+                                        }
+                                    }
+                                    code.read(&obj, POINTER_REG);
+                                    code.extend(&[IndexStatic(idx), WritePtr(GENERAL_REG1)]);
                                 }
+                                code.read(&obj, GENERAL_REG1);
+                                return_kind = kind.unwrap().clone();
+                                return_kind.array_depth += 1;
                             }
                         }
                     };
@@ -324,7 +381,7 @@ fn expression(
         }
         ValueType::AnonymousFunction(_) => todo!(),
         ValueType::Parenthesis(expr, tail) => {
-            let kind = expression(objects, expr, scopes, code, context, &fun, scope_len, None)?;
+            let kind = expression(objects, expr, scopes, code, context, &fun, scope_len, expected_type.clone())?;
             for (node, line) in tail.iter() {
                 match node {
                     expression_parser::TailNodes::Nested(_) => todo!(),
@@ -578,7 +635,6 @@ fn identify_root(
     // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE
     // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE
     // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE
-    panic!("yah, it was this one");
     Err(CodegenError::VariableNotFound(
         ident.to_string(),
         line.clone(),
@@ -938,7 +994,7 @@ fn get_scope(
                             context,
                             &fun,
                             &mut max_scope_len,
-                            None,
+                            kind.clone(),
                         )?;
                         code.write(GENERAL_REG1, &pos);
                         expr_kind
