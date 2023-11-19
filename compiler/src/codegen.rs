@@ -1169,10 +1169,8 @@ fn get_scope(
             crate::codeblock_parser::Nodes::Continue { line } => todo!(),
             crate::codeblock_parser::Nodes::Loop { body, line } => {
                 use Instructions::*;
-                let mut block_code = Code { code: Vec::new() };
-                let scope = open_scope!(body, &mut block_code);
-                block_code.push(Goto(0));
-                merge_code(&mut context.code.data, &block_code.code, scope);
+                let scope = open_scope!(body, code);
+                code.code.push(Goto(0));
             }
             crate::codeblock_parser::Nodes::Yeet { expr, line } => todo!(),
             crate::codeblock_parser::Nodes::Try {
@@ -1237,19 +1235,68 @@ fn get_scope(
                                 )?;
                                 if let Operators::Equal = op {
                                     if let Some(kind) = &var.kind {
-                                        let cmp = kind.cmp(&expr);
-                                        if cmp.is_not_equal() {
-                                            return Err(CodegenError::VariableTypeMismatch(
-                                                kind.clone(),
+                                        match cast(
+                                            objects,
+                                            &expr,
+                                            &kind,
+                                            &mut conclusion_code,
+                                            context,
+                                            &fun,
+                                            &line,
+                                            GENERAL_REG1,
+                                        ) {
+                                            Some(_) => {
+                                                conclusion_code.write(GENERAL_REG1, &var.pos);
+                                            }
+                                            None => {
+                                                return Err(CodegenError::CouldNotCast(
+                                                    expr,
+                                                    kind.clone(),
+                                                    line.clone(),
+                                                ));
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    let kind = match cast(
+                                        objects,
+                                        &expr,
+                                        &var.kind.clone().unwrap(),
+                                        &mut conclusion_code,
+                                        context,
+                                        &fun,
+                                        &line,
+                                        GENERAL_REG1,
+                                    ) {
+                                        Some(_) => {
+                                            expr
+                                        }
+                                        None => {
+                                            return Err(CodegenError::CouldNotCast(
                                                 expr,
-                                                cmp,
+                                                var.kind.clone().unwrap(),
                                                 line.clone(),
                                             ));
                                         }
-                                    }
+                                    };
+                                    conclusion_code.read(&var.pos, GENERAL_REG2);
+                                    conclusion_code.push(Swap(GENERAL_REG1, GENERAL_REG2));
+                                    let kind = match native_operand(
+                                        objects,
+                                        &op,
+                                        &var.kind.clone().unwrap(),
+                                        &kind,
+                                        &mut conclusion_code,
+                                        context,
+                                        &fun,
+                                        &line,
+                                    ) {
+                                        Some(_) => (),
+                                        None => {
+                                            unreachable!("non native operand, this is a bug in the compiler, please report it");
+                                        }
+                                    };
                                     conclusion_code.write(GENERAL_REG1, &var.pos);
-                                } else {
-                                    todo!("other operators (need basic operators first)")
                                 }
                                 merge_code(&mut code.code, &target_code.code, 0);
                                 merge_code(&mut code.code, &expr_code.code, 0);

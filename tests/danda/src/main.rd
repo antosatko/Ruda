@@ -1,8 +1,10 @@
 import "#io"
 import "#fs"
 
-import "danda.rd"
+// import "danda.rd"
 
 fun main(): number {
-    io.println(danda.greet("sdf"))
+    let a: int = 10
+    a += 7
+    io.println(a)
 }    
