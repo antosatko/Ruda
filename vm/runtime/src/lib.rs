@@ -81,7 +81,7 @@ impl Context {
         panic_msg!();
         while self.read_line() {
             // TODO: remove for or testing
-            // self.memory.gc_sweep_unoptimized()
+            self.memory.gc_sweep_unoptimized()
         }
     }
     /// runs the context for a given number of cycles
@@ -95,6 +95,8 @@ impl Context {
     }
     /// runs the context as fast as possible without checking for errors
     ///
+    /// This may cause undefined behaviour or crash the program unexpectedly
+    /// Run at your own risk
     pub fn run_unchecked(&mut self) {
         panic_msg!();
         loop {
