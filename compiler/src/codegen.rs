@@ -45,8 +45,10 @@ pub fn gen(
         .data
         .extend(consts.iter().map(|c| c.to_runtime()));
     let main_path = InnerPath::main();
+    let fun_locs = gen_all_fun_ids(objects)?;
     //gen_fun(objects, &main_path, &mut vm_context)?;
     gen_all_funs(objects, &mut vm_context)?;
+    fix_fun_calls(objects, &mut vm_context, &fun_locs)?;
     call_main(main_path.get(objects)?, &mut vm_context)?;
     Ok(vm_context)
 }
@@ -73,6 +75,51 @@ fn call_main(main: &Function, context: &mut runtime_types::Context) -> Result<()
     Ok(())
 }
 
+fn fix_fun_calls(
+    objects: &Context,
+    context: &mut runtime_types::Context,
+    fun_ids: &Vec<InnerPath>,
+) -> Result<(), CodegenError> {
+    for instr in context.code.data.iter_mut() {
+        match instr {
+            Instructions::Jump(id) => {
+                let fun = fun_ids[*id].get(objects)?;
+                *id = fun.location.unwrap();
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+/// Gives all functions unique ids before generating them, 
+/// then if a function wants to call another function, 
+/// it can just use the id, which will be replaced with 
+/// the actual location of the function later
+fn gen_all_fun_ids(objects: &mut Context) -> Result<Vec<InnerPath>, CodegenError> {
+    let keys = objects.0.keys().map(|s| s.clone()).collect::<Vec<_>>();
+    let mut paths = Vec::new();
+    let mut id = 0;
+    for file in keys {
+        for fun in 0..objects.0.get(&file).unwrap().functions.len() {
+            let fun = InnerPath {
+                file: file.clone(),
+                block: None,
+                ident: objects.0.get(&file).unwrap().functions[fun]
+                    .identifier
+                    .clone()
+                    .unwrap(),
+                kind: ImportKinds::Rd,
+            };
+            paths.push(fun.clone());
+            let fun = fun.get_mut(objects).unwrap();
+            fun.id = id;
+            id += 1;
+        }
+    }
+    Ok(paths)
+}
+
 fn gen_all_funs(
     objects: &mut Context,
     context: &mut runtime_types::Context,
@@ -92,35 +139,9 @@ fn gen_all_funs(
             gen_fun(objects, &fun, context)?;
         }
     }
-    fix_corrections(objects, context)?;
     Ok(())
 }
 
-fn fix_corrections(
-    objects: &mut Context,
-    context: &mut runtime_types::Context,
-) -> Result<(), CodegenError> {
-    let keys = objects.0.keys().map(|s| s.clone()).collect::<Vec<_>>();
-    for file in keys {
-        for fun in 0..objects.0.get(&file).unwrap().functions.len() {
-            let fun = InnerPath {
-                file: file.clone(),
-                block: None,
-                ident: objects.0.get(&file).unwrap().functions[fun]
-                    .identifier
-                    .clone()
-                    .unwrap(),
-                kind: ImportKinds::Rd,
-            };
-            while let Some(correction) = fun.get_mut(objects)?.corrections.pop() {
-                let pos = fun.get(objects)?.location.unwrap() + correction.location;
-                let other_pos = correction.function.get(objects)?.location.unwrap();
-                context.code.data[pos] = Instructions::Jump(other_pos);
-            }
-        }
-    }
-    Ok(())
-}
 
 #[derive(Debug)]
 pub enum CodegenError {
@@ -536,9 +557,6 @@ fn identify_root(
     file: &str,
     line: &Line,
 ) -> Result<Position, CodegenError> {
-    println!("ident: {}", ident);
-    println!("file: {}", file);
-    println!("scopes: {:?}", scopes);
     if let Some(scopes) = scopes {
         if find_var(scopes, &ident).is_some() {
             return Ok(Position::Variable(ident.to_string()));
@@ -644,7 +662,7 @@ fn traverse_tail(
                         Position::Function(fun_kind) => {
                             match fun_kind {
                                 FunctionKind::Fun(fun_path) => {
-                                    let (fun_kind, correction) = call_fun(
+                                    let fun_kind = call_fun(
                                         objects,
                                         fun_path,
                                         context,
@@ -655,14 +673,6 @@ fn traverse_tail(
                                         &node.1,
                                         fun,
                                     )?;
-                                    // add correction to the function struct
-                                    let fun = fun.get_mut(objects)?;
-                                    match correction {
-                                        Some(correction) => {
-                                            fun.corrections.push(correction);
-                                        }
-                                        None => {}
-                                    }
                                 }
                                 FunctionKind::Binary(fun_path) => {
                                     let kind = call_binary(
@@ -788,7 +798,7 @@ fn call_fun(
     call_params: &FunctionCall,
     line: &Line,
     this: &InnerPath,
-) -> Result<(ShallowType, Option<Correction>), CodegenError> {
+) -> Result<ShallowType, CodegenError> {
     use Instructions::*;
     let mut temp_code = Code { code: Vec::new() };
     let called_fun = fun.get(objects)?;
@@ -844,29 +854,21 @@ fn call_fun(
         }
     }
     temp_code.read(&obj, ARGS_REG);
-    let correction = match called_fun.location {
-        Some(_) => None,
-        None => Some(Correction {
-            // Jump instruction
-            location: temp_code.code.len() + 1 + code.code.len(),
-            function: fun.clone(),
-        }),
-    };
     // call
     temp_code.extend(&[
-        // Its fine if this is 0, it will be corrected later
-        Jump(called_fun.location.unwrap_or(0)),
+        // The function may not be generated yet, so we need to jump to its id
+        // which will be replaced with the actual location later
+        Jump(called_fun.id),
         Unfreeze,
         Move(RETURN_REG, GENERAL_REG1),
     ]);
     merge_code(&mut code.code, &temp_code.code, *scope_len);
-    Ok((
+    Ok(
         called_fun
             .return_type
             .clone()
             .unwrap_or(ShTypeBuilder::new().set_name("null").build()),
-        correction,
-    ))
+    )
 }
 
 fn get_scope(
@@ -1082,13 +1084,7 @@ fn get_scope(
                 if kind.cmp(&bool_type).is_not_equal() {
                     return Err(CodegenError::ExpectedBool(line.clone()));
                 }
-                //let corrections_len = fun.get(objects)?.corrections.len();
                 let scope = open_scope!(body, &mut block_code);
-                /*let new_corrections_len = fun.get(objects)?.corrections.len();
-                for i in corrections_len..new_corrections_len {
-                    let correction = &mut fun.get_mut(objects)?.corrections[i];
-                    correction.location += expr_code.code.len() + code.code.len()+1;
-                }*/
                 expr_code.push(Branch(
                     expr_code.code.len() + 1,
                     expr_code.code.len() + block_code.code.len() + 2,

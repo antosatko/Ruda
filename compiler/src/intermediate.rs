@@ -681,7 +681,7 @@ pub mod dictionary {
             code,
             line: node.line,
             pointers: None,
-            corrections: Vec::new(),
+            id: 0,
         }
     }
     pub fn public(node: &Node) -> bool {
@@ -978,7 +978,7 @@ pub mod dictionary {
         pub code: Vec<codeblock_parser::Nodes>,
         pub line: Line,
         pub pointers: Option<usize>,
-        pub corrections: Vec<Correction>,
+        pub id: usize,
     }
     /// used to correct function calls
     #[derive(Debug, Clone)]

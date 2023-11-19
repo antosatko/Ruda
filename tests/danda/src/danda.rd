@@ -15,5 +15,6 @@ fun expensive(): number {
     while i < 10000000 {
         i = i + 1
     }
+ 
     return i
 }

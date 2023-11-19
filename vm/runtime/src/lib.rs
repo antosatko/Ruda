@@ -81,7 +81,7 @@ impl Context {
         panic_msg!();
         while self.read_line() {
             // TODO: remove for or testing
-            self.memory.gc_sweep_unoptimized()
+            // self.memory.gc_sweep_unoptimized()
         }
     }
     /// runs the context for a given number of cycles
