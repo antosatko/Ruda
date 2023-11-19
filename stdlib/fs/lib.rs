@@ -125,7 +125,7 @@ impl lib::Library for Foo {
                     args[0]
                 {
                     let string = m.strings.to_string(u_size);
-                    let mut file = match OpenOptions::new().append(true).open(string) {
+                    let mut file = match OpenOptions::new().append(true).create(true).open(string) {
                         Err(why) => {
                             return Err(runtime_error::ErrTypes::Message(format!(
                                 "Couldn't open file: {}",

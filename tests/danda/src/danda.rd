@@ -1,7 +1,9 @@
 import "#io"
 
-fun greet(name: string) {
-    io.println(&"Hello, " + name + &"!")
+fun greet(name: string): string {
+    let str = &"Hello, " + name + &"!"
+    io.println(str)
+    return str
 }
 
 fun goodbye(name: string) {

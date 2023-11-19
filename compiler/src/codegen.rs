@@ -536,6 +536,9 @@ fn identify_root(
     file: &str,
     line: &Line,
 ) -> Result<Position, CodegenError> {
+    println!("ident: {}", ident);
+    println!("file: {}", file);
+    println!("scopes: {:?}", scopes);
     if let Some(scopes) = scopes {
         if find_var(scopes, &ident).is_some() {
             return Ok(Position::Variable(ident.to_string()));
@@ -557,6 +560,7 @@ fn identify_root(
     // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE
     // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE
     // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE
+    panic!("yah, it was this one");
     Err(CodegenError::VariableNotFound(
         ident.to_string(),
         line.clone(),
@@ -660,16 +664,17 @@ fn traverse_tail(
                                         None => {}
                                     }
                                 }
-                                FunctionKind::Binary(fun) => {
+                                FunctionKind::Binary(fun_path) => {
                                     let kind = call_binary(
                                         objects,
-                                        fun,
+                                        fun_path,
                                         context,
                                         scopes,
                                         code,
                                         scope_len,
                                         call_params,
                                         &node.1,
+                                        &fun,
                                     )?;
                                     return_kind = kind;
                                 }
@@ -698,6 +703,7 @@ fn call_binary(
     scope_len: &mut usize,
     call_params: &FunctionCall,
     line: &Line,
+    this: &InnerPath,
 ) -> Result<ShallowType, CodegenError> {
     use Instructions::*;
     let lib_id = objects.1.get(&fun.file).unwrap().id;
@@ -731,7 +737,7 @@ fn call_binary(
             scopes,
             &mut temp_code,
             context,
-            &fun,
+            &this,
             scope_len,
             Some(expected.clone()),
         )?;
@@ -954,14 +960,26 @@ fn get_scope(
                     Some(kind) => kind.clone(),
                     None => expr_kind.clone(),
                 };
-                let cmp = kind.cmp(&expr_kind);
-                if cmp.is_not_equal() {
-                    return Err(CodegenError::VariableTypeMismatch(
-                        kind.clone(),
-                        expr_kind,
-                        cmp,
-                        line.clone(),
-                    ));
+                match cast(
+                    objects,
+                    &expr_kind,
+                    &kind,
+                    code,
+                    context,
+                    &fun,
+                    &line,
+                    GENERAL_REG1,
+                ) {
+                    Some(_) => {
+                        code.write(GENERAL_REG1, &pos);
+                    }
+                    None => {
+                        return Err(CodegenError::CouldNotCast(
+                            expr_kind,
+                            kind,
+                            line.clone(),
+                        ));
+                    }
                 }
                 let cache = last!(other_scopes);
                 cache.variables.get_mut(ident).unwrap().kind = Some(kind);
@@ -1737,7 +1755,7 @@ fn native_operand(
         }
         Operators::LessEq => {
             if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
-                code.extend(&[Grt(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1), Not(GENERAL_REG1, GENERAL_REG1)]);
+                code.extend(&[Grt(GENERAL_REG2, GENERAL_REG1, GENERAL_REG1), Not(GENERAL_REG1, GENERAL_REG1)]);
                 return Some(ShTypeBuilder::new().set_name("bool").build());
             } else {
                 None?
@@ -1745,7 +1763,7 @@ fn native_operand(
         }
         Operators::MoreEq => {
             if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
-                code.extend(&[Less(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1), Not(GENERAL_REG1, GENERAL_REG1)]);
+                code.extend(&[Less(GENERAL_REG2, GENERAL_REG1, GENERAL_REG1), Not(GENERAL_REG1, GENERAL_REG1)]);
                 return Some(ShTypeBuilder::new().set_name("bool").build());
             } else {
                 None?
