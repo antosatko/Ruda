@@ -53,6 +53,7 @@ impl lib::Library for Foo {
                         "Invalid argument".to_owned(),
                     ));
                 }
+                Ok(Types::Void)
             }
             // std::println
             1 => {
@@ -67,6 +68,7 @@ impl lib::Library for Foo {
                         format!("Invalid argument {:?}", m.registers[runtime_types::POINTER_REG]),
                     ));
                 }
+                Ok(Types::Void)
             }
             // std::read
             2 => {
@@ -124,11 +126,28 @@ impl lib::Library for Foo {
                 // return the pointer to the array
                 return Ok(Types::Pointer(obj, PointerTypes::Object));
             }
+            // std::readln
+            5 => {
+                let mut input = String::new();
+                match std::io::stdin().read_line(&mut input) {
+                    Err(why) => {
+                        return Err(runtime_error::ErrTypes::Message(format!(
+                            "Couldn't read input: {}",
+                            why
+                        )))
+                    }
+                    Ok(_) => (),
+                }
+                m.strings.from_string(input.trim_end().to_owned());
+                return Ok(Types::Pointer(
+                    m.strings.pool.len() - 1,
+                    PointerTypes::String,
+                ));
+            }
             _ => {
                 unreachable!("Invalid function id")
             }
         }
-        return Ok(runtime_types::Types::Void);
     }
 }
 
@@ -140,9 +159,10 @@ fn register() -> String {
     
     fun print(msg=reg.ptr: string) > 0i
     fun println(msg=reg.ptr: string) > 1i
-    fun read(): string > 2i
+    fun input(): string > 2i
     fun args(): &[string] > 3i
     fun vmargs(): &[string] > 4i
+    fun inputln(): string > 5i
     "#.to_string()
 }
 

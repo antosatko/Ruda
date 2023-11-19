@@ -390,8 +390,8 @@ fn expression(
                 },
                 None => {
                     return Err(CodegenError::CouldNotCast(
-                        return_kind,
                         expected_type,
+                        return_kind,
                         line.clone(),
                     ));
                 }
@@ -842,7 +842,7 @@ fn call_fun(
         Some(_) => None,
         None => Some(Correction {
             // Jump instruction
-            location: temp_code.code.len() + 1, // DANDANDANDA
+            location: temp_code.code.len() + 1 + code.code.len(),
             function: fun.clone(),
         }),
     };
@@ -1064,7 +1064,13 @@ fn get_scope(
                 if kind.cmp(&bool_type).is_not_equal() {
                     return Err(CodegenError::ExpectedBool(line.clone()));
                 }
+                //let corrections_len = fun.get(objects)?.corrections.len();
                 let scope = open_scope!(body, &mut block_code);
+                /*let new_corrections_len = fun.get(objects)?.corrections.len();
+                for i in corrections_len..new_corrections_len {
+                    let correction = &mut fun.get_mut(objects)?.corrections[i];
+                    correction.location += expr_code.code.len() + code.code.len()+1;
+                }*/
                 expr_code.push(Branch(
                     expr_code.code.len() + 1,
                     expr_code.code.len() + block_code.code.len() + 2,

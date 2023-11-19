@@ -1930,6 +1930,17 @@ pub mod runtime_types {
                 self.pool.len() - 1
             }
         }
+        /// Takes ownership of a String and returns the location of the string in vm
+        pub fn from_string(&mut self, str: String) -> usize {
+            // either push a new string or occupy a deleted string
+            if let Some(loc) = self.garbage.pop() {
+                self.pool[loc] = str;
+                loc
+            } else {
+                self.pool.push(str);
+                self.pool.len() - 1
+            }
+        }
         /// Copies a string from one location to a new location and returns the new location
         pub fn copy(&mut self, loc: usize) -> usize {
             // either push a new string or occupy a deleted string
