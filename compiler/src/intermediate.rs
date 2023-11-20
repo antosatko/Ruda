@@ -744,7 +744,6 @@ pub mod dictionary {
                 nullable
             };
         }
-        let mut array_depth = 0;
         let refs = count_refs(node);
         let main = if let Some(type_ident) =
             try_step_inside_arr(step_inside_val(&node, "main"), "nodes")
@@ -757,26 +756,22 @@ pub mod dictionary {
             }
             main
         } else {
-            let mut main = vec![];
-            let arr = step_inside_val(&node, "arr");
-            if let Some(arr) = try_step_inside_arr(
-                step_inside_val(step_inside_val(&arr, "type"), "main"),
-                "nodes",
-            ) {
-                for path_part in arr {
-                    if let Tokens::Text(txt) = get_token(path_part, "identifier") {
-                        main.push(txt.to_string())
-                    }
+            let arr_kind = step_inside_val(&step_inside_val(&node, "arr"), "type");
+            if let Tokens::Text(txt) = &arr_kind.name {
+                if txt == "type" {
+                    let mut kind = get_type(&arr_kind, errors);
+                    kind.array_depth += 1;
+                    return kind;
+                }else {
+                    unreachable!()
                 }
+            }else {
+                unreachable!("This is a bug in the compiler, please report it to the developers");
             }
-            // length will be calculated later since it might be a constant or an expression with constant value
-            // consts will be evaluated after the dictionary is loaded
-            array_depth = 1;
-            main
         };
         ShallowType {
             is_fun: None,
-            array_depth,
+            array_depth: 0,
             refs,
             main,
             generics: get_generics_expr(node, errors),
@@ -1304,24 +1299,6 @@ pub mod dictionary {
             Some(res)
         }
     }
-    /*#[derive(Debug)]
-    pub enum Types {
-        Int,
-        Float,
-        Usize,
-        Char,
-        Byte,
-        Bool,
-        Null,
-        /// refference type
-        Pointer(Box<Types>),
-        /// type of an array, lenght
-        Array(Box<Types>, usize),
-        /// non-primmitive types holding their identifiers
-        Function(String, GenericExpr),
-        Enum(String, GenericExpr),
-        Struct(String, GenericExpr),
-    }*/
     type GenericExpr = Vec<ShallowType>;
 
     #[derive(Clone)]

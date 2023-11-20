@@ -171,7 +171,8 @@ pub enum CodegenError {
     IncorrectArgs(Line),
     ExressionNotHandledProperly(Line),
     InvalidOperator(ShallowType, ShallowType, Operators, Line),
-    CouldNotCast(ShallowType, ShallowType, Line),
+    // (to, from, line)
+    CouldNotCastTo(ShallowType, ShallowType, Line),
 }
 
 pub fn stringify(
@@ -281,6 +282,7 @@ fn expression(
                                     },
                                     None => None,
                                 };
+                                println!("{:?}", kind);
                                 code.extend(&[
                                     AllocateStatic(values.len()),
                                 ]);
@@ -324,7 +326,7 @@ fn expression(
                                                     // do nothing
                                                 }
                                                 None => {
-                                                    Err(CodegenError::CouldNotCast(
+                                                    Err(CodegenError::CouldNotCastTo(
                                                         kind.clone(),
                                                         temp_kind.clone().unwrap(),
                                                         lit.line.clone(),
@@ -342,6 +344,7 @@ fn expression(
                                 code.read(&obj, GENERAL_REG1);
                                 return_kind = kind.unwrap().clone();
                                 return_kind.array_depth += 1;
+                                println!("{:?}", return_kind);
                             }
                         }
                     };
@@ -467,7 +470,7 @@ fn expression(
                     return_kind = expected_type;
                 },
                 None => {
-                    return Err(CodegenError::CouldNotCast(
+                    return Err(CodegenError::CouldNotCastTo(
                         expected_type,
                         return_kind,
                         line.clone(),
@@ -673,7 +676,14 @@ fn traverse_tail(
                         );
                     }
                     Position::Variable(vname) => {
-                        todo!()
+                        let var = match find_var(&scopes, &vname) {
+                            Some(var) => var,
+                            None => {
+                                Err(CodegenError::VariableNotFound(vname.clone(), node.1.clone()))?
+                            }
+                        };
+                        let pos_cloned = var.pos.clone();
+
                     }
                     Position::StructField(path, kind) => {
                         todo!()
@@ -1032,7 +1042,7 @@ fn get_scope(
                         code.write(GENERAL_REG1, &pos);
                     }
                     None => {
-                        return Err(CodegenError::CouldNotCast(
+                        return Err(CodegenError::CouldNotCastTo(
                             expr_kind,
                             kind,
                             line.clone(),
@@ -1301,7 +1311,7 @@ fn get_scope(
                                                 conclusion_code.write(GENERAL_REG1, &var.pos);
                                             }
                                             None => {
-                                                return Err(CodegenError::CouldNotCast(
+                                                return Err(CodegenError::CouldNotCastTo(
                                                     expr,
                                                     kind.clone(),
                                                     line.clone(),
@@ -1324,7 +1334,7 @@ fn get_scope(
                                             expr
                                         }
                                         None => {
-                                            return Err(CodegenError::CouldNotCast(
+                                            return Err(CodegenError::CouldNotCastTo(
                                                 expr,
                                                 var.kind.clone().unwrap(),
                                                 line.clone(),
@@ -1333,7 +1343,7 @@ fn get_scope(
                                     };
                                     conclusion_code.read(&var.pos, GENERAL_REG2);
                                     conclusion_code.push(Swap(GENERAL_REG1, GENERAL_REG2));
-                                    let kind = match native_operand(
+                                    match native_operand(
                                         objects,
                                         &op,
                                         &var.kind.clone().unwrap(),
@@ -1871,6 +1881,37 @@ fn native_operand(
         Operators::Not => unreachable!("'not' is not a binary operator, this is a bug in compiler"),
     }
     None
+}
+
+fn native_unary_operand(
+    objects: &mut Context,
+    op: &tokenizer::Operators,
+    kind: &ShallowType,
+    code: &mut Code,
+    context: &mut runtime_types::Context,
+    fun: &InnerPath,
+    line: &Line,
+) -> Option<ShallowType> {
+    use Instructions::*;
+    match op {
+        Operators::Not => {
+            if kind.is_primitive() {
+                code.extend(&[Not(GENERAL_REG1, GENERAL_REG1)]);
+                return Some(ShTypeBuilder::new().set_name("bool").build());
+            } else {
+                None?
+            }
+        }
+        Operators::Minus => {
+            if kind.is_number() {
+                code.extend(&[Neg(GENERAL_REG1, GENERAL_REG1)]);
+                return Some(kind.clone());
+            } else {
+                None?
+            }
+        }
+        _ => None,
+    }
 }
 
 

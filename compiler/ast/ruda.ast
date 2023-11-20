@@ -362,8 +362,7 @@ KWStruct identifier [keys generic public [methods [impls
 	ident set="identifier"
 	generic_decl ? set="generic"
 	{
-	arg ? set="keys"
-	, ? back="1"
+	arg ? set="keys" back="0"
 	KWOverload ? set="methods" back="0"
 	KWFun ? set="methods" back="1"
 	KWImpl ? set="impls" back="2"

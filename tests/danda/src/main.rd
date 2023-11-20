@@ -2,6 +2,26 @@ import "#io"
 
 import "soubor.rd"
 
-fun main() {
-    let a: [int] = ([1c,2,3, 6, soubor.danda(5, 6)])
+
+struct Danda {
+    a: int?
+    b: int?
+
+    fun Danda (a: int, b: int) {
+        self.a = a
+        self.b = b
+    }
+
+    fun add(self): int {
+        return self.a + self.b
+    }
+
+    fun blabla(): int {
+        return 5
+    }
 }
+
+fun main() {
+    
+}
+

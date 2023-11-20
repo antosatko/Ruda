@@ -1054,6 +1054,19 @@ impl Context {
                 self.enter_panic();
                 self.next_line();
             }
+            Neg(reg) => {
+                match self.memory.registers[reg] {
+                    Types::Int(num) => self.memory.registers[reg] = Types::Int(-num),
+                    Types::Float(num) => self.memory.registers[reg] = Types::Float(-num),
+                    _ => {
+                        return self.panic_rt(ErrTypes::WrongTypeOperation(
+                            self.memory.registers[reg],
+                            self.code.data[self.code.ptr],
+                        ));
+                    }
+                }
+                self.next_line();
+            }
         }
         return true;
     }
@@ -1353,6 +1366,10 @@ impl Context {
                 self.memory.registers[*reg].to_str(&self.memory)
             ),
             Instructions::DynArgument(_, _, _) => DEF,
+            Instructions::Neg(reg) => format!(
+                "register: {}",
+                self.memory.registers[*reg].to_str(&self.memory)
+            ),
         };
         prepend.push_str(&val);
         prepend
@@ -2417,6 +2434,8 @@ pub mod runtime_types {
         DynReserve(usize),
         /// Argument dynamic: id_reg arg_num value_reg | pushes arguments to destination(stack or registers) based on fun_table(id_reg).params
         DynArgument(usize, usize, usize),
+        /// Negate: reg | negates value of reg
+        Neg(usize),
     }
     impl fmt::Display for Instructions {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -2476,6 +2495,7 @@ pub mod runtime_types {
                 Instructions::IntoStr(_) => "IntoString",
                 Instructions::DynReserve(_) => "ReserveDynamic",
                 Instructions::DynArgument(_, _, _) => "ArgumentDynamic",
+                Instructions::Neg(_) => "Negate",
             };
             write!(f, "{str}")
         }
