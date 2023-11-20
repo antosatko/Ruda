@@ -173,6 +173,10 @@ pub enum CodegenError {
     InvalidOperator(ShallowType, ShallowType, Operators, Line),
     // (to, from, line)
     CouldNotCastTo(ShallowType, ShallowType, Line),
+    // (line)
+    ExpectedNumber(Line),
+    // (kind, unary, line)s
+    UnaryNotApplicable(ShallowType, Operators, Line),
 }
 
 pub fn stringify(
@@ -267,6 +271,16 @@ fn expression(
                     let pos = new_const(context, &const_num.0)?;
                     code.push(ReadConst(pos, GENERAL_REG1));
                     return_kind = const_num.1;
+                    return_kind = native_unary_operand(
+                        objects,
+                        &lit.unary,
+                        &return_kind,
+                        code,
+                        context,
+                        &fun,
+                        &lit.line,
+                        GENERAL_REG1,
+                    )?;
                 }
                 expression_parser::Literals::Array(arr) => {
                     let pos = {
@@ -383,8 +397,18 @@ fn expression(
             }
         }
         ValueType::AnonymousFunction(_) => todo!(),
-        ValueType::Parenthesis(expr, tail) => {
-            let kind = expression(objects, expr, scopes, code, context, &fun, scope_len, expected_type.clone())?;
+        ValueType::Parenthesis(expr, tail, unary) => {
+            let mut kind = expression(objects, expr, scopes, code, context, &fun, scope_len, expected_type.clone())?;
+            kind = native_unary_operand(
+                objects,
+                unary,
+                &kind,
+                code,
+                context,
+                &fun,
+                &line,
+                GENERAL_REG1,
+            )?;
             for (node, line) in tail.iter() {
                 match node {
                     expression_parser::TailNodes::Nested(_) => todo!(),
@@ -459,6 +483,16 @@ fn expression(
             }else {
                 return_kind = gen_value(objects, value, context, scopes, code, fun, scope_len)?;
             }
+            return_kind = native_unary_operand(
+                objects,
+                &value.unary,
+                &return_kind,
+                code,
+                context,
+                &fun,
+                &line,
+                GENERAL_REG1,
+            )?;
         }
         ValueType::Blank => {}
     }
@@ -713,9 +747,6 @@ fn traverse_tail(
                             }
                         };
                         let pos_cloned = var.pos.clone();
-                        let index_kind =
-                            expression(objects, idx, scopes, code, context, &fun, scope_len, Some(ShTypeBuilder::new().set_name("usize").build()))?;
-                        code.push(Move(GENERAL_REG1, GENERAL_REG3));
                         code.read(&pos_cloned, GENERAL_REG1);
                     }
                     Position::Pointer(ptr) => {
@@ -982,19 +1013,7 @@ fn get_scope(
                         var.line.clone(),
                     ))?;
                 }
-                max_scope_len += 1;
-                let pos = create_var_pos(&other_scopes);
-                let cache = last!(other_scopes);
-                cache.variables.insert(
-                    ident.clone(),
-                    Variable {
-                        kind: None,
-                        pos,
-                        value: try_get_const_val(),
-                        line: line.clone(),
-                    },
-                );
-                let expr_kind = match expr {
+                let (expr_kind, pos) = match expr {
                     Some(expr) => {
                         let expr_kind = expression(
                             objects,
@@ -1006,8 +1025,20 @@ fn get_scope(
                             &mut max_scope_len,
                             kind.clone(),
                         )?;
+                        max_scope_len += 1;
+                        let pos = create_var_pos(&other_scopes);
+                        let cache = last!(other_scopes);
+                        cache.variables.insert(
+                            ident.clone(),
+                            Variable {
+                                kind: None,
+                                pos,
+                                value: try_get_const_val(),
+                                line: line.clone(),
+                            },
+                        );
                         code.write(GENERAL_REG1, &pos);
-                        expr_kind
+                        (expr_kind, pos)
                     }
                     None => {
                         if let Some(kind) = kind {
@@ -1019,9 +1050,21 @@ fn get_scope(
                         }
                         let null = new_const(context, &ConstValue::Null)?;
                         use Instructions::*;
+                        max_scope_len += 1;
+                        let pos = create_var_pos(&other_scopes);
+                        let cache = last!(other_scopes);
+                        cache.variables.insert(
+                            ident.clone(),
+                            Variable {
+                                kind: None,
+                                pos,
+                                value: try_get_const_val(),
+                                line: line.clone(),
+                            },
+                        );
                         code.extend(&[ReadConst(null, GENERAL_REG1)]);
                         code.write(GENERAL_REG1, &pos);
-                        ShTypeBuilder::new().set_name("null").build()
+                        (ShTypeBuilder::new().set_name("null").build(), pos)
                     }
                 };
                 let kind = match kind {
@@ -1368,7 +1411,7 @@ fn get_scope(
                             _ => todo!(),
                         }
                     }
-                    ValueType::Parenthesis(_, _) => todo!(),
+                    ValueType::Parenthesis(_, _, _) => todo!(),
                     _ => {
                         unreachable!(
                             "target not handled properly by the compiler, please report this bug"
@@ -1885,32 +1928,39 @@ fn native_operand(
 
 fn native_unary_operand(
     objects: &mut Context,
-    op: &tokenizer::Operators,
+    op: &Option<(tokenizer::Operators, Line)>,
     kind: &ShallowType,
     code: &mut Code,
     context: &mut runtime_types::Context,
     fun: &InnerPath,
     line: &Line,
-) -> Option<ShallowType> {
+    register: usize,
+) -> Result<ShallowType, CodegenError> {
     use Instructions::*;
-    match op {
+    if op.is_none() {
+        return Ok(kind.clone());
+    }
+    match op.unwrap().0 {
         Operators::Not => {
             if kind.is_primitive() {
-                code.extend(&[Not(GENERAL_REG1, GENERAL_REG1)]);
-                return Some(ShTypeBuilder::new().set_name("bool").build());
+                if cast(objects, kind, &ShTypeBuilder::new().set_name("bool").build(), code, context, fun, line, register).is_none() {
+                    return Err(CodegenError::CouldNotCastTo(kind.clone(), ShTypeBuilder::new().set_name("bool").build(), line.clone()));
+                }
+                code.extend(&[Not(register, register)]);
+                return Ok(ShTypeBuilder::new().set_name("bool").build());
             } else {
-                None?
+                Err(CodegenError::ExpectedBool(line.clone()))?
             }
         }
         Operators::Minus => {
             if kind.is_number() {
-                code.extend(&[Neg(GENERAL_REG1, GENERAL_REG1)]);
-                return Some(kind.clone());
+                code.extend(&[Neg(register)]);
+                return Ok(kind.clone());
             } else {
-                None?
+                Err(CodegenError::ExpectedNumber(line.clone()))?
             }
         }
-        _ => None,
+        _ => Err(CodegenError::UnaryNotApplicable(kind.clone(), op.unwrap().0, op.unwrap().1))?,
     }
 }
 
@@ -1926,6 +1976,7 @@ fn cast(
     register: usize,
 ) -> Option<()> {
     use Instructions::*;
+    println!("cast {:?} to {:?}", from, to);
     if from.cmp(to).is_equal() {
         return Some(());
     }
@@ -1937,7 +1988,7 @@ fn cast(
             code.extend(&[Cal(CORE_LIB, 1), Move(RETURN_REG, register)]);
             return Some(());
         }
-        if from.is_number() && to.is_number() {
+        if (from.is_number() || from.is_bool()) && (to.is_number() || to.is_bool()) {
             let const_val = match new_const(context, &to.into_const()?) {
                 Ok(pos) => pos,
                 Err(_) => None?,

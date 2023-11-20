@@ -178,7 +178,7 @@ pub mod dictionary {
                 }
             }
             ValueType::Blank => Some(ConstValue::Undefined),
-            ValueType::Parenthesis(v, t) => {
+            ValueType::Parenthesis(v, t, unary) => {
                 if t.len() != 0 {
                     None
                 } else {
@@ -1412,6 +1412,9 @@ pub mod dictionary {
                 || temp == "bool"
                 || temp == "null"
                 || temp == "string"
+        }
+        pub fn is_bool(&self) -> bool {
+            format!("{:?}", self) == "bool"
         }
         pub fn into_runtime(&self) -> Option<runtime_types::Types> {
             if let Some(fun) = &self.is_fun {

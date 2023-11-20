@@ -22,6 +22,8 @@ struct Danda {
 }
 
 fun main() {
-    
+    let a = !5
+    let b = 6 + b
+    b += 90
 }
 
