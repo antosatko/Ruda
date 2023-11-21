@@ -48,7 +48,7 @@ pub fn traverse_da_fokin_value(val: &ValueType, depth: usize) {
     }
 }
 
-pub fn expr_into_tree(node: &Node, errors: &mut Vec<ErrType>) -> ValueType {
+pub fn expr_into_tree(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> ValueType {
     //println!("expr_into_tree: {:?}", node);
     let nodes = step_inside_arr(&node, "nodes");
     if nodes.len() == 0 {
@@ -56,10 +56,10 @@ pub fn expr_into_tree(node: &Node, errors: &mut Vec<ErrType>) -> ValueType {
     }
     if let Tokens::Text(str) = &nodes[0].name {
         if str == "anonymous_function" {
-            return ValueType::AnonymousFunction(get_fun_siginifier(&nodes[0], errors));
+            return ValueType::AnonymousFunction(get_fun_siginifier(&nodes[0], errors, file_name));
         }
     }
-    let mut transform = transform_expr(&nodes, errors);
+    let mut transform = transform_expr(&nodes, errors, file_name);
     let res = list_into_tree(&mut transform);
     if let Ok(mut val) = res {
         match &mut val {
@@ -176,14 +176,14 @@ impl std::fmt::Display for TreeTransformError {
     }
 }
 
-pub fn transform_expr(nodes: &Vec<Node>, errors: &mut Vec<ErrType>) -> Vec<ValueType> {
+pub fn transform_expr(nodes: &Vec<Node>, errors: &mut Vec<ErrType>, file_name: &str) -> Vec<ValueType> {
     let mut result = vec![];
     for node in nodes {
         if let Some(op) = try_get_op(&node, errors) {
             result.push(ValueType::Operator(op, node.line));
             continue;
         }
-        if let Some(val) = try_get_value(&node, errors) {
+        if let Some(val) = try_get_value(&node, errors, file_name) {
             result.push(val);
             continue;
         }
@@ -191,14 +191,14 @@ pub fn transform_expr(nodes: &Vec<Node>, errors: &mut Vec<ErrType>) -> Vec<Value
     result
 }
 
-pub fn try_get_value(node: &Node, errors: &mut Vec<ErrType>) -> Option<ValueType> {
+pub fn try_get_value(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> Option<ValueType> {
     if let Tokens::Text(txt) = &node.name {
         if txt != "value" {
             return None;
         }
     }
     let prepend = get_prepend(step_inside_val(&node, "prepend"), errors);
-    if let Some(car) = try_get_variable(step_inside_val(&node, "value"), errors) {
+    if let Some(car) = try_get_variable(step_inside_val(&node, "value"), errors, file_name) {
         return Some(ValueType::Value(Variable {
             unary: prepend.2,
             refs: prepend.0,
@@ -208,10 +208,10 @@ pub fn try_get_value(node: &Node, errors: &mut Vec<ErrType>) -> Option<ValueType
             line: node.line,
         }));
     }
-    if let Some(lit) = try_get_literal(step_inside_val(&node, "value"), errors, &prepend) {
+    if let Some(lit) = try_get_literal(step_inside_val(&node, "value"), errors, &prepend, file_name) {
         return Some(ValueType::Literal(lit));
     }
-    if let Some(paren) = try_get_parenthesis(step_inside_val(&node, "value"), errors) {
+    if let Some(paren) = try_get_parenthesis(step_inside_val(&node, "value"), errors, file_name) {
         return Some(ValueType::Parenthesis(Box::new(paren.0), paren.1, prepend.2));
     }
     None
@@ -221,6 +221,7 @@ pub fn try_get_literal(
     node: &Node,
     errors: &mut Vec<ErrType>,
     prepend: &(Ref, Option<(String, Line)>, Option<(Operators, Line)>),
+    file_name: &str
 ) -> Option<Literal> {
     if let Tokens::Text(txt) = &node.name {
         if txt != "literal" {
@@ -265,8 +266,8 @@ pub fn try_get_literal(
             };
             match name {
                 "array_builder" => {
-                    let value = expr_into_tree(&step_inside_val(&array, "value"), errors);
-                    let size = expr_into_tree(&step_inside_val(&array, "size"), errors);
+                    let value = expr_into_tree(&step_inside_val(&array, "value"), errors, file_name);
+                    let size = expr_into_tree(&step_inside_val(&array, "size"), errors, file_name);
                     return Some(Literal {
                         unary: prepend.2,
                         refs: prepend.0.clone(),
@@ -282,7 +283,7 @@ pub fn try_get_literal(
                     let values = step_inside_arr(&array, "values");
                     let mut result = vec![];
                     for value in values {
-                        result.push(expr_into_tree(&value, errors));
+                        result.push(expr_into_tree(&value, errors, file_name));
                     }
                     return Some(Literal {
                         unary: prepend.2,
@@ -302,6 +303,7 @@ pub fn try_get_literal(
 pub fn try_get_variable(
     node: &Node,
     errors: &mut Vec<ErrType>,
+    file_name: &str
 ) -> Option<((String, Line), Vec<(TailNodes, Line)>)> {
     if let Tokens::Text(txt) = &node.name {
         if txt != "variable" {
@@ -309,14 +311,14 @@ pub fn try_get_variable(
         }
     }
     let ident = get_ident(&node);
-    let tail = get_tail(step_inside_val(&node, "tail"), errors);
+    let tail = get_tail(step_inside_val(&node, "tail"), errors, file_name);
     Some(((ident, node.line), tail))
 }
 
-pub fn get_args(node: &Node, errors: &mut Vec<ErrType>) -> Vec<ValueType> {
+pub fn get_args(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> Vec<ValueType> {
     let mut result = vec![];
     for child in step_inside_arr(&node, "expressions") {
-        let expr = expr_into_tree(&child, errors);
+        let expr = expr_into_tree(&child, errors, file_name);
         if let ValueType::Expression(exrp) = &expr {
             if exrp.left.is_none() && exrp.right.is_none() {
                 continue;
@@ -330,23 +332,24 @@ pub fn get_args(node: &Node, errors: &mut Vec<ErrType>) -> Vec<ValueType> {
 pub fn try_get_parenthesis(
     node: &Node,
     errors: &mut Vec<ErrType>,
+    file_name: &str
 ) -> Option<(ValueType, Vec<(TailNodes, Line)>)> {
     if let Tokens::Text(txt) = &node.name {
         if txt != "free_parenthesis" {
             return None;
         }
     }
-    let tail = get_tail(step_inside_val(&node, "tail"), errors);
-    let expression = expr_into_tree(step_inside_val(&node, "expression"), errors);
+    let tail = get_tail(step_inside_val(&node, "tail"), errors, file_name);
+    let expression = expr_into_tree(step_inside_val(&node, "expression"), errors, file_name);
     Some((expression, tail))
 }
 
-pub fn get_tail(node: &Node, errors: &mut Vec<ErrType>) -> Vec<(TailNodes, Line)> {
+pub fn get_tail(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> Vec<(TailNodes, Line)> {
     let mut tail = vec![];
     for child in step_inside_arr(&node, "nodes") {
         if let Tokens::Text(txt) = &child.name {
             if txt == "idx" {
-                let expr = expr_into_tree(step_inside_val(&child, "expression"), errors);
+                let expr = expr_into_tree(step_inside_val(&child, "expression"), errors, file_name);
                 tail.push((TailNodes::Index(expr), child.line));
                 continue;
             }
@@ -355,8 +358,8 @@ pub fn get_tail(node: &Node, errors: &mut Vec<ErrType>) -> Vec<(TailNodes, Line)
                 continue;
             }
             if txt == "function_call" {
-                let generic = get_generics_expr(&child, errors);
-                let args = get_args(step_inside_val(&child, "parenthesis"), errors);
+                let generic = get_generics_expr(&child, errors, file_name);
+                let args = get_args(step_inside_val(&child, "parenthesis"), errors, file_name);
                 tail.push((TailNodes::Call(FunctionCall { generic, args }), child.line));
                 continue;
             }

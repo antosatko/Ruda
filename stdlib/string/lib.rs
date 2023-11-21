@@ -37,9 +37,10 @@ impl lib::Library for String {
         match id {
             // string::concat
             0 => {
+                let args = get_args!();
                 // take two strings pointers from registers and concat them returning a new string pointer
-                if let Types::Pointer(u_size, PointerTypes::String) = m.registers[POINTER_REG] {
-                    if let Types::Pointer(u_size2, PointerTypes::String) = m.registers[GENERAL_REG1]
+                if let Types::Pointer(u_size, PointerTypes::String) = args[0] {
+                    if let Types::Pointer(u_size2, PointerTypes::String) = args[1]
                     {
                         let mut new_string = m.strings.to_string(u_size);
                         new_string.push_str(m.strings.to_str(u_size2));
@@ -60,8 +61,9 @@ impl lib::Library for String {
             }
             // string::trim
             1 => {
+                let args = get_args!();
                 // take a string pointer from registers and trim it returning a new string pointer
-                if let Types::Pointer(u_size, PointerTypes::String) = m.registers[POINTER_REG] {
+                if let Types::Pointer(u_size, PointerTypes::String) = args[0] {
                     let new_string = m.strings.to_str(u_size).trim().to_owned();
                     return Ok(Types::Pointer(
                         m.strings.from_str(&new_string),
@@ -75,10 +77,11 @@ impl lib::Library for String {
             }
             // string::split
             2 => {
+                let args = get_args!();
                 // take a string pointer from registers and split it returning a new string pointer
                 // also take a string pointer from GENERAL_REG1 and split it with it
-                if let Types::Pointer(u_size, PointerTypes::String) = m.registers[POINTER_REG] {
-                    if let Types::Pointer(u_size2, PointerTypes::String) = m.registers[GENERAL_REG1]
+                if let Types::Pointer(u_size, PointerTypes::String) = args[0] {
+                    if let Types::Pointer(u_size2, PointerTypes::String) = args[1]
                     {
                         let new_string = m.strings.to_string(u_size);
                         let split_string = m.strings.to_str(u_size2);
@@ -103,7 +106,8 @@ impl lib::Library for String {
             }
             // string::clone
             3 => {
-                if let Types::Pointer(u_size, PointerTypes::String) = m.registers[POINTER_REG] {
+                let args = get_args!();
+                if let Types::Pointer(u_size, PointerTypes::String) = args[0] {
                     let str = m.strings.to_str(u_size).to_string();
                     let pos = m.strings.from_str(&str);
                     return Ok(Types::Pointer(pos, PointerTypes::String))
@@ -113,6 +117,41 @@ impl lib::Library for String {
                     )));
                 }
             }
+            // string::len
+            4 => {
+                let args = get_args!();
+                if let Types::Pointer(u_size, PointerTypes::String) = args[0] {
+                    let len = m.strings.to_str(u_size).len();
+                    return Ok(Types::Usize(len));
+                } else {
+                    return Err(runtime_error::ErrTypes::Message(format!(
+                        "Invalid string pointer"
+                    )));
+                }
+            }
+            // string::parse
+            5 => {
+                let args = get_args!();
+                if let Types::Pointer(u_size, PointerTypes::String) = args[0] {
+                    let str = m.strings.to_str(u_size);
+                    let num = str.parse::<f64>();
+                    match num {
+                        Ok(num) => {
+                            return Ok(Types::Float(num));
+                        }
+                        Err(err) => {
+                            return Err(runtime_error::ErrTypes::Message(format!(
+                                "Couldn't parse string to float: {err}",
+                            )));
+                        }
+                    }
+                } else {
+                    return Err(runtime_error::ErrTypes::Message(format!(
+                        "Invalid string pointer"
+                    )));
+                }
+            }
+
             _ => {
                 unreachable!("Invalid function id")
             }
@@ -124,7 +163,14 @@ impl lib::Library for String {
 
 #[no_mangle]
 fn register() -> std::string::String {
-    "".to_string()
+    "
+    fun concat(str=reg.ptr: string, other=reg.g1: string): string > 0i
+    fun trim(str=reg.ptr: string): string > 1i
+    fun split(str=reg.ptr: string, split=reg.g1: string): [string] > 2i
+    fun clone(str=reg.ptr: string): string > 3i
+    fun len(str=reg.ptr: string): usize > 4i
+    fun parse(str=reg.ptr: string): float > 5i
+    ".to_string()
 }
 
 #[no_mangle]

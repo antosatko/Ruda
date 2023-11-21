@@ -12,6 +12,7 @@ use runtime::runtime_types::{GENERAL_REG1, GENERAL_REG2, GENERAL_REG3, MEMORY_RE
 pub fn load(
     string: &[u8],
     ast: &mut (HashMap<String, Head>, Vec<HeadParam>),
+    file_name: &str,
 ) -> Result<Dictionary, String> {
     let (tokens, lines, errs) = tokenizer::tokenize(string, true);
     let tree = match generate_tree(&tokens, ast, &lines) {
@@ -42,7 +43,7 @@ pub fn load(
                         }
                         fields.push((
                             get_ident(key),
-                            get_type(step_inside_val(key, "type"), &mut errors),
+                            get_type(step_inside_val(key, "type"), &mut errors, file_name),
                         ))
                     }
                     // check if already exists
@@ -61,7 +62,7 @@ pub fn load(
                 }
                 "KWType" => {
                     let ident = get_ident(&node);
-                    let kind = get_type(step_inside_val(&node, "type"), &mut errors);
+                    let kind = get_type(step_inside_val(&node, "type"), &mut errors, file_name);
                     let assign = get_assign(&node);
                     // check if already exists
                     for type_ in &dictionary.types {
@@ -113,7 +114,7 @@ pub fn load(
                     });
                 }
                 "KWFun" => {
-                    let fun = get_fun_siginifier(&node, &mut errors);
+                    let fun = get_fun_siginifier(&node, &mut errors, file_name);
                     // check if already exists
                     for fun_ in &dictionary.functions {
                         if fun_.name == fun.name {
@@ -128,7 +129,7 @@ pub fn load(
                     let arg = {
                         let arg = step_inside_val(&node, "arg");
                         let identifier = get_ident(&arg);
-                        let kind = get_type(&step_inside_val(&arg, "type"), &mut errors);
+                        let kind = get_type(&step_inside_val(&arg, "type"), &mut errors, file_name);
                         let mem_loc = get_mem_loc(&arg);
                         (identifier, kind, mem_loc)
                     };
@@ -141,7 +142,7 @@ pub fn load(
                     for struct_ in &mut dictionary.structs {
                         if struct_.name == ident {
                             for method in step_inside_arr(node, "methods") {
-                                let fun = get_fun_siginifier(&method, &mut errors);
+                                let fun = get_fun_siginifier(&method, &mut errors, file_name);
                                 // check if already exists
                                 for fun_ in &struct_.methods {
                                     if fun_.name == fun.name {
@@ -232,7 +233,7 @@ fn get_assign(node: &Node) -> usize {
     //println!("node: {:?}", node);
     panic!("hruzostrasna pohroma");
 }
-fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>) -> Function {
+fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> Function {
     let mut args: Vec<(String, ShallowType, MemoryTypes, Line)> = Vec::new();
     for arg in step_inside_arr(node, "arguments") {
         if let Tokens::Text(txt) = &arg.name {
@@ -247,7 +248,7 @@ fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>) -> Function {
         }
         let ident = get_ident(&arg);
         let mem_loc = get_mem_loc(&arg);
-        let arg_type = get_type(step_inside_val(&arg, "type"), errors);
+        let arg_type = get_type(step_inside_val(&arg, "type"), errors, file_name);
         let line = arg.line;
         args.push((ident, arg_type, mem_loc, line));
     }
@@ -256,6 +257,7 @@ fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>) -> Function {
             get_type(
                 step_inside_val(step_inside_val(node, "type"), "type"),
                 errors,
+                file_name,
             )
         } else {
             ShallowType::empty()

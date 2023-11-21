@@ -10,6 +10,7 @@ use crate::tree_walker;
 pub fn generate_tree(
     node: &tree_walker::tree_walker::Node,
     errors: &mut Vec<ErrType>,
+    file_name: &str
 ) -> Vec<Nodes> {
     if let Tokens::Text(txt) = &node.name {
         if txt != "code_block" {
@@ -22,7 +23,7 @@ pub fn generate_tree(
     }
     let mut nodes = Vec::new();
     for node in step_inside_arr(&node, "nodes") {
-        let temp = node_from_node(node, errors);
+        let temp = node_from_node(node, errors, file_name);
         if let Some(temp) = temp {
             nodes.push(temp);
         }
@@ -33,13 +34,14 @@ pub fn generate_tree(
 pub fn node_from_node(
     node: &tree_walker::tree_walker::Node,
     errors: &mut Vec<ErrType>,
+    file_name: &str,
 ) -> Option<Nodes> {
     if let Tokens::Text(txt) = &node.name {
         match txt.as_str() {
             "KWReturn" => {
                 let expre = step_inside_val(&node, "expression");
                 let expr = if step_inside_arr(&expre, "nodes").len() > 0 {
-                    Some(expr_into_tree(&expre, errors))
+                    Some(expr_into_tree(&expre, errors, file_name))
                 } else {
                     None
                 };
@@ -51,7 +53,7 @@ pub fn node_from_node(
             "KWBreak" => Some(Nodes::Break { line: node.line }),
             "KWContinue" => Some(Nodes::Continue { line: node.line }),
             "KWLoop" => {
-                let body = generate_tree(step_inside_val(&node, "code"), errors);
+                let body = generate_tree(step_inside_val(&node, "code"), errors, file_name);
                 Some(Nodes::Loop {
                     body,
                     line: node.line,
@@ -59,14 +61,14 @@ pub fn node_from_node(
             }
             "KWYeet" => {
                 let expr = step_inside_val(&node, "err");
-                let expr = try_get_variable(&expr, errors).unwrap();
+                let expr = try_get_variable(&expr, errors, file_name).unwrap();
                 Some(Nodes::Yeet {
                     expr,
                     line: node.line,
                 })
             }
             "code_block" => Some(Nodes::Block {
-                body: generate_tree(&node, errors),
+                body: generate_tree(&node, errors, file_name),
                 line: node.line,
             }),
             "set" => {
@@ -78,9 +80,9 @@ pub fn node_from_node(
                     return None;
                 };
                 let target = step_inside_val(&node, "value");
-                let target = try_get_value(target, errors).unwrap();
+                let target = try_get_value(target, errors, file_name).unwrap();
                 let expr = step_inside_val(&node, "expression");
-                let expr = expr_into_tree(&expr, errors);
+                let expr = expr_into_tree(&expr, errors, file_name);
                 Some(Nodes::Set {
                     target,
                     expr,
@@ -89,7 +91,7 @@ pub fn node_from_node(
                 })
             }
             "expression" => {
-                let expr = expr_into_tree(&node, errors);
+                let expr = expr_into_tree(&node, errors, file_name);
                 Some(Nodes::Expr {
                     expr,
                     line: node.line,
@@ -97,19 +99,19 @@ pub fn node_from_node(
             }
             "KWIf" => {
                 let cond = step_inside_val(&node, "expression");
-                let cond = expr_into_tree(&cond, errors);
-                let body = generate_tree(step_inside_val(&node, "code"), errors);
+                let cond = expr_into_tree(&cond, errors, file_name);
+                let body = generate_tree(step_inside_val(&node, "code"), errors, file_name);
                 let mut elif = Vec::new();
                 for node in step_inside_arr(&node, "elif") {
                     let cond = step_inside_val(&node, "expression");
-                    let cond = expr_into_tree(&cond, errors);
-                    let body = generate_tree(step_inside_val(&node, "code"), errors);
+                    let cond = expr_into_tree(&cond, errors, file_name);
+                    let body = generate_tree(step_inside_val(&node, "code"), errors, file_name);
                     elif.push((cond, body, node.line));
                 }
                 let els = step_inside_val(&node, "else");
                 let els = if let Tokens::Text(txt) = &els.name {
                     if txt == "KWElse" {
-                        Some((generate_tree(step_inside_val(&els, "code"), errors), els.line))
+                        Some((generate_tree(step_inside_val(&els, "code"), errors, file_name), els.line))
                     } else {
                         None
                     }
@@ -127,8 +129,8 @@ pub fn node_from_node(
             }
             "KWWhile" => {
                 let cond = step_inside_val(&node, "expression");
-                let cond = expr_into_tree(&cond, errors);
-                let body = generate_tree(step_inside_val(&node, "code"), errors);
+                let cond = expr_into_tree(&cond, errors, file_name);
+                let body = generate_tree(step_inside_val(&node, "code"), errors, file_name);
                 Some(Nodes::While {
                     cond,
                     body,
@@ -138,8 +140,8 @@ pub fn node_from_node(
             "KWFor" => {
                 let ident = get_ident(&node);
                 let expr = step_inside_val(&node, "expression");
-                let expr = expr_into_tree(&expr, errors);
-                let body = generate_tree(step_inside_val(&node, "code"), errors);
+                let expr = expr_into_tree(&expr, errors, file_name);
+                let body = generate_tree(step_inside_val(&node, "code"), errors, file_name);
                 Some(Nodes::For {
                     ident,
                     expr,
@@ -148,11 +150,11 @@ pub fn node_from_node(
                 })
             }
             "KWTry" => {
-                let body = generate_tree(step_inside_val(&node, "code"), errors);
+                let body = generate_tree(step_inside_val(&node, "code"), errors, file_name);
                 let finally = step_inside_val(&node, "finally");
                 let finally = if let Tokens::Text(txt) = &finally.name {
                     if txt == "KWFinally" {
-                        Some(generate_tree(step_inside_val(&finally, "code"), errors))
+                        Some(generate_tree(step_inside_val(&finally, "code"), errors, file_name))
                     } else {
                         None
                     }
@@ -162,7 +164,7 @@ pub fn node_from_node(
                 let mut catch = Vec::new();
                 for node in step_inside_arr(&node, "catch") {
                     let ident = get_ident(&node);
-                    let body = generate_tree(step_inside_val(&node, "code"), errors);
+                    let body = generate_tree(step_inside_val(&node, "code"), errors, file_name);
                     let mut kinds = Vec::new();
                     let kinds_path = step_inside_arr(&node, "types");
                     for node in kinds_path {
@@ -196,7 +198,7 @@ pub fn node_from_node(
             }
             "KWSwitch" => {
                 let expr = step_inside_val(&node, "expression");
-                let expr = expr_into_tree(&expr, errors);
+                let expr = expr_into_tree(&expr, errors, file_name);
 
                 let mut body = Vec::new();
                 let mut default = None;
@@ -205,10 +207,10 @@ pub fn node_from_node(
 
                     if let Tokens::Text(txt) = &step_inside_val(&expr, "ignore").name {
                         if txt == "_" {
-                            default = Some(generate_tree(step_inside_val(&node, "code"), errors));
+                            default = Some(generate_tree(step_inside_val(&node, "code"), errors, file_name));
                         } else {
-                            let expr = expr_into_tree(&expr, errors);
-                            let bd = generate_tree(step_inside_val(&node, "code"), errors);
+                            let expr = expr_into_tree(&expr, errors, file_name);
+                            let bd = generate_tree(step_inside_val(&node, "code"), errors, file_name);
                             body.push((expr, bd));
                         }
                     }
@@ -225,7 +227,7 @@ pub fn node_from_node(
                 let expr = step_inside_val(&node, "expression");
                 let expr = if let Tokens::Text(txt) = &expr.name {
                     if txt == "expression" {
-                        let expr = expr_into_tree(&expr, errors);
+                        let expr = expr_into_tree(&expr, errors, file_name);
                         Some(expr)
                     } else {
                         None
@@ -237,7 +239,7 @@ pub fn node_from_node(
                 let kind = step_inside_val(&node, "type");
                 let kind = if let Tokens::Text(txt) = &kind.name {
                     if txt == "type_specifier" {
-                        Some(get_type(&step_inside_val(kind, "type"), errors))
+                        Some(get_type(&step_inside_val(kind, "type"), errors, file_name))
                     } else {
                         None
                     }

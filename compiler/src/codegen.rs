@@ -177,6 +177,7 @@ pub enum CodegenError {
     ExpectedNumber(Line),
     // (kind, unary, line)s
     UnaryNotApplicable(ShallowType, Operators, Line),
+    CoudNotCastAnArrayToANonArray(ShallowType, Line),
 }
 
 pub fn stringify(
@@ -290,6 +291,12 @@ fn expression(
                             expression_parser::ArrayRule::Explicit(values) => {
                                 let mut kind = match &expected_type {
                                     Some(kind) => {
+                                        if kind.array_depth == 0 {
+                                            Err(CodegenError::CoudNotCastAnArrayToANonArray(
+                                                kind.clone(),
+                                                lit.line.clone(),
+                                            ))?;
+                                        }
                                         let mut temp = kind.clone();
                                         temp.array_depth -= 1;
                                         Some(temp)
@@ -1840,6 +1847,10 @@ fn native_operand(
             }
         }
         Operators::DoubleEq => {
+            if left.is_string() && right.is_string() {
+                code.extend(&[Cal(CORE_LIB, 3), Move(RETURN_REG, GENERAL_REG1)]);
+                return Some(ShTypeBuilder::new().set_name("bool").build());
+            }
             if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
                 code.extend(&[Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(ShTypeBuilder::new().set_name("bool").build());
@@ -1977,6 +1988,7 @@ fn cast(
 ) -> Option<()> {
     use Instructions::*;
     println!("cast {:?} to {:?}", from, to);
+    println!("kind origins: {:?} {:?}", from.file, to.file);
     if from.cmp(to).is_equal() {
         return Some(());
     }

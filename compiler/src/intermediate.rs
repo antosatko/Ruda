@@ -16,11 +16,12 @@ pub mod dictionary {
     pub fn from_ast(
         ast: &HashMap<String, tree_walker::ArgNodeType>,
         globals: &Vec<String>,
+        file_name: &str,
     ) -> (Dictionary, Vec<ErrType>) {
         let mut global_dict = Dictionary::new();
         let mut errors = Vec::new();
         if let Some(ArgNodeType::Array(entry)) = ast.get("nodes") {
-            load_dictionary(entry, &mut global_dict, &mut errors)
+            load_dictionary(entry, &mut global_dict, &mut errors, file_name);
         }
         /*analyze_consts(&mut global_dict, &mut errors); // TODO: add this back
         println!("errors: {errors:?}");*/
@@ -192,12 +193,13 @@ pub mod dictionary {
         nodes: &Vec<Node>,
         dictionary: &mut Dictionary,
         errors: &mut Vec<ErrType>,
+        file_name: &str,
     ) {
         for node in nodes {
-            load_node(node, dictionary, errors);
+            load_node(node, dictionary, errors, file_name);
         }
     }
-    pub fn load_node(node: &Node, dictionary: &mut Dictionary, errors: &mut Vec<ErrType>) {
+    pub fn load_node(node: &Node, dictionary: &mut Dictionary, errors: &mut Vec<ErrType>, file_name: &str) {
         let name = if let Tokens::Text(name) = &node.name {
             name
         } else {
@@ -246,7 +248,7 @@ pub mod dictionary {
                 let name = get_ident(&node);
                 if dictionary.register_id(name.to_string(), IdentifierKinds::Type) {
                     dictionary.types.push(TypeDef {
-                        kind: get_type(step_inside_val(&node, "type"), errors),
+                        kind: get_type(step_inside_val(&node, "type"), errors, file_name),
                         identifier: name,
                         generics: get_generics_decl(&node, errors),
                         overloads: vec![],
@@ -265,10 +267,10 @@ pub mod dictionary {
                     if let Tokens::Text(txt) = &method.name {
                         match txt.as_str() {
                             "KWOverload" => {
-                                overloads.push(get_overload_siginifier(&method, errors))
+                                overloads.push(get_overload_siginifier(&method, errors, file_name))
                             }
                             "KWFun" => {
-                                functions.push(get_fun_siginifier(&method, errors));
+                                functions.push(get_fun_siginifier(&method, errors, file_name));
                             }
                             _ => {}
                         }
@@ -284,10 +286,10 @@ pub mod dictionary {
                         if let Tokens::Text(txt) = &method.name {
                             match txt.as_str() {
                                 "KWOverload" => {
-                                    overloads.push(get_overload_siginifier(&method, errors))
+                                    overloads.push(get_overload_siginifier(&method, errors, file_name))
                                 }
                                 "KWFun" => {
-                                    functions.push(get_fun_siginifier(&method, errors));
+                                    functions.push(get_fun_siginifier(&method, errors, file_name));
                                 }
                                 _ => {}
                             }
@@ -325,7 +327,7 @@ pub mod dictionary {
                     }
                     result.fields.push((
                         get_ident(key),
-                        get_type(step_inside_val(key, "type"), errors),
+                        get_type(step_inside_val(key, "type"), errors, file_name),
                     ))
                 }
                 if dictionary.register_id(result.identifier.to_string(), IdentifierKinds::Struct) {
@@ -364,7 +366,7 @@ pub mod dictionary {
                 });
             }
             "KWFun" => {
-                let fun = get_fun_siginifier(&node, errors);
+                let fun = get_fun_siginifier(&node, errors, file_name);
                 let name = fun
                     .identifier
                     .clone()
@@ -382,6 +384,7 @@ pub mod dictionary {
                         Some(get_type(
                             step_inside_val(step_inside_val(node, "type"), "type"),
                             errors,
+                            file_name,
                         ))
                     } else {
                         None
@@ -410,6 +413,7 @@ pub mod dictionary {
                         value: expression_parser::expr_into_tree(
                             step_inside_val(&node, "expression"),
                             errors,
+                            file_name
                         ),
                         real_value: None,
                         line: node.line,
@@ -455,10 +459,10 @@ pub mod dictionary {
                     if let Tokens::Text(txt) = &method.name {
                         match txt.as_str() {
                             "KWOverload" => {
-                                overloads.push(get_overload_siginifier(&method, errors))
+                                overloads.push(get_overload_siginifier(&method, errors, file_name))
                             }
                             "KWFun" => {
-                                functions.push(get_fun_siginifier(&method, errors));
+                                functions.push(get_fun_siginifier(&method, errors, file_name));
                             }
                             _ => {}
                         }
@@ -483,7 +487,7 @@ pub mod dictionary {
                 let mut args = Vec::new();
                 for arg in step_inside_arr(&node, "args") {
                     let ident = get_ident(&arg);
-                    let kind = get_type(&step_inside_val(&arg, "type"), errors);
+                    let kind = get_type(&step_inside_val(&arg, "type"), errors, file_name);
                     args.push(Arg {
                         identifier: ident,
                         kind,
@@ -497,7 +501,7 @@ pub mod dictionary {
                     if let Tokens::Text(txt) = &val.name {
                         match txt.as_str() {
                             "expression" => {
-                                let expr = expression_parser::expr_into_tree(&val, errors);
+                                let expr = expression_parser::expr_into_tree(&val, errors, file_name);
                                 //expression_parser::traverse_da_fokin_value(&expr, 0);
                                 fields.push((ident, ErrorField::Expression(expr)));
                             }
@@ -562,11 +566,11 @@ pub mod dictionary {
         }
         result
     }
-    pub fn get_overload_siginifier(node: &Node, errors: &mut Vec<ErrType>) -> Overload {
+    pub fn get_overload_siginifier(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> Overload {
         let operator = get_operator(step_inside_val(&node, "op"));
         let generics = get_generics_decl(&node, errors);
         let kind = if let Some(kind) = try_step_inside_val(step_inside_val(&node, "type"), "type") {
-            Some(get_type(kind, errors))
+            Some(get_type(kind, errors, file_name))
         } else {
             None
         };
@@ -574,7 +578,7 @@ pub mod dictionary {
 
         // fujj
         let code = if node.nodes.contains_key("code") {
-            codeblock_parser::generate_tree(step_inside_val(&node, "code"), errors)
+            codeblock_parser::generate_tree(step_inside_val(&node, "code"), errors, file_name)
         } else {
             vec![]
         };
@@ -583,7 +587,7 @@ pub mod dictionary {
             operator,
             arg: Arg {
                 identifier: get_ident(&arg),
-                kind: get_type(step_inside_val(&arg, "type"), errors),
+                kind: get_type(step_inside_val(&arg, "type"), errors, file_name),
                 line: arg.line,
             },
             stack_size: None,
@@ -595,7 +599,7 @@ pub mod dictionary {
             line: node.line,
         }
     }
-    pub fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>) -> Function {
+    pub fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> Function {
         let identifier = if node.nodes.contains_key("identifier") {
             Some(get_ident(&node))
         } else {
@@ -603,7 +607,7 @@ pub mod dictionary {
         };
         let generics = get_generics_decl(&node, errors);
         let kind = if let Some(kind) = try_step_inside_val(step_inside_val(&node, "type"), "type") {
-            Some(get_type(kind, errors))
+            Some(get_type(kind, errors, file_name))
         } else {
             None
         };
@@ -621,7 +625,8 @@ pub mod dictionary {
                                 main: vec![String::from("Self")],
                                 generics: Vec::new(),
                                 line: arg.line,
-                                nullable: false
+                                nullable: false,
+                                file: None,
                             },
                             line: arg.line,
                         });
@@ -638,7 +643,7 @@ pub mod dictionary {
                         }
                         args.push(Arg {
                             identifier: ident,
-                            kind: get_type(step_inside_val(&arg, "type"), errors),
+                            kind: get_type(step_inside_val(&arg, "type"), errors, file_name),
                             line: arg.line,
                         });
                     }
@@ -664,7 +669,7 @@ pub mod dictionary {
          */
 
         let code = if node.nodes.contains_key("code") {
-            codeblock_parser::generate_tree(step_inside_val(&node, "code"), errors)
+            codeblock_parser::generate_tree(step_inside_val(&node, "code"), errors, file_name)
         } else {
             vec![]
         };
@@ -724,7 +729,7 @@ pub mod dictionary {
         }
         refs
     }
-    pub fn get_type(node: &Node, errors: &mut Vec<ErrType>) -> ShallowType {
+    pub fn get_type(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> ShallowType {
         let nullable = if let Some(val) = try_step_inside_val(node, "optional") {
             val.name == Tokens::Optional
         } else {
@@ -732,7 +737,7 @@ pub mod dictionary {
         };
         let main = step_inside_val(&node, "main");
         if main.name == Tokens::Text(String::from("function_head")) {
-            let fun = get_fun_siginifier(&main, errors);
+            let fun = get_fun_siginifier(&main, errors, file_name);
             let refs = count_refs(&node);
             return ShallowType {
                 is_fun: Some(Box::new(fun)),
@@ -741,7 +746,8 @@ pub mod dictionary {
                 main: vec![],
                 generics: Vec::new(),
                 line: node.line,
-                nullable
+                nullable,
+                file: Some(file_name.to_string()),
             };
         }
         let refs = count_refs(node);
@@ -759,7 +765,7 @@ pub mod dictionary {
             let arr_kind = step_inside_val(&step_inside_val(&node, "arr"), "type");
             if let Tokens::Text(txt) = &arr_kind.name {
                 if txt == "type" {
-                    let mut kind = get_type(&arr_kind, errors);
+                    let mut kind = get_type(&arr_kind, errors, file_name);
                     kind.array_depth += 1;
                     return kind;
                 }else {
@@ -774,16 +780,17 @@ pub mod dictionary {
             array_depth: 0,
             refs,
             main,
-            generics: get_generics_expr(node, errors),
+            generics: get_generics_expr(node, errors, file_name),
             line: node.line,
-            nullable
+            nullable,
+            file: Some(file_name.to_string()),
         }
     }
-    pub fn get_generics_expr(node: &Node, errors: &mut Vec<ErrType>) -> GenericExpr {
+    pub fn get_generics_expr(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> GenericExpr {
         let mut result = Vec::new();
         if let Some(arr) = try_step_inside_arr(step_inside_val(node, "generic"), "types") {
             for generic_expr in arr {
-                result.push(get_type(generic_expr, errors));
+                result.push(get_type(generic_expr, errors, file_name));
             }
         }
         result
@@ -1216,6 +1223,7 @@ pub mod dictionary {
                     generics: Vec::new(),
                     line: Line { line: 0, column: 0 },
                     nullable: false,
+                    file: None,
                 },
                 ConstValue::Int(_) => ShallowType {
                     is_fun: None,
@@ -1225,6 +1233,7 @@ pub mod dictionary {
                     generics: Vec::new(),
                     line: Line { line: 0, column: 0 },
                     nullable: false,
+                    file: None,
                 },
                 ConstValue::Float(_) => ShallowType {
                     is_fun: None,
@@ -1234,6 +1243,7 @@ pub mod dictionary {
                     generics: Vec::new(),
                     line: Line { line: 0, column: 0 },
                     nullable: false,
+                    file: None,
                 },
                 ConstValue::Char(_) => ShallowType {
                     is_fun: None,
@@ -1243,6 +1253,7 @@ pub mod dictionary {
                     generics: Vec::new(),
                     line: Line { line: 0, column: 0 },
                     nullable: false,
+                    file: None,
                 },
                 ConstValue::Bool(_) => ShallowType {
                     is_fun: None,
@@ -1252,6 +1263,7 @@ pub mod dictionary {
                     generics: Vec::new(),
                     line: Line { line: 0, column: 0 },
                     nullable: false,
+                    file: None,
                 },
                 ConstValue::Usize(_) => ShallowType {
                     is_fun: None,
@@ -1261,6 +1273,7 @@ pub mod dictionary {
                     generics: Vec::new(),
                     line: Line { line: 0, column: 0 },
                     nullable: false,
+                    file: None,
                 },
                 ConstValue::String(_) => ShallowType {
                     is_fun: None,
@@ -1270,6 +1283,7 @@ pub mod dictionary {
                     generics: Vec::new(),
                     line: Line { line: 0, column: 0 },
                     nullable: false,
+                    file: None,
                 },
                 ConstValue::Null => ShallowType {
                     is_fun: None,
@@ -1279,6 +1293,7 @@ pub mod dictionary {
                     generics: Vec::new(),
                     line: Line { line: 0, column: 0 },
                     nullable: false,
+                    file: None,
                 },
                 ConstValue::Function(_) => todo!(),
                 ConstValue::Array(arr) => {
@@ -1290,6 +1305,7 @@ pub mod dictionary {
                         generics: Vec::new(),
                         line: Line { line: 0, column: 0 },
                         nullable: false,
+                        file: None,
                     };
                     res.array_depth = 1;
                     res
@@ -1311,6 +1327,7 @@ pub mod dictionary {
         pub generics: GenericExpr,
         pub line: Line,
         pub nullable: bool,
+        pub file: Option<String>,
     }
     // print formating
     impl std::fmt::Debug for ShallowType {
@@ -1362,6 +1379,7 @@ pub mod dictionary {
                 generics: vec![],
                 line: Line { line: 0, column: 0 },
                 nullable: false,
+                file: None,
             }
         }
         pub fn get_ident(&self) -> &str {
@@ -1465,6 +1483,7 @@ pub mod dictionary {
         pub line: Line,
         pub name: String,
         pub nullable: bool,
+        pub file: Option<String>,
     }
 
     impl ShTypeBuilder {
@@ -1478,6 +1497,7 @@ pub mod dictionary {
                 line: Line { line: 0, column: 0 },
                 name: String::new(),
                 nullable: false,
+                file: None,
             }
         }
         pub fn build(self) -> ShallowType {
@@ -1494,7 +1514,12 @@ pub mod dictionary {
                 generics: self.generics,
                 line: self.line,
                 nullable: self.nullable,
+                file: self.file,
             }
+        }
+        pub fn set_file(mut self, file: String) -> Self {
+            self.file = Some(file);
+            self
         }
         pub fn set_nullable(mut self, nullable: bool) -> Self {
             self.nullable = nullable;

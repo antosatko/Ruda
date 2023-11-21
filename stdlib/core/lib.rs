@@ -82,6 +82,22 @@ impl lib::Library for DynLib {
                     )));
                 }
             }
+            // core::str_cmp
+            3 => {
+                if let Types::Pointer(u_size, PointerTypes::String) = m.registers[GENERAL_REG1] {
+                    if let Types::Pointer(u_size1, PointerTypes::String) = m.registers[GENERAL_REG2] {
+                        return Ok(Types::Bool(m.strings.to_str(u_size) == m.strings.to_str(u_size1)));
+                    } else {
+                        return Err(runtime_error::ErrTypes::Message(format!(
+                            "Invalid string pointer"
+                        )));
+                    }
+                } else {
+                    return Err(runtime_error::ErrTypes::Message(format!(
+                        "Invalid string pointer"
+                    )));
+                }
+            }
             _ => unreachable!("Invalid function id"),
         }
         return Ok(runtime_types::Types::Void);

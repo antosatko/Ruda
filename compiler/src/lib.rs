@@ -166,7 +166,7 @@ pub fn build_dictionaries(
     };
     let mut imports = Vec::new();
     let mut dictionaries = Dictionaries::new();
-    match build_dictionary(&main, ast) {
+    match build_dictionary(&main, ast, main_) {
         Ok(res) => {
             if res.1.len() > 0 {
                 panic!("internal error 1. please contact the developer.")
@@ -196,7 +196,7 @@ pub fn build_dictionaries(
                             found_imports.push(import.clone());
                             continue;
                         }
-                        match build_dictionary(&main.unwrap(), ast) {
+                        match build_dictionary(&main.unwrap(), ast, import) {
                             Ok(res) => {
                                 if res.1.len() > 0 {
                                     return Err((
@@ -309,6 +309,7 @@ pub fn build_dictionary(
         HashMap<String, ast_parser::ast_parser::Head>,
         Vec<ast_parser::ast_parser::HeadParam>,
     ),
+    file_name: &str,
 ) -> Result<
     (
         intermediate::dictionary::Dictionary,
@@ -346,7 +347,7 @@ pub fn build_dictionary(
 
             // println!("Imports: {:?}", imports);
 
-            let mut dictionary = intermediate::dictionary::from_ast(&tree.nodes, &imports);
+            let mut dictionary = intermediate::dictionary::from_ast(&tree.nodes, &imports, file_name);
             return Ok((dictionary.0, dictionary.1, imports));
         }
         Err(err) => {
@@ -375,7 +376,7 @@ pub fn libload(
             }
         }
     }();
-    let lib = libloader::load(&register.as_bytes(), ast);
+    let lib = libloader::load(&register.as_bytes(), ast, file);
     lib
 }
 
