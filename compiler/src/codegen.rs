@@ -1,4 +1,5 @@
 use core::panic;
+use std::thread::Scope;
 use intermediate::dictionary::ImportKinds;
 use std::collections::HashMap;
 use std::vec;
@@ -178,6 +179,7 @@ pub enum CodegenError {
     // (kind, unary, line)s
     UnaryNotApplicable(ShallowType, Operators, Line),
     CoudNotCastAnArrayToANonArray(ShallowType, Line),
+    FunctionDoesNotReturn(Line),
 }
 
 pub fn stringify(
@@ -213,14 +215,21 @@ fn gen_fun<'a>(
         );
         args_scope_len += 1;
     }
-    let scope_len = get_scope(
-        objects,
-        &this_fun.code.clone(),
-        context,
-        &mut scopes,
-        &mut code,
-        fun,
-    )? + args_scope_len;
+    let scope_len = {
+        let (scope_len, terminator) = get_scope(
+            objects,
+            &this_fun.code.clone(),
+            context,
+            &mut scopes,
+            &mut code,
+            fun,
+        )?;
+        let this_fun = fun.get(objects)?;
+        if terminator != ScopeTerminator::Return && this_fun.return_type.is_some(){
+            Err(CodegenError::FunctionDoesNotReturn(this_fun.line.clone()))?;
+        }
+        scope_len + args_scope_len
+    };
     flip_stack_access(scope_len, &mut code);
     code.push(Instructions::Return);
     let mut args_code = Code {
@@ -982,7 +991,7 @@ fn get_scope(
     other_scopes: &mut Vec<ScopeCached>,
     code: &mut Code,
     fun: &InnerPath,
-) -> Result<usize, CodegenError> {
+) -> Result<(usize, ScopeTerminator), CodegenError> {
     let mut max_scope_len = 0;
     other_scopes.push(ScopeCached {
         variables: HashMap::new(),
@@ -996,10 +1005,10 @@ fn get_scope(
 
     macro_rules! open_scope {
         ($block: expr, $code: expr) => {{
-            let scope_len = get_scope(objects, $block, context, other_scopes, $code, fun)?;
+            let (scope_len, terminator) = get_scope(objects, $block, context, other_scopes, $code, fun)?;
             other_scopes.pop();
             max_scope_len += scope_len;
-            scope_len
+            (scope_len, terminator)
         }};
     }
 
@@ -1110,6 +1119,7 @@ fn get_scope(
                 line,
             } => {
                 use Instructions::*;
+                let mut all_end_with_return = true;
                 // if
                 let mut expr_code = Code { code: Vec::new() };
                 let mut block_code = Code { code: Vec::new() };
@@ -1124,7 +1134,10 @@ fn get_scope(
                     &mut max_scope_len,
                     Some(bool_type.clone()),
                 )?;
-                let scope = open_scope!(body, &mut block_code);
+                let (scope, terminator) = open_scope!(body, &mut block_code);
+                if terminator != ScopeTerminator::Return {
+                    all_end_with_return = false;
+                }
                 expr_code.push(Branch(
                     expr_code.code.len() + 1,
                     expr_code.code.len() + block_code.code.len() + 2,
@@ -1147,7 +1160,10 @@ fn get_scope(
                     if kind.cmp(&bool_type).is_not_equal() {
                         return Err(CodegenError::ExpectedBool(elif.2.clone()));
                     }
-                    let scope = open_scope!(&elif.1, &mut block_code);
+                    let (scope, terminator) = open_scope!(&elif.1, &mut block_code);
+                    if terminator != ScopeTerminator::Return {
+                        all_end_with_return = false;
+                    }
                     expr_code.push(Branch(
                         expr_code.code.len() + 1,
                         expr_code.code.len() + block_code.code.len() + 2,
@@ -1158,7 +1174,10 @@ fn get_scope(
                 let elsse = match els {
                     Some(els) => {
                         let mut block_code = Code { code: Vec::new() };
-                        let scope = open_scope!(&els.0, &mut block_code);
+                        let (scope, terminator) = open_scope!(&els.0, &mut block_code);
+                        if terminator != ScopeTerminator::Return {
+                            all_end_with_return = false;
+                        }
                         (block_code, scope)
                     }
                     None => (Code { code: Vec::new() }, 0),
@@ -1182,6 +1201,9 @@ fn get_scope(
                 }
                 // append
                 merge_code(&mut code.code, &buffer, scope);
+                if all_end_with_return {
+                    return Ok((max_scope_len, ScopeTerminator::Return));
+                }
             }
             crate::codeblock_parser::Nodes::While { cond, body, line } => {
                 use Instructions::*;
@@ -1200,7 +1222,7 @@ fn get_scope(
                 if kind.cmp(&bool_type).is_not_equal() {
                     return Err(CodegenError::ExpectedBool(line.clone()));
                 }
-                let scope = open_scope!(body, &mut block_code);
+                let (scope, terminator) = open_scope!(body, &mut block_code);
                 expr_code.push(Branch(
                     expr_code.code.len() + 1,
                     expr_code.code.len() + block_code.code.len() + 2,
@@ -1210,6 +1232,9 @@ fn get_scope(
                 merge_code(&mut buffer, &block_code.code, scope);
                 buffer.push(Goto(0));
                 merge_code(&mut code.code, &buffer, scope);
+                if terminator == ScopeTerminator::Return {
+                    return Ok((max_scope_len, ScopeTerminator::Return));
+                }
             }
             crate::codeblock_parser::Nodes::For {
                 ident,
@@ -1261,6 +1286,7 @@ fn get_scope(
                 }
                 expr_code.push(Instructions::Return);
                 merge_code(&mut code.code, &expr_code.code, 0);
+                return Ok((max_scope_len, ScopeTerminator::Return));
             }
             crate::codeblock_parser::Nodes::Expr { expr, line } => {
                 expression(
@@ -1276,13 +1302,20 @@ fn get_scope(
             }
             crate::codeblock_parser::Nodes::Block { body, line } => {
                 let scope = open_scope!(body, code);
+                if scope.1 != ScopeTerminator::None {
+                    return Ok(scope);
+                }
             }
             crate::codeblock_parser::Nodes::Break { line } => todo!(),
             crate::codeblock_parser::Nodes::Continue { line } => todo!(),
             crate::codeblock_parser::Nodes::Loop { body, line } => {
                 use Instructions::*;
+                let len = code.code.len();
                 let scope = open_scope!(body, code);
-                code.code.push(Goto(0));
+                code.code.push(Goto(len));
+                if scope.1 != ScopeTerminator::None {
+                    return Ok(scope);
+                }
             }
             crate::codeblock_parser::Nodes::Yeet { expr, line } => todo!(),
             crate::codeblock_parser::Nodes::Try {
@@ -1428,7 +1461,7 @@ fn get_scope(
             }
         }
     }
-    Ok(max_scope_len)
+    Ok((max_scope_len, ScopeTerminator::None))
 }
 
 fn create_var_pos(scopes: &Vec<ScopeCached>) -> MemoryTypes {
@@ -2013,4 +2046,17 @@ fn cast(
         }
     }
     None
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ScopeTerminator {
+    Return,
+    Break(String),
+    Continue(String),
+    Yeet,
+    None,
+}
+
+impl ScopeTerminator {
+    
 }

@@ -1,33 +1,19 @@
 import "#io"
 import "#string"
 
-/*
-import "soubor.rd"
 
 
-struct Danda {
-    a: int?
-    b: int?
-
-    fun Danda (a: int, b: int) {
-        self.a = a
-        self.b = b
+fun main(): int {
+    if true {
+        return 9
+    }else {
+        return 10
     }
-
-    fun add(self): int {
-        return self.a + self.b
-    }
-
-    fun blabla(): int {
-        return 5
-    }
-}
-*/
-
-fun main() {
     // calculator
 
-    loop {
+    io.println("Welcome to the calculator!")
+
+    while true {
         io.print("Input first number: ")
         let a = string.parse(io.inputln())
         
