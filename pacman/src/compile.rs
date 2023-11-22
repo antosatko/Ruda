@@ -60,7 +60,7 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) -> bool{
             return false;
         }
     };
-    println!("AST generated.");
+    //println!("AST generated.");
     let dictionaries = match build_dictionaries(&main_file, &mut (ast, params)) {
         Ok(dictionaries) => dictionaries,
         Err(err) => {
@@ -69,8 +69,8 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) -> bool{
             return false;
         }
     };
-    println!("Dictionary generated.");
-    println!("{:?}", dictionaries);
+    //println!("Dictionary generated.");
+    // println!("{:?}", dictionaries);
     // BEWARE: this part is what you call a technical debt
     let mut bin_paths = Vec::new();
     let mut lib_names = Vec::new();
@@ -119,7 +119,7 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) -> bool{
     for _ in 0..names.len() {
         binaries.insert(names.remove(0), dicts.remove(0));
     }
-    println!("{:?}", binaries.keys());
+    // println!("{:?}", binaries.keys());
     for (_, libname) in lib_names.iter().enumerate() {
         binaries.insert(libname.to_string(), dicts.remove(0));
     }
@@ -138,13 +138,13 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) -> bool{
         }
         
     }
-    println!("Binaries generated.");
-    println!("{:?}", dicts);
+    //println!("Binaries generated.");
+    // println!("{:?}", dicts);
     let mut context = Context::new(dictionaries, binaries);
     match prep_objects::prep(&mut context) {
         Ok(_) => {
-            println!("Objects prepared.");
-            println!("{:?}", context.destruct());
+            // println!("Objects prepared.");
+            // println!("{:?}", context.destruct());
         }
         Err(err) => {
             println!("Failed to prepare objects.");
@@ -155,12 +155,12 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) -> bool{
 
     let executable = match codegen::gen(&mut context, "main.rd") {
         Ok(ctx) => {
-            println!("{:?}", ctx.code.data);
-            println!("{:?}", ctx.code.entry_point);
-            println!("{:?}", ctx.memory.heap.data);
-            println!("{:?}", ctx.memory.stack.data);
-            println!("{:?}", ctx.memory.strings.pool);
-            println!("{:?}", ctx.memory.non_primitives);
+            // println!("{:?}", ctx.code.data);
+            // println!("{:?}", ctx.code.entry_point);
+            // println!("{:?}", ctx.memory.heap.data);
+            // println!("{:?}", ctx.memory.stack.data);
+            // println!("{:?}", ctx.memory.strings.pool);
+            // println!("{:?}", ctx.memory.non_primitives);
 
             let code = codegen::stringify(&ctx, &Vec::new());
             code

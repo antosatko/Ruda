@@ -312,7 +312,6 @@ fn expression(
                                     },
                                     None => None,
                                 };
-                                println!("{:?}", kind);
                                 code.extend(&[
                                     AllocateStatic(values.len()),
                                 ]);
@@ -374,7 +373,6 @@ fn expression(
                                 code.read(&obj, GENERAL_REG1);
                                 return_kind = kind.unwrap().clone();
                                 return_kind.array_depth += 1;
-                                println!("{:?}", return_kind);
                             }
                         }
                     };
@@ -2024,8 +2022,6 @@ fn cast(
     register: usize,
 ) -> Option<()> {
     use Instructions::*;
-    println!("cast {:?} to {:?}", from, to);
-    println!("kind origins: {:?} {:?}", from.file, to.file);
     if from.cmp(to).is_equal() {
         return Some(());
     }
