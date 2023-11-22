@@ -1205,7 +1205,7 @@ fn get_scope(
                     return Ok((max_scope_len, ScopeTerminator::Return));
                 }
             }
-            crate::codeblock_parser::Nodes::While { cond, body, line } => {
+            crate::codeblock_parser::Nodes::While { cond, body, line, ident } => {
                 use Instructions::*;
                 let mut expr_code = Code { code: Vec::new() };
                 let mut block_code = Code { code: Vec::new() };
@@ -1241,6 +1241,7 @@ fn get_scope(
                 expr,
                 body,
                 line,
+                ident2,
             } => todo!(),
             crate::codeblock_parser::Nodes::Return { expr, line } => {
                 use Instructions::*;
@@ -1306,9 +1307,11 @@ fn get_scope(
                     return Ok(scope);
                 }
             }
-            crate::codeblock_parser::Nodes::Break { line } => todo!(),
-            crate::codeblock_parser::Nodes::Continue { line } => todo!(),
-            crate::codeblock_parser::Nodes::Loop { body, line } => {
+            crate::codeblock_parser::Nodes::Break { line, ident } => {
+                
+            },
+            crate::codeblock_parser::Nodes::Continue { line, ident } => todo!(),
+            crate::codeblock_parser::Nodes::Loop { body, line, ident } => {
                 use Instructions::*;
                 let len = code.code.len();
                 let scope = open_scope!(body, code);
@@ -1489,6 +1492,7 @@ fn merge_code(
     let start = buffer.len();
     buffer.reserve(new_code.len());
     let instrs = buffer.len();
+    let end = instrs + new_code.len();
     for instr in new_code {
         use Instructions::*;
         let instr = match instr {

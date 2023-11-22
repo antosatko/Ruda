@@ -211,8 +211,9 @@ KWElse code
 "
 while true {}
 "
-KWWhile expression code
+KWWhile expression code identifier
 	"while" harderr="true"
+	loop_ident ? set="identifier"
 	expression set="expression" 
 	code_block set="code";
 
@@ -220,16 +221,18 @@ KWWhile expression code
 "
 loop {}
 "
-KWLoop code
+KWLoop code identifier
 	"loop" harderr="true"
+	loop_ident ? set="identifier"
 	code_block set="code";
 
 
 "
 for i in range(60) {}
 "
-KWFor identifier expression code
+KWFor identifier expression code identifier
 	"for" harderr="true"
+	loop_ident ? set="identifier"
 	ident set="identifier"
 	"in"
 	expression set="expression" 
@@ -239,16 +242,18 @@ KWFor identifier expression code
 "
 break;
 "
-KWBreak expression
+KWBreak expression identifier
 	"break" harderr="true"
+	"'string" set="identifier"
 	;?;
 
 
 "
 continue;
 "
-KWContinue
+KWContinue identifier
 	"continue" harderr="true"
+	"'string" set="identifier"
 	;?;
 
 
@@ -529,6 +534,11 @@ code_block [nodes
 	; ? back="20"
 	} ? end="true"
 	expression ? set="nodes" back="22";
+
+
+loop_ident identifier
+	"'string" set="identifier"
+	:;
 
 set value operator expression
 	value set="value"

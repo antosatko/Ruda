@@ -1,6 +1,6 @@
 use crate::expression_parser::*;
 use crate::intermediate::dictionary::{
-    get_ident, get_type, step_inside_arr, step_inside_val, ShallowType,
+    get_ident, get_type, step_inside_arr, step_inside_val, ShallowType, get_loop_ident, get_break_ident,
 };
 use crate::intermediate::AnalyzationError::ErrType;
 use crate::lexer::tokenizer::*;
@@ -50,13 +50,15 @@ pub fn node_from_node(
                     line: node.line,
                 })
             }
-            "KWBreak" => Some(Nodes::Break { line: node.line }),
-            "KWContinue" => Some(Nodes::Continue { line: node.line }),
+            "KWBreak" => Some(Nodes::Break { line: node.line, ident: get_break_ident(&node) }),
+            "KWContinue" => Some(Nodes::Continue { line: node.line, ident: get_loop_ident(&node) }),
             "KWLoop" => {
                 let body = generate_tree(step_inside_val(&node, "code"), errors, file_name);
+                let ident = get_loop_ident(&node);
                 Some(Nodes::Loop {
                     body,
                     line: node.line,
+                    ident,
                 })
             }
             "KWYeet" => {
@@ -131,10 +133,12 @@ pub fn node_from_node(
                 let cond = step_inside_val(&node, "expression");
                 let cond = expr_into_tree(&cond, errors, file_name);
                 let body = generate_tree(step_inside_val(&node, "code"), errors, file_name);
+                let ident = get_loop_ident(&node);
                 Some(Nodes::While {
                     cond,
                     body,
                     line: node.line,
+                    ident,
                 })
             }
             "KWFor" => {
@@ -142,11 +146,13 @@ pub fn node_from_node(
                 let expr = step_inside_val(&node, "expression");
                 let expr = expr_into_tree(&expr, errors, file_name);
                 let body = generate_tree(step_inside_val(&node, "code"), errors, file_name);
+                let ident2 = get_loop_ident(&node);
                 Some(Nodes::For {
                     ident,
                     expr,
                     body,
                     line: node.line,
+                    ident2,
                 })
             }
             "KWTry" => {
@@ -281,12 +287,14 @@ pub enum Nodes {
         cond: ValueType,
         body: Vec<Nodes>,
         line: Line,
+        ident: Option<String>,
     },
     For {
         ident: String,
         expr: ValueType,
         body: Vec<Nodes>,
         line: Line,
+        ident2: Option<String>,
     },
     Return {
         expr: Option<ValueType>,
@@ -302,13 +310,16 @@ pub enum Nodes {
     },
     Break {
         line: Line,
+        ident: Option<String>,
     },
     Continue {
         line: Line,
+        ident: Option<String>,
     },
     Loop {
         body: Vec<Nodes>,
         line: Line,
+        ident: Option<String>,
     },
     Yeet {
         expr: ((String, Line), Vec<(TailNodes, Line)>),

@@ -706,7 +706,7 @@ pub mod tree_walker {
         }
     }
 
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, PartialEq, Eq)]
     pub struct Line {
         pub line: usize,
         pub column: usize,

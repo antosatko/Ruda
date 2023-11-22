@@ -832,6 +832,22 @@ pub mod dictionary {
             None => None,
         }
     }
+    pub fn get_loop_ident(node: &Node) -> Option<String> {
+        if let Tokens::Text(txt) = &step_inside_val(&node, "identifier").name {
+            if txt == "loop_ident" {
+                if let Tokens::String(txt) = &step_inside_val(&step_inside_val(&node, "identifier"), "identifier").name {
+                    return Some(txt.to_string());
+                }
+            }
+        }
+        None
+    }
+    pub fn get_break_ident(node: &Node) -> Option<String> {
+        if let Tokens::String(txt) = &step_inside_val(&node, "identifier").name {
+            return Some(txt.to_string());
+        }
+        None
+    }
     #[derive(Debug)]
     pub enum Imports {
         Dll(String, Option<libloader::Dictionary>),

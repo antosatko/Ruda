@@ -3,14 +3,7 @@ import "#string"
 
 
 
-fun main(): int {
-    if true {
-        return 9
-    }else {
-        return 10
-    }
-    // calculator
-
+fun main() {
     io.println("Welcome to the calculator!")
 
     while true {
