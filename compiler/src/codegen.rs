@@ -1214,7 +1214,7 @@ fn get_scope(
                 }
                 // append
                 merge_code(&mut code.code, &buffer, scope);
-                if all_end_with_return {
+                if all_end_with_return && els.is_some() {
                     return Ok((max_scope_len, ScopeTerminator::Return));
                 }
             }
@@ -1326,11 +1326,12 @@ fn get_scope(
             crate::codeblock_parser::Nodes::Continue { line, ident } => todo!(),
             crate::codeblock_parser::Nodes::Loop { body, line, ident } => {
                 use Instructions::*;
-                let len = code.code.len();
-                let scope = open_scope!(body, code);
-                code.code.push(Goto(len));
+                let mut temp_code = Code { code: Vec::new() };
+                let scope = open_scope!(body, &mut temp_code);
+                temp_code.push(Goto(0));
+                merge_code(&mut code.code, &temp_code.code, scope.0);
                 if scope.1 != ScopeTerminator::None {
-                    return Ok(scope);
+                    return Ok((max_scope_len, ScopeTerminator::Return));
                 }
             }
             crate::codeblock_parser::Nodes::Yeet { expr, line } => todo!(),
