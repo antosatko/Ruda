@@ -1,0 +1,43 @@
+site_name: Ruda
+theme: windmill
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Tutorial:
+    - '0. New Project': tutorial/new-project.md
+    - '1. Hello World': tutorial/hello.md
+    - '2. Variables': tutorial/variables.md
+    - '3. Operators': tutorial/operators.md
+    - '4. Comments': tutorial/comments.md
+    - '5. Control Flow': tutorial/control-flow.md
+    - '6. Functions': tutorial/functions.md
+    - '7. Constants': tutorial/constants.md
+    - '8. Data Types': tutorial/data-types.md
+    - '9. Structs': tutorial/structs.md
+    - '10. Enums': tutorial/enums.md
+    - '11. Pointers': tutorial/pointers.md
+    - '12. Methods': tutorial/methods.md
+    - '13. Modules': tutorial/modules.md
+    - '14. Error Handling': tutorial/error-handling.md
+    - Advanced:
+      - '0. Hello': tutorial/advanced/hi.md
+      - '1. Generics': tutorial/advanced/generics.md
+      - '2. Traits': tutorial/advanced/traits.md
+      - '3. Overloading': tutorial/advanced/overloads.md
+      - '4. Memory Management': tutorial/advanced/memory.md
+  - Cheatsheet:
+    - 'Keywords': cheatsheet/keywords.md
+    - 'Operators': cheatsheet/operators.md
+    - 'Syntax': cheatsheet/syntax.md
+  - Projects:
+    - '1. Number Guessing Game': projects/number-guessing-game.md
+  - Package Manager:
+    - 'Help': pacman/help.md
+    - 'Building': pacman/building.md
+    - 'Debugging': pacman/debugging.md
+    - 'Packages': pacman/packages.md
+    - 'Configuration': pacman/configuration.md
+  - Extensions:
+    - 'About': extensions/about.md 
+    - 'Starting': extensions/starting.md 
