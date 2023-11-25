@@ -5,6 +5,7 @@ use crate::intermediate::AnalyzationError::ErrType;
 use crate::lexer::tokenizer::Tokens;
 use crate::lexing_preprocessor::parse_err::Errors;
 use crate::tree_walker::tree_walker::generate_tree;
+use std::path::Path;
 use std::{collections::HashMap, env, fs::File, hint::black_box, io::Read, time::SystemTime};
 
 use crate::{intermediate::AnalyzationError, tree_walker::tree_walker::ArgNodeType};
@@ -252,7 +253,15 @@ pub fn build_binaries(
     binaries: &mut Vec<libloader::Dictionary>,
 ) -> Result<(), String> {
     for path in paths {
-        binaries.push(libload(&path, ast)?);
+        const SUFFIXES: [&str; 2] = [".dll", ".so"];
+        let mut name = Path::new(path).file_name().unwrap().to_str().unwrap().to_string();
+        for suffix in &SUFFIXES {
+            if name.ends_with(suffix) {
+                name = name.strip_suffix(suffix).unwrap().to_string();
+                break;
+            }
+        }
+        binaries.push(libload(&path, ast, &name)?);
     }
     Ok(())
 }
@@ -295,7 +304,15 @@ pub fn build_std_lib(ast: &mut (HashMap<String, Head>, Vec<HeadParam>)) -> Resul
                 return Err(format!("Could not read stdlib directory."));
             }
         };
-        let lib = libload(path, ast)?;
+        const SUFFIXES: [&str; 2] = [".dll", ".so"];
+        let mut name = Path::new(path).file_name().unwrap().to_str().unwrap().to_string();
+        for suffix in &SUFFIXES {
+            if name.ends_with(suffix) {
+                name = name.strip_suffix(suffix).unwrap().to_string();
+                break;
+            }
+        }
+        let lib = libload(path, ast, &name)?;
         binaries.push((lib, filename));
     }
 
@@ -359,6 +376,7 @@ pub fn build_dictionary(
 pub fn libload(
     file: &str,
     ast: &mut (HashMap<String, Head>, Vec<HeadParam>),
+    file_identifier: &str,
 ) -> Result<libloader::Dictionary, String> {
     let lib = unsafe {
         match libloading::Library::new(file) {
@@ -376,7 +394,7 @@ pub fn libload(
             }
         }
     }();
-    let lib = libloader::load(&register.as_bytes(), ast, file);
+    let lib = libloader::load(&register.as_bytes(), ast, file_identifier);
     lib
 }
 

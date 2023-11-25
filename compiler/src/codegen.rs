@@ -1,4 +1,5 @@
 use core::panic;
+use std::ops::Index;
 use std::thread::Scope;
 use intermediate::dictionary::ImportKinds;
 use std::collections::HashMap;
@@ -180,6 +181,8 @@ pub enum CodegenError {
     UnaryNotApplicable(ShallowType, Operators, Line),
     CoudNotCastAnArrayToANonArray(ShallowType, Line),
     FunctionDoesNotReturn(Line),
+    /// (expected, got, line)
+    IncorrectNumberOfArgs(usize, usize, Line),
 }
 
 pub fn stringify(
@@ -850,17 +853,23 @@ fn call_binary(
         AllocateStatic(called_fun.args.len().max(call_params.args.len())),
     ]);
     temp_code.write(POINTER_REG, &obj);
-    for (idx, arg) in call_params.args.iter().enumerate() {
-        let expected = fun.get_bin(objects)?.args[idx].1.clone();
+    if called_fun.args.len() != call_params.args.len() {
+        Err(CodegenError::IncorrectNumberOfArgs(
+            called_fun.args.len(),
+            call_params.args.len(),
+            line.clone(),
+        ))?;
+    }
+    for (idx, arg) in call_params.args.iter().zip(called_fun.args.clone()).enumerate() {
         let kind = expression(
             objects,
-            arg,
+            arg.0,
             scopes,
             &mut temp_code,
             context,
             &this,
             scope_len,
-            Some(expected.clone()),
+            Some(arg.1.clone().1),
         )?;
         args.push(kind);
         temp_code.read(&obj, POINTER_REG);
@@ -913,7 +922,6 @@ fn call_fun(
     use Instructions::*;
     let mut temp_code = Code { code: Vec::new() };
     let called_fun = fun.get(objects)?;
-    let expected = called_fun.return_type.clone();
     *scope_len += 1;
     let obj = create_var_pos(scopes);
     let scopes_len = scopes.len();
@@ -932,17 +940,24 @@ fn call_fun(
     ]);
     temp_code.write(POINTER_REG, &obj);
     // setup args
+    if called_fun.args.len() != call_params.args.len() {
+        Err(CodegenError::IncorrectNumberOfArgs(
+            called_fun.args.len(),
+            call_params.args.len(),
+            line.clone(),
+        ))?;
+    }
     let mut args = Vec::new();
-    for (idx, arg) in call_params.args.iter().enumerate() {
+    for (idx, arg) in call_params.args.iter().zip(called_fun.args.clone()).enumerate() {
         let kind = expression(
             objects,
-            arg,
+            arg.0,
             scopes,
             &mut temp_code,
             context,
             &fun,
             scope_len,
-            expected.clone(),
+            Some(arg.1.clone().kind),
         )?;
         args.push(kind);
         temp_code.read(&obj, POINTER_REG);
@@ -960,7 +975,7 @@ fn call_fun(
                 called_fun.args[idx].clone(),
                 arg.clone(),
                 cmp,
-                called_fun.args[idx].line.clone(),
+                line.clone(),
             ));
         }
     }

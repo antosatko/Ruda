@@ -116,7 +116,7 @@ fn main() {
                     return;
                 }
             };
-            match libload(&file, &mut (registry, Vec::new())) {
+            match libload(&file, &mut (registry, Vec::new()), "") {
                 Ok(lib) => {
                     if !mute {
                         println!("Library loaded.");

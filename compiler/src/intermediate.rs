@@ -1424,6 +1424,10 @@ pub mod dictionary {
                     return TypeComparison::NotEqual;
                 }
             }*/
+            if self.file != other.file && !self.is_primitive() && !other.is_primitive() {
+                println!("{} != {}", self.file.as_ref().unwrap(), other.file.as_ref().unwrap());
+                return TypeComparison::NotEqual;
+            }
             TypeComparison::Equal
         }
         pub fn is_null(&self) -> bool {
