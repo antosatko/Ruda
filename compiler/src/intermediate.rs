@@ -1285,7 +1285,7 @@ pub mod dictionary {
                     is_fun: None,
                     array_depth: 0,
                     refs: 0,
-                    main: vec![String::from("usize")],
+                    main: vec![String::from("uint")],
                     generics: Vec::new(),
                     line: Line { line: 0, column: 0 },
                     nullable: false,
@@ -1435,7 +1435,7 @@ pub mod dictionary {
         }
         pub fn is_number(&self) -> bool {
             let temp = format!("{:?}", self);
-            temp == "int" || temp == "float" || temp == "char" || temp == "usize"
+            temp == "int" || temp == "float" || temp == "char" || temp == "uint"
         }
         pub fn is_string(&self) -> bool {
             format!("{:?}", self) == "string"
@@ -1445,7 +1445,7 @@ pub mod dictionary {
             temp == "int"
                 || temp == "float"
                 || temp == "char"
-                || temp == "usize"
+                || temp == "uint"
                 || temp == "bool"
                 || temp == "null"
                 || temp == "string"
@@ -1464,7 +1464,7 @@ pub mod dictionary {
                 "int" => runtime_types::Types::Int(0),
                 "float" => runtime_types::Types::Float(0.0),
                 "char" => runtime_types::Types::Char(' '),
-                "usize" => runtime_types::Types::Usize(0),
+                "uint" => runtime_types::Types::Usize(0),
                 "bool" => runtime_types::Types::Bool(false),
                 "null" => runtime_types::Types::Null,
                 _ => runtime_types::Types::Null,
@@ -1482,7 +1482,7 @@ pub mod dictionary {
                 "int" => ConstValue::Int(0),
                 "float" => ConstValue::Float(0.0),
                 "char" => ConstValue::Char(' '),
-                "usize" => ConstValue::Usize(0),
+                "uint" => ConstValue::Usize(0),
                 "bool" => ConstValue::Bool(false),
                 "null" => ConstValue::Null,
                 _ => ConstValue::Undefined,
