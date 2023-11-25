@@ -3,12 +3,12 @@ import "#string"
 import "#fs"
 
 
-fun text(n: number): string {
+fun text(n: int): string {
     return "Hello, World!"
 }
 
 
 fun main() {
-    io.println(text())
+    io.println(text(6))
 }
 

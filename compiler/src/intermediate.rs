@@ -1235,7 +1235,7 @@ pub mod dictionary {
                     is_fun: None,
                     array_depth: 0,
                     refs: 0,
-                    main: vec![String::from("number")],
+                    main: vec![String::from("int")],
                     generics: Vec::new(),
                     line: Line { line: 0, column: 0 },
                     nullable: false,
@@ -1435,15 +1435,14 @@ pub mod dictionary {
         }
         pub fn is_number(&self) -> bool {
             let temp = format!("{:?}", self);
-            temp == "number" || temp == "int" || temp == "float" || temp == "char" || temp == "usize"
+            temp == "int" || temp == "float" || temp == "char" || temp == "usize"
         }
         pub fn is_string(&self) -> bool {
             format!("{:?}", self) == "string"
         }
         pub fn is_primitive(&self) -> bool {
             let temp = format!("{:?}", self);
-            temp == "number"
-                || temp == "int"
+            temp == "int"
                 || temp == "float"
                 || temp == "char"
                 || temp == "usize"
@@ -1462,7 +1461,6 @@ pub mod dictionary {
                 return None;
             }
             let res = match format!("{:?}", self).as_str() {
-                "number" => runtime_types::Types::Float(0.0),
                 "int" => runtime_types::Types::Int(0),
                 "float" => runtime_types::Types::Float(0.0),
                 "char" => runtime_types::Types::Char(' '),
@@ -1481,7 +1479,6 @@ pub mod dictionary {
                 return None;
             }
             let res = match format!("{:?}", self).as_str() {
-                "number" => ConstValue::Number(0.0),
                 "int" => ConstValue::Int(0),
                 "float" => ConstValue::Float(0.0),
                 "char" => ConstValue::Char(' '),
