@@ -12,6 +12,7 @@ extern crate runtime;
 
 use std::io::Write;
 
+use console::Key;
 use runtime::runtime_types::*;
 use runtime::*;
 
@@ -144,6 +145,24 @@ impl lib::Library for Foo {
                     PointerTypes::String,
                 ));
             }
+            // std::getChar
+            6 => {
+                use console::Term;
+                let term = Term::stdout();
+                // wait for a keypress
+                let key = loop {match term.read_key() {
+                    Ok(Key::Char(c)) => break c,
+                    Ok(_) => continue,
+                    Err(why) => {
+                        return Err(runtime_error::ErrTypes::Message(format!(
+                            "Couldn't read key: {}",
+                            why
+                        )))
+                    }
+                }};
+                // return the key
+                return Ok(Types::Char(key));
+            }
             _ => {
                 unreachable!("Invalid function id")
             }
@@ -163,6 +182,7 @@ fn register() -> String {
     fun args(): &[string] > 3i
     fun vmargs(): &[string] > 4i
     fun inputln(): string > 5i
+    fun getChar(): char > 6i
     "#.to_string()
 }
 

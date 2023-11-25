@@ -7,6 +7,8 @@ edition = "2021"
 
 [dependencies]
 runtime = {path = "../../vm/runtime"}
+console = "0.15.7"
+
 
 [lib]
 path = "lib.rs"

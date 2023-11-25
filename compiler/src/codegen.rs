@@ -183,6 +183,8 @@ pub enum CodegenError {
     FunctionDoesNotReturn(Line),
     /// (expected, got, line)
     IncorrectNumberOfArgs(usize, usize, Line),
+    ImportNotFound(String, Line),
+    KindNotFound(String, Line),
 }
 
 pub fn stringify(
@@ -1103,7 +1105,13 @@ fn get_scope(
                     }
                 };
                 let kind = match kind {
-                    Some(kind) => kind.clone(),
+                    Some(kind) => {
+                        println!("{:?} {:?}", kind, expr_kind);
+                        let kind = correct_kind(&objects, &kind, &fun, &line.clone())?;
+                        println!("{:?}", kind);
+                        println!("{:?}", kind.cmp(&expr_kind));
+                        kind
+                    },
                     None => expr_kind.clone(),
                 };
                 match cast(
@@ -2083,6 +2091,74 @@ enum ScopeTerminator {
     None,
 }
 
-impl ScopeTerminator {
-    
+fn correct_kind(
+    objects: &Context,
+    kind: &ShallowType,
+    fun: &InnerPath,
+    line: &Line,
+) -> Result<ShallowType, CodegenError> {
+    if ShallowType::is_primitive(kind) {
+        return Ok(kind.clone());
+    }
+    let mut file = fun.clone();
+    for i in 0..kind.main.len()-1 {
+        let import = match find_import(objects, &kind.main[i], &file.file) {
+            Some(import) => import,
+            None => Err(CodegenError::ImportNotFound(kind.main[i].clone(), line.clone()))?,
+        };
+        file = InnerPath {
+            file: import.0.to_string(),
+            block: None,
+            ident: "".to_string(),
+            kind: import.1,
+        };
+    }
+    file.ident = kind.main.last().unwrap().clone();
+    let kind = get_kind(objects, &file, line)?;
+    Ok(kind)
+}
+
+fn get_kind(
+    objects: &Context,
+    location: &InnerPath,
+    line: &Line,
+) -> Result<ShallowType, CodegenError> {
+    let file = match objects.0.get(&location.file) {
+        Some(f) => f,
+        None => {
+            return Err(CodegenError::FunctionNotFound(location.clone()));
+        }
+    };
+    for fun in file.functions.iter() {
+        if fun.identifier.clone().unwrap().as_ref() == location.ident {
+            return Ok(ShallowType::from_fun(fun, location.file.clone()));
+        }
+    }
+    for structt in file.structs.iter() {
+        if structt.identifier == location.ident {
+            return Ok(ShallowType::from_struct(structt, location.file.clone()));
+        }
+    }
+    for traitt in file.traits.iter() {
+        if traitt.identifier == location.ident {
+            return Ok(ShallowType::from_trait(traitt, location.file.clone()));
+        }
+    }
+    for enumm in file.enums.iter() {
+        if enumm.identifier == location.ident {
+            return Ok(ShallowType::from_enum(enumm, location.file.clone()));
+        }
+    }
+    let file = match objects.1.get(&location.file) {
+        Some(f) => f,
+        None => {
+            return Err(CodegenError::FunctionNotFound(location.clone()));
+        }
+    };
+    for fun in file.functions.iter() {
+        if fun.name == location.ident {
+            return Ok(ShallowType::bfrom_fun(fun, location.file.clone()));
+        }
+    }
+    Err(CodegenError::KindNotFound(location.ident.clone(), line.clone()))
 }
