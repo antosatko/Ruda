@@ -69,7 +69,7 @@ pub mod lexing_preprocessor {
                         } else {
                             if last.is_ascii_digit() {
                                 if let Ok(num) = txt.parse::<usize>() {
-                                    tokens[idx] = Tokens::Number(num as f64, 'n')
+                                    tokens[idx] = Tokens::Number(num as f64, 'i')
                                 } else {
                                     errors.push(Errors::InvalidNumber(
                                         Line::from(lines[idx]),

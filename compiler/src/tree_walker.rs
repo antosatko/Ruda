@@ -69,7 +69,8 @@ pub mod tree_walker {
                 }
             }
             None => {
-                return None;
+        println!("{:?}", syntax.keys());
+        return None;
             }
         }
         Some(map)
@@ -86,7 +87,7 @@ pub mod tree_walker {
         let mut result = Node {
             name: Tokens::Text(id.into()),
             data: None,
-            nodes: prep_nodes(&syntax, &id).expect(&id),
+            nodes: prep_nodes(&syntax, &id).expect(&(id.to_string() + &format!(": {:?}", Line::from(lines[*idx])))),
             line: Line::from(lines[*idx]),
         };
         match parse_scope(

@@ -220,7 +220,7 @@ pub fn try_get_value(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) ->
 pub fn try_get_literal(
     node: &Node,
     errors: &mut Vec<ErrType>,
-    prepend: &(Ref, Option<(String, Line)>, Option<(Operators, Line)>),
+    prepend: &(Ref, Option<(String, Line)>, Vec<(Operators, Line)>),
     file_name: &str
 ) -> Option<Literal> {
     if let Tokens::Text(txt) = &node.name {
@@ -231,7 +231,7 @@ pub fn try_get_literal(
     let this = step_inside_val(&node, "value");
     if let Tokens::Number(_, _) = &this.name {
         return Some(Literal {
-            unary: prepend.2,
+            unary: prepend.2.clone(),
             refs: prepend.0.clone(),
             modificatior: prepend.1.clone(),
             value: Literals::Number(this.name.clone()),
@@ -240,7 +240,7 @@ pub fn try_get_literal(
     }
     if let Tokens::String(str) = &this.name {
         return Some(Literal {
-            unary: prepend.2,
+            unary: prepend.2.clone(),
             refs: prepend.0.clone(),
             modificatior: prepend.1.clone(),
             value: Literals::String(str.clone()),
@@ -249,7 +249,7 @@ pub fn try_get_literal(
     }
     if let Tokens::Char(chr) = &this.name {
         return Some(Literal {
-            unary: prepend.2,
+            unary: prepend.2.clone(),
             refs: prepend.0.clone(),
             modificatior: prepend.1.clone(),
             value: Literals::Char(chr.clone()),
@@ -269,7 +269,7 @@ pub fn try_get_literal(
                     let value = expr_into_tree(&step_inside_val(&array, "value"), errors, file_name);
                     let size = expr_into_tree(&step_inside_val(&array, "size"), errors, file_name);
                     return Some(Literal {
-                        unary: prepend.2,
+                        unary: prepend.2.clone(),
                         refs: prepend.0.clone(),
                         modificatior: prepend.1.clone(),
                         value: Literals::Array(ArrayRule::Fill {
@@ -286,7 +286,7 @@ pub fn try_get_literal(
                         result.push(expr_into_tree(&value, errors, file_name));
                     }
                     return Some(Literal {
-                        unary: prepend.2,
+                        unary: prepend.2.clone(),
                         refs: prepend.0.clone(),
                         modificatior: prepend.1.clone(),
                         value: Literals::Array(ArrayRule::Explicit(result)),
@@ -376,7 +376,7 @@ pub fn get_tail(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> Vec<
 pub fn get_prepend(
     node: &Node,
     _errors: &mut Vec<ErrType>,
-) -> (Ref, Option<(String, Line)>, Option<(Operators, Line)>) {
+) -> (Ref, Option<(String, Line)>, Vec<(Operators, Line)>) {
     // TODO: use "ref_tok" instead of "ref_type"
     let refs = get_ref_type(&node);
     let temp = &step_inside_val(&node, "keywords");
@@ -389,16 +389,15 @@ pub fn get_prepend(
     } else {
         None
     };
-    let unary = if let Some(un) = try_step_inside_val(&step_inside_val(&node, "unary"), "op") {
-        if let Tokens::Operator(op) = un.name {
-            Some((op, un.line))
-        } else {
-            None
+    let mut unaries = Vec::new();
+    if let Some(un) = try_step_inside_arr(&step_inside_val(&node, "unary"), "op") {
+        for op_node in un {
+            if let Tokens::Operator(op) = op_node.name {
+                unaries.push((op, op_node.line));
+            }
         }
-    } else {
-        None
-    };
-    (refs, modificator, unary)
+    }
+    (refs, modificator, unaries)
 }
 
 pub fn get_ref_type(node: &Node) -> Ref {
@@ -482,7 +481,7 @@ pub enum ValueType {
     Literal(Literal),
     AnonymousFunction(Function),
     /// parenthesis
-    Parenthesis(Box<ValueType>, Vec<(TailNodes, Line)>, Option<(Operators, Line)>),
+    Parenthesis(Box<ValueType>, Vec<(TailNodes, Line)>, Vec<(Operators, Line)>),
     Expression(Box<ExprNode>),
     /// only for inner functionality
     Operator(Operators, Line),
@@ -505,7 +504,7 @@ impl ValueType {
 }
 #[derive(Debug, Clone)]
 pub struct Literal {
-    pub unary: Option<(Operators, Line)>,
+    pub unary: Vec<(Operators, Line)>,
     pub refs: Ref,
     /// atm only keyword new, so bool would be sufficient, but who knows what will be in the future updates
     pub modificatior: Option<(String, Line)>,
@@ -545,7 +544,7 @@ impl fmt::Debug for ArrayRule {
 }
 #[derive(Debug, Clone)]
 pub struct Variable {
-    pub unary: Option<(Operators, Line)>,
+    pub unary: Vec<(Operators, Line)>,
     pub refs: Ref,
     /// atm only keyword new, so bool would be sufficient, but who knows what will be in the future updates
     pub modificatior: Option<(String, Line)>,
@@ -574,7 +573,7 @@ impl Variable {
         self.refs == Ref::None
             && self.modificatior.is_none()
             && self.tail.len() == 0
-            && self.unary.is_none()
+            && self.unary.len() == 0
     }
 }
 

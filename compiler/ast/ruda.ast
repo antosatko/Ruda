@@ -635,7 +635,7 @@ parenthesis [expressions
 value_prepend ref keywords unary
 	ref_tok ? set="ref"
 	value_mod ? set="keywords" harderr="true"
-	unary_op ? set="unary";
+	unary_op set="unary";
 
 value value prepend
 	value_prepend set="prepend"
@@ -644,10 +644,9 @@ value value prepend
 	free_parenthesis ? set="value" end="false"
 	"'any" err="true";
 
-unary_op op
-	- ? set="op" end="true"
-	! ? set="op" end="true"
-	"'any" err="";
+unary_op [op
+	! ? set="op" back="0"
+	- ? set="op" back="1";
 
 variable identifier tail
 	ident set="identifier"

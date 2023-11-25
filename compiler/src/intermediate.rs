@@ -91,11 +91,7 @@ pub mod dictionary {
             }
             ValueType::AnonymousFunction(fun) => Some(ConstValue::Function((*fun).clone())),
             ValueType::Value(val) => {
-                let unary = if let Some(unary) = &val.unary {
-                    *unary
-                } else {
-                    (Operators::DoubleEq, val.line)
-                };
+                let unaries = &val.unary;
                 let val = if val.is_simple() {
                     if val.tail.len() == 0 {
                         match val.root.0.as_str() {
@@ -122,7 +118,9 @@ pub mod dictionary {
                 };
                 match val {
                     Some(mut val) => {
-                        val.apply_unary(&unary.0);
+                        for op in unaries {
+                            val.apply_unary(&op.0)
+                        }
                         Some(val)
                     }
                     None => None,
@@ -1090,18 +1088,20 @@ pub mod dictionary {
             dictionary: &Dictionary,
             errors: &mut Vec<ErrType>,
         ) -> Option<ConstValue> {
-            let negate = if let Some((Operators::Minus, _)) = literal.unary {
-                -1.0
-            } else {
-                1.0
-            };
+            let mut negate = -1.0;
+            for op in &literal.unary {
+                match op.0 {
+                    Operators::Minus => negate *= -1.0,
+                    _ => {}
+                }
+            }
             if literal.is_simple() {
                 match &literal.value {
                     expression_parser::Literals::Number(num) => {
                         if let Tokens::Number(num, kind) = *num {
                             match kind {
                                 'f' => Some(ConstValue::Float(num as f64 * negate)),
-                                'u' => Some(ConstValue::Usize(num as usize)),
+                                'u' => Some(ConstValue::Int(num as i64 * negate as i64)),
                                 'n' => Some(ConstValue::Number(num * negate)),
                                 'i' => Some(ConstValue::Int(num as i64 * negate as i64)),
                                 'c' => Some(ConstValue::Char(num as u8 as char)),

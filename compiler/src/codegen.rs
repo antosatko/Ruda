@@ -284,16 +284,18 @@ fn expression(
                     let pos = new_const(context, &const_num.0)?;
                     code.push(ReadConst(pos, GENERAL_REG1));
                     return_kind = const_num.1;
-                    return_kind = native_unary_operand(
-                        objects,
-                        &lit.unary,
-                        &return_kind,
-                        code,
-                        context,
-                        &fun,
-                        &lit.line,
-                        GENERAL_REG1,
-                    )?;
+                    for un in lit.unary.iter() {
+                        return_kind = native_unary_operand(
+                            objects,
+                            &Some(*un),
+                            &return_kind,
+                            code,
+                            context,
+                            &fun,
+                            &lit.line,
+                            GENERAL_REG1,
+                        )?;
+                    }
                 }
                 expression_parser::Literals::Array(arr) => {
                     let pos = {
@@ -416,16 +418,18 @@ fn expression(
         ValueType::AnonymousFunction(_) => todo!(),
         ValueType::Parenthesis(expr, tail, unary) => {
             let mut kind = expression(objects, expr, scopes, code, context, &fun, scope_len, expected_type.clone())?;
-            kind = native_unary_operand(
-                objects,
-                unary,
-                &kind,
-                code,
-                context,
-                &fun,
-                &line,
-                GENERAL_REG1,
-            )?;
+            for un in unary.iter() {
+                kind = native_unary_operand(
+                    objects,
+                    &Some(*un),
+                    &kind,
+                    code,
+                    context,
+                    &fun,
+                    &un.1,
+                    GENERAL_REG1,
+                )?;
+            }
             for (node, line) in tail.iter() {
                 match node {
                     expression_parser::TailNodes::Nested(_) => todo!(),
@@ -500,16 +504,18 @@ fn expression(
             }else {
                 return_kind = gen_value(objects, value, context, scopes, code, fun, scope_len)?;
             }
-            return_kind = native_unary_operand(
-                objects,
-                &value.unary,
-                &return_kind,
-                code,
-                context,
-                &fun,
-                &line,
-                GENERAL_REG1,
-            )?;
+            for un in value.unary.iter() {
+                return_kind = native_unary_operand(
+                    objects,
+                    &Some(*un),
+                    &return_kind,
+                    code,
+                    context,
+                    &fun,
+                    &line,
+                    GENERAL_REG1,
+                )?;
+            }
         }
         ValueType::Blank => {}
     }
@@ -1245,7 +1251,7 @@ fn get_scope(
                 merge_code(&mut buffer, &block_code.code, scope);
                 buffer.push(Goto(0));
                 merge_code(&mut code.code, &buffer, scope);
-                if terminator == ScopeTerminator::Return {
+                if terminator != ScopeTerminator::None {
                     return Ok((max_scope_len, ScopeTerminator::Return));
                 }
             }
@@ -1910,6 +1916,10 @@ fn native_operand(
             }
         }
         Operators::NotEqual => {
+            if left.is_string() && right.is_string() {
+                code.extend(&[Cal(CORE_LIB, 3), Move(RETURN_REG, GENERAL_REG1), Not(GENERAL_REG1, GENERAL_REG1)]);
+                return Some(ShTypeBuilder::new().set_name("bool").build());
+            }
             if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
                 code.extend(&[Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1), Not(GENERAL_REG1, GENERAL_REG1)]);
                 return Some(ShTypeBuilder::new().set_name("bool").build());
