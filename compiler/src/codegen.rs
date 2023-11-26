@@ -27,7 +27,7 @@ pub fn gen(
     objects: &mut Context,
     main: &str,
 ) -> Result<runtime::runtime_types::Context, CodegenError> {
-    let mut vm_context = runtime::runtime_types::Context::new();
+    let mut vm_context = runtime::runtime_types::Context::new(Vec::new());
     // Initialize some common constants for faster lookup
     let consts = [
         ConstValue::Null,

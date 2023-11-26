@@ -29,20 +29,15 @@ fn read_array(m: &mut Memory) -> (Types, Types, usize, usize) {
     return (this, array_ptr, data_loc, len)
 }
 
-impl lib::Library for Algo {
-    fn call(
-        &mut self,
-        id: usize,
-        mem: PublicData,
-    ) -> Result<Types, runtime_error::ErrTypes> {
-        let m = mem.memory;
+fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_error::ErrTypes> {
+        let m = &mut ctx.memory;
         match id {
             // Array::constructor
             0 => {
                 let this = m.registers[POINTER_REG];
                 let raw_ptr = m.allocate_obj(1);
                 let ptr = Types::Pointer(raw_ptr, PointerTypes::Object);
-                let type_id = Types::NonPrimitive(self.my_id + STRUCT_ID);
+                let type_id = Types::NonPrimitive(lib_id + STRUCT_ID);
                 m.heap.data[raw_ptr][0] = type_id;
                 let _ = m.write_idx(this.ptr_loc(), &mut this.kind(), 1, &ptr);
             }
@@ -75,7 +70,6 @@ impl lib::Library for Algo {
         }
         return Ok(runtime_types::Types::Void);
     }
-}
 
 #[no_mangle]
 fn register() -> String {
@@ -111,6 +105,6 @@ trait Iterator<T> > 1i {
 /// for example, if the library produces a type with id 0, then the type will be 0 + my_id
 /// ids must be given to structs, enums, and traits
 #[no_mangle]
-pub fn init(_ctx: &mut Context, my_id: usize) -> Box<dyn lib::Library> {
-    return Box::new(Algo {my_id});
+pub fn init(_ctx: &mut Context, my_id: usize) -> Box<fn(&mut Context, usize, usize) -> Result<Types, runtime_error::ErrTypes>> {
+    return Box::new(call);
 }

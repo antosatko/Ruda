@@ -55,7 +55,18 @@ fn main() {
                     return;
                 }
             };
-            let mut ctx = Context::new();
+            let libs = vec![
+                ShLib { path: "io".to_string(), owns: stringify::LibOwner::Standard},
+                ShLib { path: "string".to_string(), owns: stringify::LibOwner::Standard},
+                ShLib { path: "fs".to_string(), owns: stringify::LibOwner::Standard},
+                ShLib { path: "algo".to_string(), owns: stringify::LibOwner::Standard},
+                ShLib { path: "core".to_string(), owns: stringify::LibOwner::Standard},
+            ];
+            let mut libs_read = Vec::new();
+            for lib in libs.iter() {
+                libs_read.push(test::test::load_lib(&lib.into_real_path(&src, &ruda_path), 0));
+            }
+            let mut ctx = Context::new(libs_read);
             let mut data = stringify::parse(&String::from_utf8(file).unwrap());
             ctx.memory.stack.data = data.values;
             ctx.memory.strings.pool = data.strings;
@@ -65,22 +76,24 @@ fn main() {
             ctx.memory.heap.data = data.heap;
             ctx.code.ptr = data.entry_point;
             ctx.code.entry_point = data.entry_point;
-            data.shared_libs = vec![
+            ctx
+        }
+        None => {
+            /*println!("Path not specified. Program will terminate."); return;*/
+            use test::test::*;
+            let ruda_path = std::env::var("RUDA_PATH").unwrap();
+            let libs = vec![
                 ShLib { path: "io".to_string(), owns: stringify::LibOwner::Standard},
                 ShLib { path: "string".to_string(), owns: stringify::LibOwner::Standard},
                 ShLib { path: "fs".to_string(), owns: stringify::LibOwner::Standard},
                 ShLib { path: "algo".to_string(), owns: stringify::LibOwner::Standard},
                 ShLib { path: "core".to_string(), owns: stringify::LibOwner::Standard},
             ];
-            for (idx, lib) in data.shared_libs.iter().enumerate() {
-                ctx.libs.push(test::test::load_lib(&lib.into_real_path(&src, &ruda_path), idx));
+            let mut libs_read = Vec::new();
+            for lib in libs.iter() {
+                libs_read.push(test::test::load_lib(&lib.into_real_path(&"", &ruda_path), 0));
             }
-            ctx
-        }
-        None => {
-            /*println!("Path not specified. Program will terminate."); return;*/
-            use test::test::*;
-            let mut ctx = Context::new();
+            let mut ctx = Context::new(libs_read);
             report = test_init(None, &mut ctx);
             let stringified = stringify::stringify(&ctx, None);
             // write to file

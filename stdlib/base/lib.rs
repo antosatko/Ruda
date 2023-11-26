@@ -13,16 +13,8 @@ extern crate runtime;
 use runtime::runtime_types::*;
 use runtime::*;
 
-pub struct DynLib {
-}
-
-impl lib::Library for DynLib {
-    fn call(
-        &mut self,
-        id: usize,
-        mem: PublicData,
-    ) -> Result<Types, runtime_error::ErrTypes> {
-        let _m = mem.memory;
+fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_error::ErrTypes> {
+        let _m = &mut ctx.memory;
         macro_rules! get_args {
             () => {
                 match m.args() {
@@ -43,7 +35,7 @@ impl lib::Library for DynLib {
         }
         return Ok(runtime_types::Types::Void);
     }
-}
+
 
 #[no_mangle]
 fn register() -> String {
@@ -53,6 +45,6 @@ fn register() -> String {
 }
 
 #[no_mangle]
-pub fn init(_ctx: &mut Context, _my_id: usize) -> Box<dyn lib::Library> {
-    return Box::new(DynLib {});
+pub fn init(_ctx: &mut Context, my_id: usize) -> Box<fn(&mut Context, usize, usize) -> Result<Types, runtime_error::ErrTypes>> {
+    return Box::new(call);
 }

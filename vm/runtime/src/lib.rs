@@ -20,7 +20,7 @@ macro_rules! panic_msg {
 }
 
 impl Context {
-    pub fn new() -> Self {
+    pub fn new(libs: Libs) -> Self {
         Self {
             memory: Memory {
                 stack: Stack {
@@ -73,7 +73,7 @@ impl Context {
             },
             exit_code: ExitCodes::End,
 
-            libs: vec![],
+            libs,
         }
     }
     /// runs the context
@@ -804,14 +804,9 @@ impl Context {
                 self.next_line();
             }
             Cal(lib, fun_id) => {
-                match self.libs[lib].call(
-                    fun_id,
-                    PublicData {
-                        memory: &mut self.memory,
-                        code: &mut self.code,
-                        break_code: &mut self.break_code,
-                        exit_code: &mut self.exit_code,
-                    },
+                match self.libs[lib].clone()(
+                    self,
+                    fun_id
                 ) {
                     Ok(value) => {
                         if let Types::Void = value {
@@ -1211,9 +1206,6 @@ impl Context {
             + std::mem::size_of_val(&self.exit_code)
             + std::mem::size_of_val(&self.libs)
     }
-    pub fn set_libs(&mut self, libs: Libs) {
-        self.libs = libs.into();
-    }
     pub fn instruction_debug(&self) -> String {
         const DEF: String = String::new();
         let mut prepend = format!("{}. {:?} ", self.code.ptr, self.code.data[self.code.ptr]);
@@ -1398,7 +1390,7 @@ pub mod runtime_types {
         pub break_code: Option<usize>,
         pub catches: Catches,
         pub exit_code: ExitCodes,
-        pub libs: Libs,
+        pub(crate) libs: Libs,
     }
     pub struct Memory {
         pub stack: Stack,
@@ -1911,7 +1903,7 @@ pub mod runtime_types {
             ))
         }
     }
-    pub type Libs = Vec<Box<dyn Library + Send>>;
+    pub type Libs = Vec<Box<fn(ctx: &mut Context, id: usize) -> Result<Types, ErrTypes>>>;
     pub struct Stack {
         pub data: Vec<Types>,
         pub ptr: usize,
@@ -2194,7 +2186,6 @@ pub mod runtime_types {
     use crate::user_data;
 
     use super::{
-        lib::Library,
         runtime_error::{self, ErrTypes},
     };
     impl fmt::Display for Types {
@@ -2571,17 +2562,6 @@ pub mod runtime_error {
         };
         let message = gen_message(data.0, line, data.1);
         message
-    }
-}
-
-/// public interface for the library to be used by the interpreter and the compiler
-pub mod lib {
-    use crate::{runtime_error::*, runtime_types::*};
-
-    /// public interface for the library to be used by the interpreter and the compiler
-    pub trait Library {
-        /// calls a function from the library with the given id and arguments and returns the result
-        fn call(&mut self, id: usize, mem: PublicData) -> Result<Types, ErrTypes>;
     }
 }
 

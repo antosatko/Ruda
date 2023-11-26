@@ -16,17 +16,8 @@ use console::Key;
 use runtime::runtime_types::*;
 use runtime::*;
 
-pub struct Foo {
-    _id: usize,
-}
-
-impl lib::Library for Foo {
-    fn call(
-        &mut self,
-        id: usize,
-        mem: PublicData,
-    ) -> Result<Types, runtime_error::ErrTypes> {
-        let m = mem.memory;
+fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_error::ErrTypes> {
+        let m = &mut ctx.memory;
         macro_rules! get_args {
             () => {
                 match m.args() {
@@ -168,7 +159,7 @@ impl lib::Library for Foo {
             }
         }
     }
-}
+
 
 
 
@@ -187,8 +178,6 @@ fn register() -> String {
 }
 
 #[no_mangle]
-pub fn init(_ctx: &mut Context, my_id: usize) -> Box<dyn lib::Library> {
-    return Box::new(Foo {
-        _id: my_id,
-    });
+pub fn init(_ctx: &mut Context, my_id: usize) -> Box<fn(&mut Context, usize, usize) -> Result<Types, runtime_error::ErrTypes>> {
+    return Box::new(call);
 }

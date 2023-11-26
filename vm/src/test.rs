@@ -3,6 +3,7 @@ pub mod test {
 
     use crate::runtime::runtime_types::{Context, Instructions::*, Types::*, *};
     use libloading::Library;
+    use runtime::runtime_error::ErrTypes;
 
     const ID: usize = 14;
     pub fn test_init(id: Option<usize>, context: &mut Context) -> bool {
@@ -443,7 +444,6 @@ pub mod test {
                 true
             }
             9 => {
-                context.set_libs(load_libs(vec!["io"]));
 
                 context.memory.strings.pool = vec![
                     "Write something: ".chars().collect(),
@@ -483,7 +483,6 @@ pub mod test {
                 true
             }
             10 => {
-                context.set_libs(load_libs(vec!["io"]));
                 context.memory.heap.data =
                     vec![[Types::Usize(656645), Types::Usize(656645)].to_vec()];
                 context.memory.strings.pool = vec![
@@ -559,7 +558,6 @@ pub mod test {
                 true
             }
             12 => {
-                context.set_libs(load_libs(vec!["io", "string", "fs", "algo"]));
                 context.memory.stack.data = vec![
                     Int(50),
                     Pointer(2, PointerTypes::Stack),
@@ -580,7 +578,6 @@ pub mod test {
             }
             // filesystem test
             13 => {
-                context.set_libs(load_libs(vec!["io", "string", "fs", "algo"]));
                 context.memory.strings.pool = vec![
                     "./file.txt".to_string(),
                     "Hello file!".to_string(),
@@ -613,7 +610,6 @@ pub mod test {
                 true
             }
             14 => {
-                context.set_libs(load_libs(vec!["io", "string", "fs", "algo", "core"]));
                 context.memory.stack.data = vec![
                     Int(0),
                     Int(1),
@@ -639,21 +635,21 @@ pub mod test {
             }
         }
     }
-    pub fn load_lib(path: &PathBuf, id: usize) -> Box<dyn runtime::lib::Library + Send> {
+    pub fn load_lib(path: &PathBuf, id: usize) -> Box<fn(ctx: &mut Context, id: usize) -> Result<Types, ErrTypes>> {
         let lib = unsafe { Library::new(path).unwrap() };
-        let init_fn: libloading::Symbol<fn(&(), usize) -> Box<dyn runtime::lib::Library + Send>> =
+        let init_fn: libloading::Symbol<fn(&(), usize) -> Box<fn(ctx: &mut Context, id: usize) -> Result<Types, ErrTypes>>> =
             unsafe { lib.get(b"init").unwrap() };
         let lib_box = init_fn(&(), id);
 
         mem::forget(lib);
         lib_box
     }
-    pub fn load_libs(libs: Vec<&str>) -> Vec<Box<dyn runtime::lib::Library + Send>> {
+    pub fn load_libs(libs: Vec<&str>) -> Vec<Box<fn(ctx: &mut Context, id: usize) -> Result<Types, ErrTypes>>> {
         let mut result = vec![];
 
         for lib_path in libs.iter().enumerate() {
             let lib = unsafe { Library::new(std_path(lib_path.1)).unwrap() };
-            let init_fn: libloading::Symbol<fn(a: &(), id: usize) -> Box<dyn runtime::lib::Library + Send>> =
+            let init_fn: libloading::Symbol<fn(a: &(), id: usize) -> Box<fn(ctx: &mut Context, id: usize) -> Result<Types, ErrTypes>>> =
                 unsafe { lib.get(b"init").unwrap() };
             let lib_box = init_fn(&(), lib_path.0);
 
