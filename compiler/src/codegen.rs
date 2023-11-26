@@ -1,10 +1,10 @@
 use core::panic;
+use intermediate::dictionary::ImportKinds;
+use std::collections::HashMap;
 use std::fmt::Pointer;
 use std::ops::Index;
 use std::panic::Location;
 use std::thread::Scope;
-use intermediate::dictionary::ImportKinds;
-use std::collections::HashMap;
 use std::vec;
 
 use runtime::runtime_types::{
@@ -13,7 +13,7 @@ use runtime::runtime_types::{
 };
 
 use crate::codeblock_parser::Nodes;
-use crate::expression_parser::{self, traverse_da_fokin_value, FunctionCall, ValueType, Ref};
+use crate::expression_parser::{self, traverse_da_fokin_value, FunctionCall, Ref, ValueType};
 use crate::intermediate::dictionary::{
     self, Arg, ConstValue, Correction, Function, ShTypeBuilder, ShallowType, TypeComparison,
 };
@@ -95,9 +95,9 @@ fn fix_fun_calls(
     Ok(())
 }
 
-/// Gives all functions unique ids before generating them, 
-/// then if a function wants to call another function, 
-/// it can just use the id, which will be replaced with 
+/// Gives all functions unique ids before generating them,
+/// then if a function wants to call another function,
+/// it can just use the id, which will be replaced with
 /// the actual location of the function later
 fn gen_all_fun_ids(objects: &mut Context) -> Result<Vec<InnerPath>, CodegenError> {
     let keys = objects.0.keys().map(|s| s.clone()).collect::<Vec<_>>();
@@ -122,11 +122,18 @@ fn gen_all_fun_ids(objects: &mut Context) -> Result<Vec<InnerPath>, CodegenError
         for structt in 0..objects.0.get(&file).unwrap().structs.len() {
             let path = InnerPath {
                 file: file.clone(),
-                block: Some(objects.0.get(&file).unwrap().structs[structt].identifier.clone()),
+                block: Some(
+                    objects.0.get(&file).unwrap().structs[structt]
+                        .identifier
+                        .clone(),
+                ),
                 ident: "".to_string(),
                 kind: ImportKinds::Rd,
             };
-            for fun in 0..objects.0.get(&file).unwrap().structs[structt].functions.len() {
+            for fun in 0..objects.0.get(&file).unwrap().structs[structt]
+                .functions
+                .len()
+            {
                 let mut fun_path = path.clone();
                 fun_path.ident = objects.0.get(&file).unwrap().structs[structt].functions[fun]
                     .identifier
@@ -163,23 +170,34 @@ fn gen_all_funs(
         for structt in 0..objects.0.get(&file).unwrap().structs.len() {
             let path = InnerPath {
                 file: file.clone(),
-                block: Some(objects.0.get(&file).unwrap().structs[structt].identifier.clone()),
+                block: Some(
+                    objects.0.get(&file).unwrap().structs[structt]
+                        .identifier
+                        .clone(),
+                ),
                 ident: "".to_string(),
                 kind: ImportKinds::Rd,
             };
-            for fun in 0..objects.0.get(&file).unwrap().structs[structt].functions.len() {
+            for fun in 0..objects.0.get(&file).unwrap().structs[structt]
+                .functions
+                .len()
+            {
                 let mut fun_path = path.clone();
                 fun_path.ident = objects.0.get(&file).unwrap().structs[structt].functions[fun]
                     .identifier
                     .clone()
                     .unwrap_or(path.block.clone().unwrap());
-                gen_fun(objects, &fun_path, context, &fun_path.ident == fun_path.block.as_ref().unwrap())?;
+                gen_fun(
+                    objects,
+                    &fun_path,
+                    context,
+                    &fun_path.ident == fun_path.block.as_ref().unwrap(),
+                )?;
             }
         }
     }
     Ok(())
 }
-
 
 #[derive(Debug)]
 pub enum CodegenError {
@@ -224,6 +242,9 @@ pub enum CodegenError {
     KindNotFound(String, Line),
     CannotRefDerefNumLiteral(Line),
     CannotIndexNonArray(Position, Line),
+    FieldNotInStruct(String, Line),
+    CannotDereference(usize, ShallowType, Line),
+    CannotGetKind(Position),
 }
 
 pub fn stringify(
@@ -289,9 +310,7 @@ fn gen_fun<'a>(
             },
         );
         args_scope_len += 1;
-        code.extend(&[
-            Instructions::AllocateStatic(structt.fields.len() + 1),
-        ]);
+        code.extend(&[Instructions::AllocateStatic(structt.fields.len() + 1)]);
         code.write(POINTER_REG, &pos);
     }
     let scope_len = {
@@ -304,7 +323,10 @@ fn gen_fun<'a>(
             fun,
         )?;
         let this_fun = fun.get(objects)?;
-        if terminator != ScopeTerminator::Return && this_fun.return_type.is_some() && !is_constructor {
+        if terminator != ScopeTerminator::Return
+            && this_fun.return_type.is_some()
+            && !is_constructor
+        {
             Err(CodegenError::FunctionDoesNotReturn(this_fun.line.clone()))?;
         }
         scope_len + args_scope_len
@@ -349,7 +371,7 @@ fn expression(
 ) -> Result<ShallowType, CodegenError> {
     use Instructions::*;
     let mut return_kind = ShallowType::empty();
-    let mut line = Line {column: 0, line: 0};
+    let mut line = Line { column: 0, line: 0 };
     let expected_type = match expected_type {
         Some(kind) => Some(correct_kind(objects, &kind, fun, &line)?),
         None => None,
@@ -387,7 +409,7 @@ fn expression(
                             code.extend(&[
                                 AllocateStatic(1),
                                 WritePtr(GENERAL_REG1),
-                                Move(RETURN_REG, GENERAL_REG1),
+                                Move(POINTER_REG, GENERAL_REG1),
                             ])
                         }
                     }
@@ -409,12 +431,10 @@ fn expression(
                                         let mut temp = kind.clone();
                                         temp.array_depth -= 1;
                                         Some(temp)
-                                    },
+                                    }
                                     None => None,
                                 };
-                                code.extend(&[
-                                    AllocateStatic(values.len()),
-                                ]);
+                                code.extend(&[AllocateStatic(values.len())]);
                                 *scope_len += 1;
                                 let obj = create_var_pos(scopes);
                                 let scopes_len = scopes.len();
@@ -500,20 +520,35 @@ fn expression(
                                 Cal(CORE_LIB, 0),
                                 Move(RETURN_REG, GENERAL_REG1),
                             ]);
-                            return_kind = ShTypeBuilder::new().set_name("string").set_kind(dictionary::KindType::Primitive).build();
+                            return_kind = ShTypeBuilder::new()
+                                .set_name("string")
+                                .set_kind(dictionary::KindType::Primitive)
+                                .build();
                         }
                     }
                 }
                 expression_parser::Literals::Char(c) => {
                     let pos = new_const(context, &ConstValue::Char(*c))?;
                     code.push(ReadConst(pos, GENERAL_REG1));
-                    return_kind = ShTypeBuilder::new().set_name("char").set_kind(dictionary::KindType::Primitive).build();
+                    return_kind = ShTypeBuilder::new()
+                        .set_name("char")
+                        .set_kind(dictionary::KindType::Primitive)
+                        .build();
                 }
             }
         }
         ValueType::AnonymousFunction(_) => todo!(),
         ValueType::Parenthesis(expr, tail, unary) => {
-            let mut kind = expression(objects, expr, scopes, code, context, &fun, scope_len, expected_type.clone())?;
+            let mut kind = expression(
+                objects,
+                expr,
+                scopes,
+                code,
+                context,
+                &fun,
+                scope_len,
+                expected_type.clone(),
+            )?;
             for un in unary.iter() {
                 kind = native_unary_operand(
                     objects,
@@ -545,7 +580,8 @@ fn expression(
                 Some(right) => right,
                 None => Err(CodegenError::ExressionNotHandledProperly(expr.line.clone()))?,
             };
-            let left_kind = expression(objects, left, scopes, code, context, &fun, scope_len, None)?;
+            let left_kind =
+                expression(objects, left, scopes, code, context, &fun, scope_len, None)?;
             *scope_len += 1;
             let var = create_var_pos(scopes);
             let len = scopes.len();
@@ -559,7 +595,16 @@ fn expression(
                 },
             );
             code.write(GENERAL_REG1, &var);
-            let right_kind = expression(objects, right, scopes, code, context, &fun, scope_len, Some(left_kind.clone()))?;
+            let right_kind = expression(
+                objects,
+                right,
+                scopes,
+                code,
+                context,
+                &fun,
+                scope_len,
+                Some(left_kind.clone()),
+            )?;
             code.read(&var, GENERAL_REG2);
             code.push(Swap(GENERAL_REG1, GENERAL_REG2));
             let op = match &expr.operator {
@@ -590,15 +635,25 @@ fn expression(
             // check for inner const
             if value.is_true_simple() && value.root.0 == "true" {
                 code.push(ReadConst(1, GENERAL_REG1));
-                return_kind = ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build();
+                return_kind = ShTypeBuilder::new()
+                    .set_name("bool")
+                    .set_kind(dictionary::KindType::Primitive)
+                    .build();
             } else if value.is_true_simple() && value.root.0 == "false" {
                 code.push(ReadConst(2, GENERAL_REG1));
-                return_kind = ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build();
+                return_kind = ShTypeBuilder::new()
+                    .set_name("bool")
+                    .set_kind(dictionary::KindType::Primitive)
+                    .build();
             } else if value.is_true_simple() && value.root.0 == "null" {
                 code.push(ReadConst(0, GENERAL_REG1));
-                return_kind = ShTypeBuilder::new().set_name("null").set_kind(dictionary::KindType::Primitive).build();
-            }else {
-                return_kind = gen_value(objects, value, context, scopes, code, fun, scope_len)?;
+                return_kind = ShTypeBuilder::new()
+                    .set_name("null")
+                    .set_kind(dictionary::KindType::Primitive)
+                    .build();
+            } else {
+                return_kind =
+                    gen_value(objects, value, context, scopes, code, fun, scope_len)?.get_kind()?;
             }
             for un in value.unary.iter() {
                 return_kind = native_unary_operand(
@@ -618,10 +673,19 @@ fn expression(
     if let Some(expected_type) = expected_type {
         let cmp = expected_type.cmp(&return_kind);
         if cmp.is_not_equal() {
-            match cast(objects, &mut return_kind, &expected_type, code, context, &fun, &line, GENERAL_REG1) {
+            match cast(
+                objects,
+                &mut return_kind,
+                &expected_type,
+                code,
+                context,
+                &fun,
+                &line,
+                GENERAL_REG1,
+            ) {
                 Some(_) => {
                     return_kind = expected_type;
-                },
+                }
                 None => {
                     return Err(CodegenError::CouldNotCastTo(
                         expected_type,
@@ -729,7 +793,7 @@ fn gen_value(
     code: &mut Code,
     fun: &InnerPath,
     scope_len: &mut usize,
-) -> Result<ShallowType, CodegenError> {
+) -> Result<Position, CodegenError> {
     use Instructions::*;
     let root = identify_root(
         objects,
@@ -748,22 +812,11 @@ fn gen_value(
         root,
         scope_len,
     )?;
-    let kind = match pos {
-        Position::Function(fun) => match fun {
-            FunctionKind::Fun(fun) => {
-                let fun = fun.get(objects)?;
-                fun.return_type.clone().unwrap_or(ShTypeBuilder::new().set_name("null").set_kind(dictionary::KindType::Primitive).build())
-            }
-            FunctionKind::Binary(fun) => {
-                let fun = fun.get_bin(objects)?;
-                fun.return_type.clone()
-            }
-            _ => todo!(),
-        },
-        Position::StructField(_, _) => todo!(),
+    let kind = match &pos {
+        Position::StructField(_, _, _) => todo!(),
         Position::Import(_) => Err(CodegenError::ImportIsNotAValidValue(value.root.1.clone()))?,
         Position::BinImport(_) => Err(CodegenError::ImportIsNotAValidValue(value.root.1.clone()))?,
-        Position::Variable(var) => {
+        Position::Variable(var, kind) => {
             let var = match find_var(&scopes, &var) {
                 Some(var) => var,
                 None => Err(CodegenError::VariableNotFound(
@@ -773,11 +826,9 @@ fn gen_value(
             };
             let pos_cloned = var.pos.clone();
             code.read(&pos_cloned, GENERAL_REG1);
-            var.kind.clone().unwrap()
+            pos
         }
-        Position::Pointer(kind) => kind,
-        Position::ReturnValue(kind) => kind,
-        Position::Struct(kind) => kind,
+        _ => pos,
     };
     Ok(kind)
 }
@@ -790,8 +841,11 @@ fn identify_root(
     line: &Line,
 ) -> Result<Position, CodegenError> {
     if let Some(scopes) = scopes {
-        if find_var(scopes, &ident).is_some() {
-            return Ok(Position::Variable(ident.to_string()));
+        if let Some(var) = find_var(scopes, &ident) {
+            return Ok(Position::Variable(
+                ident.to_string(),
+                var.kind.clone().unwrap(),
+            ));
         }
     }
     if let Some((fname, kind)) = find_import(objects, &ident, &file) {
@@ -805,10 +859,32 @@ fn identify_root(
         }
     }
     if let Some(fun) = find_fun(objects, &ident, &file) {
-        return Ok(Position::Function(fun));
+        let kind = match &fun {
+            FunctionKind::Fun(fun) => {
+                println!("{:?}", fun);
+                let fun = fun.get(objects)?;
+                fun.return_type.clone().unwrap_or(
+                    ShTypeBuilder::new()
+                        .set_name("null")
+                        .set_kind(dictionary::KindType::Primitive)
+                        .build(),
+                )
+            }
+            FunctionKind::Binary(fun) => {
+                println!("{:?}", fun);
+                let fun = fun.get_bin(objects)?;
+                fun.return_type.clone()
+            }
+            FunctionKind::Dynamic(kind) => kind.clone(),
+        };
+        return Ok(Position::Function(fun, kind));
     }
     if let Some((fname, struc)) = find_struct(objects, &ident, &file) {
-        return Ok(Position::Struct(ShallowType::from_struct(struc.identifier.to_string(), fname.to_string(), struc.line)));
+        return Ok(Position::Struct(ShallowType::from_struct(
+            struc.identifier.to_string(),
+            fname.to_string(),
+            struc.line,
+        )));
     }
     // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE
     // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE
@@ -835,115 +911,129 @@ fn traverse_tail(
     use Instructions::*;
     let mut return_kind = ShallowType::empty();
     match tail.next() {
-        Some(node) => {
-            match &node.0 {
-                expression_parser::TailNodes::Nested(ident) => match &pos {
-                    Position::Import(fname) => {
-                        let root = identify_root(objects, &ident, Some(scopes), &fname, &node.1)?;
-                        return traverse_tail(
-                            objects, tail, context, scopes, code, fun, root, scope_len,
-                        );
-                    }
-                    Position::BinImport(fname) => {
-                        let root = identify_root(objects, &ident, Some(scopes), &fname, &node.1)?;
-                        return traverse_tail(
-                            objects, tail, context, scopes, code, fun, root, scope_len,
-                        );
-                    }
-                    Position::Variable(vname) => {
-                        let var = match find_var(&scopes, &vname) {
-                            Some(var) => var,
-                            None => {
-                                Err(CodegenError::VariableNotFound(vname.clone(), node.1.clone()))?
-                            }
-                        };
-                        let pos_cloned = var.pos.clone();
+        Some(node) => match &node.0 {
+            expression_parser::TailNodes::Nested(ident) => match &pos {
+                Position::Import(fname) => {
+                    let root = identify_root(objects, &ident, Some(scopes), &fname, &node.1)?;
+                    return traverse_tail(
+                        objects, tail, context, scopes, code, fun, root, scope_len,
+                    );
+                }
+                Position::BinImport(fname) => {
+                    let root = identify_root(objects, &ident, Some(scopes), &fname, &node.1)?;
+                    return traverse_tail(
+                        objects, tail, context, scopes, code, fun, root, scope_len,
+                    );
+                }
+                Position::Variable(vname, kind) => {
+                    let var = match find_var(&scopes, &vname) {
+                        Some(var) => var,
+                        None => Err(CodegenError::VariableNotFound(
+                            vname.clone(),
+                            node.1.clone(),
+                        ))?,
+                    };
+                    let pos_cloned = var.pos.clone();
+                    let kind = var.kind.as_ref().unwrap().clone();
 
-                    }
-                    Position::StructField(path, kind) => {
-                        todo!()
-                    }
-                    Position::Function(_) => {
-                        Err(CodegenError::CannotAttachMethodsToFunctions(node.1.clone()))?
-                    }
-                    Position::ReturnValue(val) => {
-                        todo!()
-                    }
-                    Position::Pointer(ptr) => {
-                        todo!()
-                    }
-                    Position::Struct(kind) => {
-                        todo!()
-                    },
-                },
-                expression_parser::TailNodes::Index(idx) => match &pos {
-                    Position::BinImport(_) => Err(CodegenError::CannotIndexFile(node.1.clone()))?,
-                    Position::Function(_) => {
-                        Err(CodegenError::CannotIndexFunction(node.1.clone()))?
-                    }
-                    Position::StructField(_, _) => todo!(),
-                    Position::Import(_) => Err(CodegenError::CannotIndexFile(node.1.clone()))?,
-                    Position::Variable(var) => {
-                        let var = match find_var(&scopes, &var) {
-                            Some(var) => var,
-                            None => {
-                                Err(CodegenError::VariableNotFound(var.clone(), node.1.clone()))?
-                            }
+                    if kind.kind == dictionary::KindType::Struct {
+                        let structt = find_struct(
+                            objects,
+                            &kind.main.first().unwrap(),
+                            &kind.file.as_ref().unwrap(),
+                        )
+                        .unwrap()
+                        .1;
+                        let field = match structt
+                            .fields
+                            .iter()
+                            .enumerate()
+                            .find(|field| &field.1 .0 == ident)
+                        {
+                            Some(field) => field,
+                            None => Err(CodegenError::FieldNotInStruct(
+                                ident.clone(),
+                                node.1.clone(),
+                            ))?,
                         };
-                        let pos_cloned = var.pos.clone();
-                        code.read(&pos_cloned, GENERAL_REG1);
+                        code.read(&pos_cloned, POINTER_REG);
+                        code.extend(&[IndexStatic(field.0 + 1), Move(POINTER_REG, GENERAL_REG1)]);
+                        return_kind = field.1 .1.clone();
+                        return_kind.refs += 1;
+                        return traverse_tail(
+                            objects,
+                            tail,
+                            context,
+                            scopes,
+                            code,
+                            fun,
+                            Position::Pointer(return_kind.clone()),
+                            scope_len,
+                        );
                     }
-                    Position::Pointer(ptr) => {
-                        todo!()
-                    }
-                    Position::ReturnValue(_) => todo!(),
-                    Position::Struct(_) => Err(CodegenError::CannotIndexNonArray(pos.clone(), node.1.clone()))?,
-                },
-                expression_parser::TailNodes::Call(call_params) => {
-                    match &pos {
-                        Position::Function(fun_kind) => {
-                            match fun_kind {
-                                FunctionKind::Fun(fun_path) => {
-                                    let fun_kind = call_fun(
-                                        objects,
-                                        fun_path,
-                                        context,
-                                        scopes,
-                                        code,
-                                        scope_len,
-                                        call_params,
-                                        &node.1,
-                                        fun,
-                                    )?;
-                                }
-                                FunctionKind::Binary(fun_path) => {
-                                    let kind = call_binary(
-                                        objects,
-                                        fun_path,
-                                        context,
-                                        scopes,
-                                        code,
-                                        scope_len,
-                                        call_params,
-                                        &node.1,
-                                        &fun,
-                                    )?;
-                                    return_kind = kind;
-                                }
-                                FunctionKind::Dynamic(fun) => todo!("dynamic function call"),
-                            };
-                        }
-                        Position::Struct(kind) => {
-                            let constructor = kind.get_ident();
-                            let path = InnerPath {
-                                file: kind.file.as_ref().unwrap().to_string(),
-                                block: Some(constructor.to_string()),
-                                ident: constructor.to_string(),
-                                kind: ImportKinds::Rd,
-                            };
-                            let kind = call_fun(
+                }
+                Position::StructField(path, field, kind) => {
+                    todo!()
+                }
+                Position::Function(_, kind) => {
+                    Err(CodegenError::CannotAttachMethodsToFunctions(node.1.clone()))?
+                }
+                Position::ReturnValue(val) => {
+                    todo!()
+                }
+                Position::Pointer(ptr) => {
+                    todo!()
+                }
+                Position::Struct(kind) => {
+                    let structt = find_struct(
+                        objects,
+                        &kind.main.first().unwrap(),
+                        &kind.file.as_ref().unwrap(),
+                    )
+                    .unwrap()
+                    .1;
+                    let field = match structt.fields.iter().find(|field| &field.0 == ident) {
+                        Some(field) => field,
+                        None => Err(CodegenError::FieldNotInStruct(
+                            ident.clone(),
+                            node.1.clone(),
+                        ))?,
+                    };
+                    println!("{:?}", field);
+                    todo!()
+                }
+            },
+            expression_parser::TailNodes::Index(idx) => match &pos {
+                Position::BinImport(_) => Err(CodegenError::CannotIndexFile(node.1.clone()))?,
+                Position::Function(_, kind) => {
+                    Err(CodegenError::CannotIndexFunction(node.1.clone()))?
+                }
+                Position::StructField(_, _, kind) => todo!(),
+                Position::Import(_) => Err(CodegenError::CannotIndexFile(node.1.clone()))?,
+                Position::Variable(var, kind) => {
+                    let var = match find_var(&scopes, &var) {
+                        Some(var) => var,
+                        None => Err(CodegenError::VariableNotFound(var.clone(), node.1.clone()))?,
+                    };
+                    let pos_cloned = var.pos.clone();
+                    code.read(&pos_cloned, GENERAL_REG1);
+                }
+                Position::Pointer(ptr) => {
+                    todo!()
+                }
+                Position::ReturnValue(_) => todo!(),
+                Position::Struct(_) => Err(CodegenError::CannotIndexNonArray(
+                    pos.clone(),
+                    node.1.clone(),
+                ))?,
+            },
+            expression_parser::TailNodes::Call(call_params) => match &pos {
+                Position::Function(fun_kind, kind) => {
+                    match fun_kind {
+                        FunctionKind::Fun(fun_path) => {
+                            let fun_kind = call_fun(
                                 objects,
-                                &path,
+                                fun_path,
                                 context,
                                 scopes,
                                 code,
@@ -952,14 +1042,49 @@ fn traverse_tail(
                                 &node.1,
                                 fun,
                             )?;
+                        }
+                        FunctionKind::Binary(fun_path) => {
+                            let kind = call_binary(
+                                objects,
+                                fun_path,
+                                context,
+                                scopes,
+                                code,
+                                scope_len,
+                                call_params,
+                                &node.1,
+                                &fun,
+                            )?;
                             return_kind = kind;
                         }
-                        _ => Err(CodegenError::CanCallOnlyFunctions(node.1.clone()))?,
-                    }
+                        FunctionKind::Dynamic(fun) => todo!("dynamic function call"),
+                    };
                 }
-                expression_parser::TailNodes::Cast(_) => todo!(),
-            }
-        }
+                Position::Struct(kind) => {
+                    let constructor = kind.get_ident();
+                    let path = InnerPath {
+                        file: kind.file.as_ref().unwrap().to_string(),
+                        block: Some(constructor.to_string()),
+                        ident: constructor.to_string(),
+                        kind: ImportKinds::Rd,
+                    };
+                    let kind = call_fun(
+                        objects,
+                        &path,
+                        context,
+                        scopes,
+                        code,
+                        scope_len,
+                        call_params,
+                        &node.1,
+                        fun,
+                    )?;
+                    return_kind = kind;
+                }
+                _ => Err(CodegenError::CanCallOnlyFunctions(node.1.clone()))?,
+            },
+            expression_parser::TailNodes::Cast(_) => todo!(),
+        },
         None => {
             // finish the sequence
         }
@@ -1009,7 +1134,12 @@ fn call_binary(
             line.clone(),
         ))?;
     }
-    for (idx, arg) in call_params.args.iter().zip(called_fun.args.clone()).enumerate() {
+    for (idx, arg) in call_params
+        .args
+        .iter()
+        .zip(called_fun.args.clone())
+        .enumerate()
+    {
         let kind = expression(
             objects,
             arg.0,
@@ -1097,7 +1227,12 @@ fn call_fun(
         ))?;
     }
     let mut args = Vec::new();
-    for (idx, arg) in call_params.args.iter().zip(called_fun.args.clone()).enumerate() {
+    for (idx, arg) in call_params
+        .args
+        .iter()
+        .zip(called_fun.args.clone())
+        .enumerate()
+    {
         let kind = expression(
             objects,
             arg.0,
@@ -1138,12 +1273,12 @@ fn call_fun(
         Move(RETURN_REG, GENERAL_REG1),
     ]);
     merge_code(&mut code.code, &temp_code.code, *scope_len);
-    Ok(
-        called_fun
-            .return_type
-            .clone()
-            .unwrap_or(ShTypeBuilder::new().set_name("null").set_kind(dictionary::KindType::Primitive).build()),
-    )
+    Ok(called_fun.return_type.clone().unwrap_or(
+        ShTypeBuilder::new()
+            .set_name("null")
+            .set_kind(dictionary::KindType::Primitive)
+            .build(),
+    ))
 }
 
 fn get_scope(
@@ -1167,14 +1302,18 @@ fn get_scope(
 
     macro_rules! open_scope {
         ($block: expr, $code: expr) => {{
-            let (scope_len, terminator) = get_scope(objects, $block, context, other_scopes, $code, fun)?;
+            let (scope_len, terminator) =
+                get_scope(objects, $block, context, other_scopes, $code, fun)?;
             other_scopes.pop();
             max_scope_len += scope_len;
             (scope_len, terminator)
         }};
     }
 
-    let bool_type = ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build();
+    let bool_type = ShTypeBuilder::new()
+        .set_name("bool")
+        .set_kind(dictionary::KindType::Primitive)
+        .build();
 
     for node in block {
         match node {
@@ -1242,13 +1381,17 @@ fn get_scope(
                         );
                         code.extend(&[ReadConst(null, GENERAL_REG1)]);
                         code.write(GENERAL_REG1, &pos);
-                        (ShTypeBuilder::new().set_name("null").set_kind(dictionary::KindType::Primitive).build(), pos)
+                        (
+                            ShTypeBuilder::new()
+                                .set_name("null")
+                                .set_kind(dictionary::KindType::Primitive)
+                                .build(),
+                            pos,
+                        )
                     }
                 };
                 let kind = match kind {
-                    Some(kind) => {
-                        kind.clone()
-                    },
+                    Some(kind) => kind.clone(),
                     None => expr_kind.clone(),
                 };
                 match cast(
@@ -1265,11 +1408,7 @@ fn get_scope(
                         code.write(GENERAL_REG1, &pos);
                     }
                     None => {
-                        return Err(CodegenError::CouldNotCastTo(
-                            expr_kind,
-                            kind,
-                            line.clone(),
-                        ));
+                        return Err(CodegenError::CouldNotCastTo(expr_kind, kind, line.clone()));
                     }
                 }
                 let cache = last!(other_scopes);
@@ -1369,7 +1508,12 @@ fn get_scope(
                     return Ok((max_scope_len, ScopeTerminator::Return));
                 }
             }
-            crate::codeblock_parser::Nodes::While { cond, body, line, ident } => {
+            crate::codeblock_parser::Nodes::While {
+                cond,
+                body,
+                line,
+                ident,
+            } => {
                 use Instructions::*;
                 let mut expr_code = Code { code: Vec::new() };
                 let mut block_code = Code { code: Vec::new() };
@@ -1427,7 +1571,10 @@ fn get_scope(
                     }
                     None => {
                         expr_code.push(ReadConst(0, RETURN_REG));
-                        ShTypeBuilder::new().set_name("null").set_kind(dictionary::KindType::Primitive).build()
+                        ShTypeBuilder::new()
+                            .set_name("null")
+                            .set_kind(dictionary::KindType::Primitive)
+                            .build()
                     }
                 };
                 let this_fun = fun.get(objects)?;
@@ -1443,7 +1590,10 @@ fn get_scope(
                     }
                 } else if !kind.is_null() {
                     return Err(CodegenError::VariableTypeMismatch(
-                        ShTypeBuilder::new().set_name("null").set_kind(dictionary::KindType::Primitive).build(),
+                        ShTypeBuilder::new()
+                            .set_name("null")
+                            .set_kind(dictionary::KindType::Primitive)
+                            .build(),
                         kind,
                         TypeComparison::NotEqual,
                         line.clone(),
@@ -1471,9 +1621,7 @@ fn get_scope(
                     return Ok(scope);
                 }
             }
-            crate::codeblock_parser::Nodes::Break { line, ident } => {
-                
-            },
+            crate::codeblock_parser::Nodes::Break { line, ident } => {}
             crate::codeblock_parser::Nodes::Continue { line, ident } => todo!(),
             crate::codeblock_parser::Nodes::Loop { body, line, ident } => {
                 use Instructions::*;
@@ -1510,25 +1658,17 @@ fn get_scope(
                 let mut conclusion_code = Code { code: Vec::new() };
                 match target {
                     ValueType::Value(val) => {
-                        let root = identify_root(
+                        let pos = gen_value(
                             objects,
-                            &val.root.0,
-                            Some(other_scopes),
-                            &fun.file,
-                            &val.root.1,
-                        )?;
-                        let pos = traverse_tail(
-                            objects,
-                            &mut val.tail.iter(),
+                            val,
                             context,
                             other_scopes,
                             &mut target_code,
                             fun,
-                            root,
                             &mut max_scope_len,
                         )?;
                         match pos {
-                            Position::Variable(var) => {
+                            Position::Variable(var, _) => {
                                 let var = match find_var(other_scopes, &var) {
                                     Some(var) => var.clone(),
                                     None => Err(CodegenError::VariableNotFound(
@@ -1547,58 +1687,15 @@ fn get_scope(
                                     var.kind.clone(),
                                 )?;
                                 if let Operators::Equal = op {
-                                    if let Some(kind) = &var.kind {
-                                        match cast(
-                                            objects,
-                                            &expr,
-                                            &kind,
-                                            &mut conclusion_code,
-                                            context,
-                                            &fun,
-                                            &line,
-                                            GENERAL_REG1,
-                                        ) {
-                                            Some(_) => {
-                                                conclusion_code.write(GENERAL_REG1, &var.pos);
-                                            }
-                                            None => {
-                                                return Err(CodegenError::CouldNotCastTo(
-                                                    expr,
-                                                    kind.clone(),
-                                                    line.clone(),
-                                                ));
-                                            }
-                                        }
-                                    }
+                                    conclusion_code.write(GENERAL_REG1, &var.pos);
                                 } else {
-                                    let kind = match cast(
-                                        objects,
-                                        &expr,
-                                        &var.kind.clone().unwrap(),
-                                        &mut conclusion_code,
-                                        context,
-                                        &fun,
-                                        &line,
-                                        GENERAL_REG1,
-                                    ) {
-                                        Some(_) => {
-                                            expr
-                                        }
-                                        None => {
-                                            return Err(CodegenError::CouldNotCastTo(
-                                                expr,
-                                                var.kind.clone().unwrap(),
-                                                line.clone(),
-                                            ));
-                                        }
-                                    };
                                     conclusion_code.read(&var.pos, GENERAL_REG2);
                                     conclusion_code.push(Swap(GENERAL_REG1, GENERAL_REG2));
                                     match native_operand(
                                         objects,
                                         &op,
                                         &var.kind.clone().unwrap(),
-                                        &kind,
+                                        &expr,
                                         &mut conclusion_code,
                                         context,
                                         &fun,
@@ -1615,7 +1712,24 @@ fn get_scope(
                                 merge_code(&mut code.code, &expr_code.code, 0);
                                 merge_code(&mut code.code, &conclusion_code.code, 0);
                             }
-                            Position::Pointer(_) => todo!(),
+                            Position::Pointer(kind) => {
+                                let deref = if let Ref::Dereferencing(count) = val.refs {
+                                    if count > kind.refs {
+                                        Err(CodegenError::CannotDereference(
+                                            count,
+                                            kind.clone(),
+                                            val.line.clone(),
+                                        ))?;
+                                    }
+                                    count
+                                } else {
+                                    0
+                                };
+                                code.push(Instructions::Move(GENERAL_REG1, POINTER_REG));
+                                for _ in 0..deref {
+                                    code.push(Instructions::ReadPtr(POINTER_REG));
+                                }
+                            }
                             _ => todo!(),
                         }
                     }
@@ -1845,14 +1959,28 @@ enum StructField {
 
 #[derive(Debug, Clone)]
 enum Position {
-    Function(FunctionKind),
-    StructField(InnerPath, StructField),
+    Function(FunctionKind, ShallowType),
+    StructField(InnerPath, StructField, ShallowType),
     Import(String),
     BinImport(String),
-    Variable(String),
+    Variable(String, ShallowType),
     Pointer(ShallowType),
     ReturnValue(ShallowType),
     Struct(ShallowType),
+}
+
+impl Position {
+    pub fn get_kind(&self) -> Result<ShallowType, CodegenError> {
+        Ok(match self {
+            Position::Function(_, kind) => kind.clone(),
+            Position::StructField(_, _, kind) => kind.clone(),
+            Position::Variable(_, kind) => kind.clone(),
+            Position::Pointer(kind) => kind.clone(),
+            Position::ReturnValue(kind) => kind.clone(),
+            Position::Struct(kind) => kind.clone(),
+            _ => Err(CodegenError::CannotGetKind(self.clone()))?,
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -1921,7 +2049,7 @@ impl InnerPath {
                     }
                 }
                 Err(CodegenError::FunctionNotFound(self.clone()))
-            },
+            }
             None => {
                 for fun in file.functions.iter() {
                     if fun.identifier.clone().unwrap().as_ref() == self.ident {
@@ -1934,7 +2062,7 @@ impl InnerPath {
     }
     pub fn get_bin<'a>(
         &'a self,
-        objects: &'a mut Context,
+        objects: &'a Context,
     ) -> Result<&libloader::Function, CodegenError> {
         let file = match objects.1.get(&self.file) {
             Some(f) => f,
@@ -1978,23 +2106,54 @@ fn native_operand(
                 return Some(right.clone());
             } else if left.is_string() && right.is_string() {
                 code.extend(&[Cal(CORE_LIB, 2), Move(RETURN_REG, GENERAL_REG1)]);
-                return Some(ShTypeBuilder::new().set_name("string").set_kind(dictionary::KindType::Primitive).build());
+                return Some(
+                    ShTypeBuilder::new()
+                        .set_name("string")
+                        .set_kind(dictionary::KindType::Primitive)
+                        .build(),
+                );
             } else if left.is_string() && right.is_primitive() {
-                cast(objects, right, &ShTypeBuilder::new().set_name("string").set_kind(dictionary::KindType::Primitive).build(), code, context, fun, line, GENERAL_REG2)?;
-                code.extend(&[
-                    Cal(CORE_LIB, 2),
-                    Move(RETURN_REG, GENERAL_REG1),
-                ]);
+                cast(
+                    objects,
+                    right,
+                    &ShTypeBuilder::new()
+                        .set_name("string")
+                        .set_kind(dictionary::KindType::Primitive)
+                        .build(),
+                    code,
+                    context,
+                    fun,
+                    line,
+                    GENERAL_REG2,
+                )?;
+                code.extend(&[Cal(CORE_LIB, 2), Move(RETURN_REG, GENERAL_REG1)]);
                 return Some(ShTypeBuilder::new().set_name("string").build());
             } else if left.is_primitive() && right.is_string() {
                 code.push(Swap(GENERAL_REG1, GENERAL_REG2));
-                cast(objects, left, &ShTypeBuilder::new().set_name("string").set_kind(dictionary::KindType::Primitive).build(), code, context, fun, line, GENERAL_REG2)?;
+                cast(
+                    objects,
+                    left,
+                    &ShTypeBuilder::new()
+                        .set_name("string")
+                        .set_kind(dictionary::KindType::Primitive)
+                        .build(),
+                    code,
+                    context,
+                    fun,
+                    line,
+                    GENERAL_REG2,
+                )?;
                 code.extend(&[
                     Swap(GENERAL_REG1, GENERAL_REG2),
                     Cal(CORE_LIB, 2),
                     Move(RETURN_REG, GENERAL_REG1),
                 ]);
-                return Some(ShTypeBuilder::new().set_name("string").set_kind(dictionary::KindType::Primitive).build());
+                return Some(
+                    ShTypeBuilder::new()
+                        .set_name("string")
+                        .set_kind(dictionary::KindType::Primitive)
+                        .build(),
+                );
             } else {
                 None?
             }
@@ -2034,7 +2193,12 @@ fn native_operand(
         Operators::Equal => {
             if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
                 code.extend(&[Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
-                return Some(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
+                return Some(
+                    ShTypeBuilder::new()
+                        .set_name("bool")
+                        .set_kind(dictionary::KindType::Primitive)
+                        .build(),
+                );
             } else {
                 None?
             }
@@ -2074,23 +2238,50 @@ fn native_operand(
         Operators::DoubleEq => {
             if left.is_string() && right.is_string() {
                 code.extend(&[Cal(CORE_LIB, 3), Move(RETURN_REG, GENERAL_REG1)]);
-                return Some(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
+                return Some(
+                    ShTypeBuilder::new()
+                        .set_name("bool")
+                        .set_kind(dictionary::KindType::Primitive)
+                        .build(),
+                );
             }
             if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
                 code.extend(&[Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
-                return Some(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
+                return Some(
+                    ShTypeBuilder::new()
+                        .set_name("bool")
+                        .set_kind(dictionary::KindType::Primitive)
+                        .build(),
+                );
             } else {
                 None?
             }
         }
         Operators::NotEqual => {
             if left.is_string() && right.is_string() {
-                code.extend(&[Cal(CORE_LIB, 3), Move(RETURN_REG, GENERAL_REG1), Not(GENERAL_REG1, GENERAL_REG1)]);
-                return Some(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
+                code.extend(&[
+                    Cal(CORE_LIB, 3),
+                    Move(RETURN_REG, GENERAL_REG1),
+                    Not(GENERAL_REG1, GENERAL_REG1),
+                ]);
+                return Some(
+                    ShTypeBuilder::new()
+                        .set_name("bool")
+                        .set_kind(dictionary::KindType::Primitive)
+                        .build(),
+                );
             }
             if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
-                code.extend(&[Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1), Not(GENERAL_REG1, GENERAL_REG1)]);
-                return Some(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
+                code.extend(&[
+                    Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1),
+                    Not(GENERAL_REG1, GENERAL_REG1),
+                ]);
+                return Some(
+                    ShTypeBuilder::new()
+                        .set_name("bool")
+                        .set_kind(dictionary::KindType::Primitive)
+                        .build(),
+                );
             } else {
                 None?
             }
@@ -2098,7 +2289,12 @@ fn native_operand(
         Operators::And => {
             if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
                 code.extend(&[And(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
-                return Some(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
+                return Some(
+                    ShTypeBuilder::new()
+                        .set_name("bool")
+                        .set_kind(dictionary::KindType::Primitive)
+                        .build(),
+                );
             } else {
                 None?
             }
@@ -2106,7 +2302,12 @@ fn native_operand(
         Operators::Or => {
             if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
                 code.extend(&[Or(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
-                return Some(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
+                return Some(
+                    ShTypeBuilder::new()
+                        .set_name("bool")
+                        .set_kind(dictionary::KindType::Primitive)
+                        .build(),
+                );
             } else {
                 None?
             }
@@ -2114,7 +2315,12 @@ fn native_operand(
         Operators::Ampersant => {
             if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
                 code.extend(&[And(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
-                return Some(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
+                return Some(
+                    ShTypeBuilder::new()
+                        .set_name("bool")
+                        .set_kind(dictionary::KindType::Primitive)
+                        .build(),
+                );
             } else {
                 None?
             }
@@ -2122,7 +2328,12 @@ fn native_operand(
         Operators::Pipe => {
             if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
                 code.extend(&[Or(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
-                return Some(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
+                return Some(
+                    ShTypeBuilder::new()
+                        .set_name("bool")
+                        .set_kind(dictionary::KindType::Primitive)
+                        .build(),
+                );
             } else {
                 None?
             }
@@ -2131,7 +2342,12 @@ fn native_operand(
             false => {
                 if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
                     code.extend(&[Less(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
-                    return Some(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
+                    return Some(
+                        ShTypeBuilder::new()
+                            .set_name("bool")
+                            .set_kind(dictionary::KindType::Primitive)
+                            .build(),
+                    );
                 } else {
                     None?
                 }
@@ -2139,24 +2355,45 @@ fn native_operand(
             true => {
                 if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
                     code.extend(&[Grt(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
-                    return Some(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
+                    return Some(
+                        ShTypeBuilder::new()
+                            .set_name("bool")
+                            .set_kind(dictionary::KindType::Primitive)
+                            .build(),
+                    );
                 } else {
                     None?
                 }
             }
-        }
+        },
         Operators::LessEq => {
             if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
-                code.extend(&[Grt(GENERAL_REG2, GENERAL_REG1, GENERAL_REG1), Not(GENERAL_REG1, GENERAL_REG1)]);
-                return Some(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
+                code.extend(&[
+                    Grt(GENERAL_REG2, GENERAL_REG1, GENERAL_REG1),
+                    Not(GENERAL_REG1, GENERAL_REG1),
+                ]);
+                return Some(
+                    ShTypeBuilder::new()
+                        .set_name("bool")
+                        .set_kind(dictionary::KindType::Primitive)
+                        .build(),
+                );
             } else {
                 None?
             }
         }
         Operators::MoreEq => {
             if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
-                code.extend(&[Less(GENERAL_REG2, GENERAL_REG1, GENERAL_REG1), Not(GENERAL_REG1, GENERAL_REG1)]);
-                return Some(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
+                code.extend(&[
+                    Less(GENERAL_REG2, GENERAL_REG1, GENERAL_REG1),
+                    Not(GENERAL_REG1, GENERAL_REG1),
+                ]);
+                return Some(
+                    ShTypeBuilder::new()
+                        .set_name("bool")
+                        .set_kind(dictionary::KindType::Primitive)
+                        .build(),
+                );
             } else {
                 None?
             }
@@ -2183,11 +2420,35 @@ fn native_unary_operand(
     match op.unwrap().0 {
         Operators::Not => {
             if kind.is_primitive() {
-                if cast(objects, kind, &ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build(), code, context, fun, line, register).is_none() {
-                    return Err(CodegenError::CouldNotCastTo(kind.clone(), ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build(), line.clone()));
+                if cast(
+                    objects,
+                    kind,
+                    &ShTypeBuilder::new()
+                        .set_name("bool")
+                        .set_kind(dictionary::KindType::Primitive)
+                        .build(),
+                    code,
+                    context,
+                    fun,
+                    line,
+                    register,
+                )
+                .is_none()
+                {
+                    return Err(CodegenError::CouldNotCastTo(
+                        kind.clone(),
+                        ShTypeBuilder::new()
+                            .set_name("bool")
+                            .set_kind(dictionary::KindType::Primitive)
+                            .build(),
+                        line.clone(),
+                    ));
                 }
                 code.extend(&[Not(register, register)]);
-                return Ok(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
+                return Ok(ShTypeBuilder::new()
+                    .set_name("bool")
+                    .set_kind(dictionary::KindType::Primitive)
+                    .build());
             } else {
                 Err(CodegenError::ExpectedBool(line.clone()))?
             }
@@ -2200,10 +2461,13 @@ fn native_unary_operand(
                 Err(CodegenError::ExpectedNumber(line.clone()))?
             }
         }
-        _ => Err(CodegenError::UnaryNotApplicable(kind.clone(), op.unwrap().0, op.unwrap().1))?,
+        _ => Err(CodegenError::UnaryNotApplicable(
+            kind.clone(),
+            op.unwrap().0,
+            op.unwrap().1,
+        ))?,
     }
 }
-
 
 fn cast(
     objects: &mut Context,
@@ -2263,10 +2527,13 @@ fn correct_kind(
         return Ok(kind);
     }
     let mut file = fun.clone();
-    for i in 0..kind.main.len()-1 {
+    for i in 0..kind.main.len() - 1 {
         let import = match find_import(objects, &kind.main[i], &file.file) {
             Some(import) => import,
-            None => Err(CodegenError::ImportNotFound(kind.main[i].clone(), line.clone()))?,
+            None => Err(CodegenError::ImportNotFound(
+                kind.main[i].clone(),
+                line.clone(),
+            ))?,
         };
         file = InnerPath {
             file: import.0.to_string(),
@@ -2289,7 +2556,10 @@ fn get_kind(
         let file = match objects.0.get(&location.file) {
             Some(f) => f,
             None => {
-                return Err(CodegenError::ImportNotFound(location.file.clone(), line.clone()));
+                return Err(CodegenError::ImportNotFound(
+                    location.file.clone(),
+                    line.clone(),
+                ));
             }
         };
         for fun in file.functions.iter() {
@@ -2299,7 +2569,11 @@ fn get_kind(
         }
         for structt in file.structs.iter() {
             if structt.identifier == location.ident {
-                return Ok(ShallowType::from_struct(structt.identifier.clone(), location.file.clone(), structt.line));
+                return Ok(ShallowType::from_struct(
+                    structt.identifier.clone(),
+                    location.file.clone(),
+                    structt.line,
+                ));
             }
         }
         for traitt in file.traits.iter() {
@@ -2312,7 +2586,10 @@ fn get_kind(
                 return Ok(ShallowType::from_enum(enumm, location.file.clone()));
             }
         }
-        return Err(CodegenError::KindNotFound(location.ident.clone(), line.clone()));
+        return Err(CodegenError::KindNotFound(
+            location.ident.clone(),
+            line.clone(),
+        ));
     }
     let file = match objects.1.get(&location.file) {
         Some(f) => f,
@@ -2327,8 +2604,14 @@ fn get_kind(
     }
     for user_data in file.user_data.iter() {
         if user_data.name == location.ident {
-            return Ok(ShallowType::from_user_data(&user_data.name, location.file.clone()));
+            return Ok(ShallowType::from_user_data(
+                &user_data.name,
+                location.file.clone(),
+            ));
         }
     }
-    Err(CodegenError::KindNotFound(location.ident.clone(), line.clone()))
+    Err(CodegenError::KindNotFound(
+        location.ident.clone(),
+        line.clone(),
+    ))
 }

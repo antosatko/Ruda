@@ -4,5 +4,7 @@ import "#fs"
 import "danda.rd"
 
 fun main() {
-    let dan = new danda.Danda(6)
+    let a = new 1;
+
+    *a = 2;
 }
