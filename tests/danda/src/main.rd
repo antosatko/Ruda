@@ -1,11 +1,8 @@
 import "#io"
 import "#fs"
 
-struct Danda {
-
-}
+import "danda.rd"
 
 fun main() {
-    let a = new [50, 60]
-    let b = new 5
+    let dan = new danda.Danda(6)
 }

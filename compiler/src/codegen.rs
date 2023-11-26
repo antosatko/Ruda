@@ -119,6 +119,25 @@ fn gen_all_fun_ids(objects: &mut Context) -> Result<Vec<InnerPath>, CodegenError
             fun.id = id;
             id += 1;
         }
+        for structt in 0..objects.0.get(&file).unwrap().structs.len() {
+            let path = InnerPath {
+                file: file.clone(),
+                block: Some(objects.0.get(&file).unwrap().structs[structt].identifier.clone()),
+                ident: "".to_string(),
+                kind: ImportKinds::Rd,
+            };
+            for fun in 0..objects.0.get(&file).unwrap().structs[structt].functions.len() {
+                let mut fun_path = path.clone();
+                fun_path.ident = objects.0.get(&file).unwrap().structs[structt].functions[fun]
+                    .identifier
+                    .clone()
+                    .unwrap_or(path.block.clone().unwrap());
+                paths.push(fun_path.clone());
+                let fun = fun_path.get_mut(objects).unwrap();
+                fun.id = id;
+                id += 1;
+            }
+        }
     }
     Ok(paths)
 }
@@ -139,7 +158,23 @@ fn gen_all_funs(
                     .unwrap(),
                 kind: ImportKinds::Rd,
             };
-            gen_fun(objects, &fun, context)?;
+            gen_fun(objects, &fun, context, false)?;
+        }
+        for structt in 0..objects.0.get(&file).unwrap().structs.len() {
+            let path = InnerPath {
+                file: file.clone(),
+                block: Some(objects.0.get(&file).unwrap().structs[structt].identifier.clone()),
+                ident: "".to_string(),
+                kind: ImportKinds::Rd,
+            };
+            for fun in 0..objects.0.get(&file).unwrap().structs[structt].functions.len() {
+                let mut fun_path = path.clone();
+                fun_path.ident = objects.0.get(&file).unwrap().structs[structt].functions[fun]
+                    .identifier
+                    .clone()
+                    .unwrap_or(path.block.clone().unwrap());
+                gen_fun(objects, &fun_path, context, &fun_path.ident == fun_path.block.as_ref().unwrap())?;
+            }
         }
     }
     Ok(())
@@ -188,6 +223,7 @@ pub enum CodegenError {
     ImportNotFound(String, Line),
     KindNotFound(String, Line),
     CannotRefDerefNumLiteral(Line),
+    CannotIndexNonArray(Position, Line),
 }
 
 pub fn stringify(
@@ -203,6 +239,7 @@ fn gen_fun<'a>(
     objects: &'a mut Context,
     fun: &'a InnerPath,
     context: &'a mut runtime_types::Context,
+    is_constructor: bool,
 ) -> Result<bool, CodegenError> {
     let mut code = Code { code: Vec::new() };
     let mut args_scope_len = 0;
@@ -211,6 +248,7 @@ fn gen_fun<'a>(
     }];
     let this_fun = fun.get(objects)?;
     for arg in this_fun.args.iter() {
+        println!("{:?}", arg);
         let pos = create_var_pos(&scopes);
         scopes[0].variables.insert(
             arg.identifier.clone(),
@@ -223,6 +261,39 @@ fn gen_fun<'a>(
         );
         args_scope_len += 1;
     }
+    if is_constructor {
+        scopes.push(ScopeCached {
+            variables: HashMap::new(),
+        });
+        let structt = objects
+            .0
+            .get(&fun.file)
+            .unwrap()
+            .structs
+            .iter()
+            .find(|struc| struc.identifier == fun.block.clone().unwrap())
+            .clone()
+            .unwrap();
+        let pos = create_var_pos(&scopes);
+        scopes[1].variables.insert(
+            "self".to_string(),
+            Variable {
+                kind: Some(ShallowType::from_struct(
+                    this_fun.identifier.clone().unwrap(),
+                    fun.file.clone(),
+                    this_fun.line.clone(),
+                )),
+                pos,
+                value: None,
+                line: this_fun.line.clone(),
+            },
+        );
+        args_scope_len += 1;
+        code.extend(&[
+            Instructions::AllocateStatic(structt.fields.len() + 1),
+        ]);
+        code.write(POINTER_REG, &pos);
+    }
     let scope_len = {
         let (scope_len, terminator) = get_scope(
             objects,
@@ -233,11 +304,14 @@ fn gen_fun<'a>(
             fun,
         )?;
         let this_fun = fun.get(objects)?;
-        if terminator != ScopeTerminator::Return && this_fun.return_type.is_some(){
+        if terminator != ScopeTerminator::Return && this_fun.return_type.is_some() && !is_constructor {
             Err(CodegenError::FunctionDoesNotReturn(this_fun.line.clone()))?;
         }
         scope_len + args_scope_len
     };
+    if is_constructor {
+        code.read(&scopes[1].variables.get("self").unwrap().pos, RETURN_REG);
+    }
     flip_stack_access(scope_len, &mut code);
     code.push(Instructions::Return);
     let mut args_code = Code {
@@ -308,7 +382,6 @@ fn expression(
                             GENERAL_REG1,
                         )?;
                     }
-                    println!("modificatior: {:?}", lit.modificatior);
                     if let Some(modi) = &lit.modificatior {
                         if modi.0 == "new" {
                             code.extend(&[
@@ -623,6 +696,24 @@ fn find_fun<'a>(objects: &'a Context, ident: &'a str, file_name: &'a str) -> Opt
     None
 }
 
+fn find_struct<'a>(
+    objects: &'a Context,
+    ident: &'a str,
+    file_name: &'a str,
+) -> Option<(&'a str, &'a dictionary::Struct)> {
+    match objects.0.get(file_name) {
+        Some(dictionary) => {
+            for struc in dictionary.structs.iter() {
+                if struc.identifier == ident {
+                    return Some((file_name, struc));
+                }
+            }
+        }
+        None => (),
+    };
+    None
+}
+
 #[derive(Debug, Clone)]
 enum FunctionKind {
     Fun(InnerPath),
@@ -686,6 +777,7 @@ fn gen_value(
         }
         Position::Pointer(kind) => kind,
         Position::ReturnValue(kind) => kind,
+        Position::Struct(kind) => kind,
     };
     Ok(kind)
 }
@@ -714,6 +806,9 @@ fn identify_root(
     }
     if let Some(fun) = find_fun(objects, &ident, &file) {
         return Ok(Position::Function(fun));
+    }
+    if let Some((fname, struc)) = find_struct(objects, &ident, &file) {
+        return Ok(Position::Struct(ShallowType::from_struct(struc.identifier.to_string(), fname.to_string(), struc.line)));
     }
     // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE
     // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE
@@ -777,6 +872,9 @@ fn traverse_tail(
                     Position::Pointer(ptr) => {
                         todo!()
                     }
+                    Position::Struct(kind) => {
+                        todo!()
+                    },
                 },
                 expression_parser::TailNodes::Index(idx) => match &pos {
                     Position::BinImport(_) => Err(CodegenError::CannotIndexFile(node.1.clone()))?,
@@ -799,6 +897,7 @@ fn traverse_tail(
                         todo!()
                     }
                     Position::ReturnValue(_) => todo!(),
+                    Position::Struct(_) => Err(CodegenError::CannotIndexNonArray(pos.clone(), node.1.clone()))?,
                 },
                 expression_parser::TailNodes::Call(call_params) => {
                     match &pos {
@@ -833,6 +932,27 @@ fn traverse_tail(
                                 }
                                 FunctionKind::Dynamic(fun) => todo!("dynamic function call"),
                             };
+                        }
+                        Position::Struct(kind) => {
+                            let constructor = kind.get_ident();
+                            let path = InnerPath {
+                                file: kind.file.as_ref().unwrap().to_string(),
+                                block: Some(constructor.to_string()),
+                                ident: constructor.to_string(),
+                                kind: ImportKinds::Rd,
+                            };
+                            let kind = call_fun(
+                                objects,
+                                &path,
+                                context,
+                                scopes,
+                                code,
+                                scope_len,
+                                call_params,
+                                &node.1,
+                                fun,
+                            )?;
+                            return_kind = kind;
                         }
                         _ => Err(CodegenError::CanCallOnlyFunctions(node.1.clone()))?,
                     }
@@ -1732,6 +1852,7 @@ enum Position {
     Variable(String),
     Pointer(ShallowType),
     ReturnValue(ShallowType),
+    Struct(ShallowType),
 }
 
 #[derive(Debug, Clone)]
@@ -1759,7 +1880,18 @@ impl InnerPath {
             }
         };
         match &self.block {
-            Some(b) => Err(CodegenError::FunctionNotFound(self.clone())),
+            Some(b) => {
+                for structt in file.structs.iter_mut() {
+                    if structt.identifier == self.ident {
+                        for fun in structt.functions.iter_mut() {
+                            if &fun.identifier.clone().unwrap() == b {
+                                return Ok(fun);
+                            }
+                        }
+                    }
+                }
+                Err(CodegenError::FunctionNotFound(self.clone()))
+            }
             None => {
                 for fun in file.functions.iter_mut() {
                     if fun.identifier.clone().unwrap().as_ref() == self.ident {
@@ -1778,7 +1910,18 @@ impl InnerPath {
             }
         };
         match &self.block {
-            Some(b) => Err(CodegenError::FunctionNotFound(self.clone())),
+            Some(b) => {
+                for structt in file.structs.iter() {
+                    if structt.identifier == self.ident {
+                        for fun in structt.functions.iter() {
+                            if &fun.identifier.clone().unwrap() == b {
+                                return Ok(fun);
+                            }
+                        }
+                    }
+                }
+                Err(CodegenError::FunctionNotFound(self.clone()))
+            },
             None => {
                 for fun in file.functions.iter() {
                     if fun.identifier.clone().unwrap().as_ref() == self.ident {
@@ -2156,7 +2299,7 @@ fn get_kind(
         }
         for structt in file.structs.iter() {
             if structt.identifier == location.ident {
-                return Ok(ShallowType::from_struct(structt, location.file.clone()));
+                return Ok(ShallowType::from_struct(structt.identifier.clone(), location.file.clone(), structt.line));
             }
         }
         for traitt in file.traits.iter() {

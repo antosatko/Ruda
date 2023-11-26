@@ -361,17 +361,29 @@ struct Danda <T> {
 	things: [T, 50],
 }
 "
-KWStruct identifier [keys generic public [methods [impls
+KWStruct identifier [keys generic public [methods [impls constructor
 	"pub" ? set="public"
 	"struct" harderr="true"
 	ident set="identifier"
 	generic_decl ? set="generic"
 	{
 	arg ? set="keys" back="0"
+	KWConstructor ? set="constructor"
 	KWOverload ? set="methods" back="0"
 	KWFun ? set="methods" back="1"
 	KWImpl ? set="impls" back="2"
 	};
+
+
+KWConstructor [arguments generic errorable code
+	"new" harderr="true"
+	(
+	arg ? set="arguments"
+	, ? back="1"
+	)
+	generic_decl ? set="generic"
+	! ? set="errorable"
+	code_block ? set="code" returnable="true";
 
 
 "

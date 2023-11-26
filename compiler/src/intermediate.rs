@@ -300,6 +300,58 @@ pub mod dictionary {
                         line: impl_node.line,
                     })
                 }
+                let constructor = if let Some(constructor) = try_step_inside_val(&node, "constructor") {
+                    if let Tokens::Text(txt) = &constructor.name {
+                        if txt == "KWConstructor" {
+                            let mut args = Vec::new();
+                            for arg in step_inside_arr(&constructor, "arguments") {
+                                let ident = get_ident(&arg);
+                                let kind = get_type(step_inside_val(&arg, "type"), errors, file_name);
+                                args.push(Arg {
+                                    identifier: ident,
+                                    kind,
+                                    line: arg.line,
+                                })
+                            }
+                            let code = if constructor.nodes.contains_key("code") {
+                                codeblock_parser::generate_tree(
+                                    step_inside_val(&constructor, "code"),
+                                    errors,
+                                    file_name,
+                                )
+                            } else {
+                                vec![]
+                            };
+                            let return_type = Some(ShTypeBuilder::new()
+                                                            .set_name(&get_ident(node))
+                                                            .set_file(file_name.to_string())
+                                                            .set_kind(KindType::Struct)
+                                                            .build());
+                            functions.push(Function {
+                                can_yeet: false,
+                                identifier: Some(get_ident(&node)),
+                                args,
+                                stack_size: None,
+                                location: None,
+                                instrs_end: 0,
+                                return_type,
+                                generics: Vec::new(),
+                                public: false,
+                                code,
+                                line: constructor.line,
+                                pointers: None,
+                                id: 0,
+                            });
+                            Some(functions.len() - 1)
+                        }else {
+                            None
+                        }
+                    }else {
+                        None
+                    }
+                }else {
+                    None
+                };
                 let mut result = Struct {
                     identifier: get_ident(node),
                     fields: Vec::new(),
@@ -312,6 +364,7 @@ pub mod dictionary {
                     functions,
                     overloads,
                     impls,
+                    constructor,
                 };
                 for key in step_inside_arr(node, "keys") {
                     let ident = get_ident(&key);
@@ -1045,6 +1098,8 @@ pub mod dictionary {
         pub impls: Vec<Implementation>,
         pub functions: Vec<Function>,
         pub overloads: Vec<Overload>,
+        /// index of function that is a constructor
+        pub constructor: Option<usize>,
     }
     #[derive(Debug)]
     pub struct Implementation {
@@ -1510,14 +1565,14 @@ pub mod dictionary {
             };
             Some(res)
         }
-        pub fn from_struct(structure: &Struct, file: String) -> Self {
+        pub fn from_struct(ident: String, file: String, line: Line) -> Self {
             ShallowType {
                 is_fun: None,
                 array_depth: 0,
                 refs: 0,
-                main: vec![structure.identifier.clone()],
+                main: vec![ident],
                 generics: Vec::new(),
-                line: structure.line,
+                line,
                 nullable: false,
                 file: Some(file),
                 kind: KindType::Struct,
