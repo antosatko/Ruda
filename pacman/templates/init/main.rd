@@ -1,4 +1,4 @@
-import "std.io"
+import "#io"
 
 fun main() {
     io.println("Hello, World!")
