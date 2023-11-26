@@ -105,6 +105,6 @@ trait Iterator<T> > 1i {
 /// for example, if the library produces a type with id 0, then the type will be 0 + my_id
 /// ids must be given to structs, enums, and traits
 #[no_mangle]
-pub fn init(_ctx: &mut Context, my_id: usize) -> Box<fn(&mut Context, usize, usize) -> Result<Types, runtime_error::ErrTypes>> {
-    return Box::new(call);
+pub fn init(_ctx: &mut Context, my_id: usize) ->fn(&mut Context, usize, usize) -> Result<Types, runtime_error::ErrTypes> {
+    call
 }

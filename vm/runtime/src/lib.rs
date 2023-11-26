@@ -1903,7 +1903,8 @@ pub mod runtime_types {
             ))
         }
     }
-    pub type Libs = Vec<Box<fn(ctx: &mut Context, id: usize) -> Result<Types, ErrTypes>>>;
+    pub type Lib = fn(ctx: &mut Context, id: usize) -> Result<Types, ErrTypes>;
+    pub type Libs = Vec<Lib>;
     pub struct Stack {
         pub data: Vec<Types>,
         pub ptr: usize,

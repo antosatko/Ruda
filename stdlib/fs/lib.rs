@@ -341,8 +341,8 @@ fn register() -> String {
 }
 
 #[no_mangle]
-pub fn init(_ctx: &mut Context, my_id: usize) -> Box<fn(&mut Context, usize, usize) -> Result<Types, runtime_error::ErrTypes>> {
-    return Box::new(call);
+pub fn init(_ctx: &mut Context, my_id: usize) -> fn(&mut Context, usize, usize) -> Result<Types, runtime_error::ErrTypes> {
+    call
 }
 
 struct FileH {
