@@ -192,10 +192,7 @@ impl Context {
                             self.memory.heap.data[u_size][loc] = self.memory.registers[value_reg];
                         }
                         PointerTypes::Object => {
-                            return self.panic_rt(ErrTypes::Expected(
-                                Types::Pointer(0, PointerTypes::Heap(0)),
-                                self.memory.registers[POINTER_REG],
-                            ));
+                            self.memory.heap.data[u_size][0] = self.memory.registers[value_reg];
                         }
                         PointerTypes::String => {
                             if let Types::Pointer(dest, PointerTypes::String) =
@@ -2396,7 +2393,7 @@ pub mod runtime_types {
         Sweep,
         /// Sweep unoptimized | sweeps memory, deallocating all unaccesable objects, this instruction is here only to help me test GC since it doesnt require any code structure
         SweepUnoptimized,
-        /// Allocate static: size | allocates new object with size known at compile time and returns pointer to reg(0)
+        /// Allocate static: size | allocates new object with size known at compile time and returns pointer to reg(ptr)
         AllocateStatic(usize),
         /// Index static: index | indexing operation where index is known at compile time (generally for structures but can be also used for arrays or single values on heap)
         IndexStatic(usize),

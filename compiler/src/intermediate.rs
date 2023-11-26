@@ -784,7 +784,7 @@ pub mod dictionary {
             line: node.line,
             nullable,
             file: Some(file_name.to_string()),
-            kind: KindType::Primitive,
+            kind: KindType::None,
         }
     }
     pub fn get_generics_expr(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> GenericExpr {
@@ -887,7 +887,7 @@ pub mod dictionary {
         pub line: Line,
         pub kind: ImportKinds,
     }
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
     pub enum ImportKinds {
         Dll,
         Rd,
@@ -1409,6 +1409,7 @@ pub mod dictionary {
         Error,
         BinFun,
         SelfRef,
+        None,
     }
 
     impl ShallowType {
@@ -1422,16 +1423,13 @@ pub mod dictionary {
                 line: Line { line: 0, column: 0 },
                 nullable: false,
                 file: None,
-                kind: KindType::Primitive,
+                kind: KindType::None,
             }
         }
         pub fn get_ident(&self) -> &str {
             &self.main[self.main.len() - 1]
         }
         pub fn cmp(&self, other: &Self) -> TypeComparison {
-            if self.kind != other.kind {
-                return TypeComparison::NotEqual;
-            }
             if self.nullable && other.is_null() {
                 return TypeComparison::Equal;
             }
@@ -1455,27 +1453,26 @@ pub mod dictionary {
                 }
             }*/
             if self.file != other.file && !self.is_primitive() && !other.is_primitive() {
-                println!("{} != {}", self.file.as_ref().unwrap(), other.file.as_ref().unwrap());
                 return TypeComparison::NotEqual;
             }
-            println!("{:?} == {:?}", self.file, other.file);
             TypeComparison::Equal
         }
         pub fn is_null(&self) -> bool {
-            self.kind == KindType::Primitive && self.main == vec![String::from("null")]
+            self.is_primitive() && self.main == vec![String::from("null")]
         }
         pub fn is_number(&self) -> bool {
             let temp = format!("{:?}", self);
-            self.kind == KindType::Primitive && (temp == "int" || temp == "float" || temp == "char" || temp == "uint")
+            self.is_primitive() && (temp == "int" || temp == "float" || temp == "char" || temp == "uint")
         }
         pub fn is_string(&self) -> bool {
-            self.kind == KindType::Primitive && format!("{:?}", self) == "string"
+            self.is_primitive() && format!("{:?}", self) == "string"
         }
         pub fn is_primitive(&self) -> bool {
-            self.kind == KindType::Primitive
+            let name = &format!("{:?}", self);
+            self.kind == KindType::Primitive || (name == "int" || name == "float" || name == "char" || name == "uint" || name == "bool" || name == "null" || name == "string") 
         }
         pub fn is_bool(&self) -> bool {
-            self.kind == KindType::Primitive && format!("{:?}", self) == "bool"
+            self.is_primitive() && format!("{:?}", self) == "bool"
         }
         pub fn into_runtime(&self) -> Option<runtime_types::Types> {
             if self.kind != KindType::Primitive {
@@ -1496,7 +1493,7 @@ pub mod dictionary {
             Some(res)
         }
         pub fn into_const(&self) -> Option<ConstValue> {
-            if self.kind != KindType::Primitive {
+            if !self.is_primitive() {
                 return None;
             }
             if self.array_depth != 0 {
@@ -1580,7 +1577,19 @@ pub mod dictionary {
                 kind: KindType::BinFun,
             }
         }
-
+        pub fn from_user_data(ident: &str, file: String) -> Self {
+            ShallowType {
+                is_fun: None,
+                array_depth: 0,
+                refs: 0,
+                main: vec![ident.to_string()],
+                generics: Vec::new(),
+                line: Line { line: 0, column: 0 },
+                nullable: false,
+                file: Some(file),
+                kind: KindType::UserData,
+            }
+        }
     }
 
     pub struct ShTypeBuilder {
@@ -1608,15 +1617,20 @@ pub mod dictionary {
                 name: String::new(),
                 nullable: false,
                 file: None,
-                kind: KindType::Primitive,
+                kind: KindType::None,
             }
         }
-        pub fn build(self) -> ShallowType {
+        pub fn build(mut self) -> ShallowType {
             let main = {
                 let mut main = self.path;
                 main.push(self.name);
                 main
             };
+            let len = main.len();
+            let first = &main[0];
+            if len == 1 && first == "int" && first == "uint" && first == "float" && first == "char" && first == "bool" && first == "string" && first == "null" {
+                self.kind = KindType::Primitive;
+            }
             ShallowType {
                 is_fun: self.is_fun,
                 array_depth: self.array_depth,

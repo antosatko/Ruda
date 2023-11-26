@@ -384,7 +384,12 @@ pub fn get_prepend(
         if txt == "'none" {
             None
         } else {
-            Some((txt.to_string(), temp.line))
+            let name = if let Tokens::Text(txt) = &step_inside_val(&temp, "kw").name {
+                txt.to_string()
+            } else {
+                unreachable!("value_mod has to be a text token, please report this bug")
+            };
+            Some((name, temp.line))
         }
     } else {
         None

@@ -1,5 +1,7 @@
 use core::panic;
+use std::fmt::Pointer;
 use std::ops::Index;
+use std::panic::Location;
 use std::thread::Scope;
 use intermediate::dictionary::ImportKinds;
 use std::collections::HashMap;
@@ -11,7 +13,7 @@ use runtime::runtime_types::{
 };
 
 use crate::codeblock_parser::Nodes;
-use crate::expression_parser::{self, traverse_da_fokin_value, FunctionCall, ValueType};
+use crate::expression_parser::{self, traverse_da_fokin_value, FunctionCall, ValueType, Ref};
 use crate::intermediate::dictionary::{
     self, Arg, ConstValue, Correction, Function, ShTypeBuilder, ShallowType, TypeComparison,
 };
@@ -185,6 +187,7 @@ pub enum CodegenError {
     IncorrectNumberOfArgs(usize, usize, Line),
     ImportNotFound(String, Line),
     KindNotFound(String, Line),
+    CannotRefDerefNumLiteral(Line),
 }
 
 pub fn stringify(
@@ -273,10 +276,17 @@ fn expression(
     use Instructions::*;
     let mut return_kind = ShallowType::empty();
     let mut line = Line {column: 0, line: 0};
+    let expected_type = match expected_type {
+        Some(kind) => Some(correct_kind(objects, &kind, fun, &line)?),
+        None => None,
+    };
     match expr {
         ValueType::Literal(lit) => {
             match &lit.value {
                 expression_parser::Literals::Number(tok) => {
+                    if lit.refs != Ref::None {
+                        Err(CodegenError::CannotRefDerefNumLiteral(lit.line.clone()))?;
+                    }
                     let const_num = match tok.into_const_number() {
                         Some(num) => num,
                         None => {
@@ -297,6 +307,16 @@ fn expression(
                             &lit.line,
                             GENERAL_REG1,
                         )?;
+                    }
+                    println!("modificatior: {:?}", lit.modificatior);
+                    if let Some(modi) = &lit.modificatior {
+                        if modi.0 == "new" {
+                            code.extend(&[
+                                AllocateStatic(1),
+                                WritePtr(GENERAL_REG1),
+                                Move(RETURN_REG, GENERAL_REG1),
+                            ])
+                        }
                     }
                 }
                 expression_parser::Literals::Array(arr) => {
@@ -398,6 +418,7 @@ fn expression(
                             return_kind = ShTypeBuilder::new()
                                 .set_name("string")
                                 .set_refs(depth)
+                                .set_kind(dictionary::KindType::Primitive)
                                 .build();
                         }
                         expression_parser::Ref::None => {
@@ -406,14 +427,14 @@ fn expression(
                                 Cal(CORE_LIB, 0),
                                 Move(RETURN_REG, GENERAL_REG1),
                             ]);
-                            return_kind = ShTypeBuilder::new().set_name("string").build();
+                            return_kind = ShTypeBuilder::new().set_name("string").set_kind(dictionary::KindType::Primitive).build();
                         }
                     }
                 }
                 expression_parser::Literals::Char(c) => {
                     let pos = new_const(context, &ConstValue::Char(*c))?;
                     code.push(ReadConst(pos, GENERAL_REG1));
-                    return_kind = ShTypeBuilder::new().set_name("char").build();
+                    return_kind = ShTypeBuilder::new().set_name("char").set_kind(dictionary::KindType::Primitive).build();
                 }
             }
         }
@@ -496,13 +517,13 @@ fn expression(
             // check for inner const
             if value.is_true_simple() && value.root.0 == "true" {
                 code.push(ReadConst(1, GENERAL_REG1));
-                return_kind = ShTypeBuilder::new().set_name("bool").build();
+                return_kind = ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build();
             } else if value.is_true_simple() && value.root.0 == "false" {
                 code.push(ReadConst(2, GENERAL_REG1));
-                return_kind = ShTypeBuilder::new().set_name("bool").build();
+                return_kind = ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build();
             } else if value.is_true_simple() && value.root.0 == "null" {
                 code.push(ReadConst(0, GENERAL_REG1));
-                return_kind = ShTypeBuilder::new().set_name("null").build();
+                return_kind = ShTypeBuilder::new().set_name("null").set_kind(dictionary::KindType::Primitive).build();
             }else {
                 return_kind = gen_value(objects, value, context, scopes, code, fun, scope_len)?;
             }
@@ -640,7 +661,7 @@ fn gen_value(
         Position::Function(fun) => match fun {
             FunctionKind::Fun(fun) => {
                 let fun = fun.get(objects)?;
-                fun.return_type.clone().unwrap_or(ShTypeBuilder::new().set_name("null").build())
+                fun.return_type.clone().unwrap_or(ShTypeBuilder::new().set_name("null").set_kind(dictionary::KindType::Primitive).build())
             }
             FunctionKind::Binary(fun) => {
                 let fun = fun.get_bin(objects)?;
@@ -1001,7 +1022,7 @@ fn call_fun(
         called_fun
             .return_type
             .clone()
-            .unwrap_or(ShTypeBuilder::new().set_name("null").build()),
+            .unwrap_or(ShTypeBuilder::new().set_name("null").set_kind(dictionary::KindType::Primitive).build()),
     )
 }
 
@@ -1033,7 +1054,7 @@ fn get_scope(
         }};
     }
 
-    let bool_type = ShTypeBuilder::new().set_name("bool").build();
+    let bool_type = ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build();
 
     for node in block {
         match node {
@@ -1101,16 +1122,12 @@ fn get_scope(
                         );
                         code.extend(&[ReadConst(null, GENERAL_REG1)]);
                         code.write(GENERAL_REG1, &pos);
-                        (ShTypeBuilder::new().set_name("null").build(), pos)
+                        (ShTypeBuilder::new().set_name("null").set_kind(dictionary::KindType::Primitive).build(), pos)
                     }
                 };
                 let kind = match kind {
                     Some(kind) => {
-                        println!("{:?} {:?}", kind, expr_kind);
-                        let kind = correct_kind(&objects, &kind, &fun, &line.clone())?;
-                        println!("{:?}", kind);
-                        println!("{:?}", kind.cmp(&expr_kind));
-                        kind
+                        kind.clone()
                     },
                     None => expr_kind.clone(),
                 };
@@ -1290,7 +1307,7 @@ fn get_scope(
                     }
                     None => {
                         expr_code.push(ReadConst(0, RETURN_REG));
-                        ShTypeBuilder::new().set_name("null").build()
+                        ShTypeBuilder::new().set_name("null").set_kind(dictionary::KindType::Primitive).build()
                     }
                 };
                 let this_fun = fun.get(objects)?;
@@ -1306,7 +1323,7 @@ fn get_scope(
                     }
                 } else if !kind.is_null() {
                     return Err(CodegenError::VariableTypeMismatch(
-                        ShTypeBuilder::new().set_name("null").build(),
+                        ShTypeBuilder::new().set_name("null").set_kind(dictionary::KindType::Primitive).build(),
                         kind,
                         TypeComparison::NotEqual,
                         line.clone(),
@@ -1818,9 +1835,9 @@ fn native_operand(
                 return Some(right.clone());
             } else if left.is_string() && right.is_string() {
                 code.extend(&[Cal(CORE_LIB, 2), Move(RETURN_REG, GENERAL_REG1)]);
-                return Some(ShTypeBuilder::new().set_name("string").build());
+                return Some(ShTypeBuilder::new().set_name("string").set_kind(dictionary::KindType::Primitive).build());
             } else if left.is_string() && right.is_primitive() {
-                cast(objects, right, &ShTypeBuilder::new().set_name("string").build(), code, context, fun, line, GENERAL_REG2)?;
+                cast(objects, right, &ShTypeBuilder::new().set_name("string").set_kind(dictionary::KindType::Primitive).build(), code, context, fun, line, GENERAL_REG2)?;
                 code.extend(&[
                     Cal(CORE_LIB, 2),
                     Move(RETURN_REG, GENERAL_REG1),
@@ -1828,13 +1845,13 @@ fn native_operand(
                 return Some(ShTypeBuilder::new().set_name("string").build());
             } else if left.is_primitive() && right.is_string() {
                 code.push(Swap(GENERAL_REG1, GENERAL_REG2));
-                cast(objects, left, &ShTypeBuilder::new().set_name("string").build(), code, context, fun, line, GENERAL_REG2)?;
+                cast(objects, left, &ShTypeBuilder::new().set_name("string").set_kind(dictionary::KindType::Primitive).build(), code, context, fun, line, GENERAL_REG2)?;
                 code.extend(&[
                     Swap(GENERAL_REG1, GENERAL_REG2),
                     Cal(CORE_LIB, 2),
                     Move(RETURN_REG, GENERAL_REG1),
                 ]);
-                return Some(ShTypeBuilder::new().set_name("string").build());
+                return Some(ShTypeBuilder::new().set_name("string").set_kind(dictionary::KindType::Primitive).build());
             } else {
                 None?
             }
@@ -1874,7 +1891,7 @@ fn native_operand(
         Operators::Equal => {
             if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
                 code.extend(&[Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
-                return Some(ShTypeBuilder::new().set_name("bool").build());
+                return Some(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
             } else {
                 None?
             }
@@ -1914,11 +1931,11 @@ fn native_operand(
         Operators::DoubleEq => {
             if left.is_string() && right.is_string() {
                 code.extend(&[Cal(CORE_LIB, 3), Move(RETURN_REG, GENERAL_REG1)]);
-                return Some(ShTypeBuilder::new().set_name("bool").build());
+                return Some(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
             }
             if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
                 code.extend(&[Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
-                return Some(ShTypeBuilder::new().set_name("bool").build());
+                return Some(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
             } else {
                 None?
             }
@@ -1926,11 +1943,11 @@ fn native_operand(
         Operators::NotEqual => {
             if left.is_string() && right.is_string() {
                 code.extend(&[Cal(CORE_LIB, 3), Move(RETURN_REG, GENERAL_REG1), Not(GENERAL_REG1, GENERAL_REG1)]);
-                return Some(ShTypeBuilder::new().set_name("bool").build());
+                return Some(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
             }
             if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
                 code.extend(&[Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1), Not(GENERAL_REG1, GENERAL_REG1)]);
-                return Some(ShTypeBuilder::new().set_name("bool").build());
+                return Some(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
             } else {
                 None?
             }
@@ -1938,7 +1955,7 @@ fn native_operand(
         Operators::And => {
             if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
                 code.extend(&[And(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
-                return Some(ShTypeBuilder::new().set_name("bool").build());
+                return Some(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
             } else {
                 None?
             }
@@ -1946,7 +1963,7 @@ fn native_operand(
         Operators::Or => {
             if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
                 code.extend(&[Or(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
-                return Some(ShTypeBuilder::new().set_name("bool").build());
+                return Some(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
             } else {
                 None?
             }
@@ -1954,7 +1971,7 @@ fn native_operand(
         Operators::Ampersant => {
             if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
                 code.extend(&[And(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
-                return Some(ShTypeBuilder::new().set_name("bool").build());
+                return Some(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
             } else {
                 None?
             }
@@ -1962,7 +1979,7 @@ fn native_operand(
         Operators::Pipe => {
             if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
                 code.extend(&[Or(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
-                return Some(ShTypeBuilder::new().set_name("bool").build());
+                return Some(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
             } else {
                 None?
             }
@@ -1971,7 +1988,7 @@ fn native_operand(
             false => {
                 if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
                     code.extend(&[Less(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
-                    return Some(ShTypeBuilder::new().set_name("bool").build());
+                    return Some(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
                 } else {
                     None?
                 }
@@ -1979,7 +1996,7 @@ fn native_operand(
             true => {
                 if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
                     code.extend(&[Grt(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
-                    return Some(ShTypeBuilder::new().set_name("bool").build());
+                    return Some(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
                 } else {
                     None?
                 }
@@ -1988,7 +2005,7 @@ fn native_operand(
         Operators::LessEq => {
             if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
                 code.extend(&[Grt(GENERAL_REG2, GENERAL_REG1, GENERAL_REG1), Not(GENERAL_REG1, GENERAL_REG1)]);
-                return Some(ShTypeBuilder::new().set_name("bool").build());
+                return Some(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
             } else {
                 None?
             }
@@ -1996,7 +2013,7 @@ fn native_operand(
         Operators::MoreEq => {
             if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
                 code.extend(&[Less(GENERAL_REG2, GENERAL_REG1, GENERAL_REG1), Not(GENERAL_REG1, GENERAL_REG1)]);
-                return Some(ShTypeBuilder::new().set_name("bool").build());
+                return Some(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
             } else {
                 None?
             }
@@ -2023,11 +2040,11 @@ fn native_unary_operand(
     match op.unwrap().0 {
         Operators::Not => {
             if kind.is_primitive() {
-                if cast(objects, kind, &ShTypeBuilder::new().set_name("bool").build(), code, context, fun, line, register).is_none() {
-                    return Err(CodegenError::CouldNotCastTo(kind.clone(), ShTypeBuilder::new().set_name("bool").build(), line.clone()));
+                if cast(objects, kind, &ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build(), code, context, fun, line, register).is_none() {
+                    return Err(CodegenError::CouldNotCastTo(kind.clone(), ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build(), line.clone()));
                 }
                 code.extend(&[Not(register, register)]);
-                return Ok(ShTypeBuilder::new().set_name("bool").build());
+                return Ok(ShTypeBuilder::new().set_name("bool").set_kind(dictionary::KindType::Primitive).build());
             } else {
                 Err(CodegenError::ExpectedBool(line.clone()))?
             }
@@ -2068,9 +2085,9 @@ fn cast(
             return Some(());
         }
         if (from.is_number() || from.is_bool()) && (to.is_number() || to.is_bool()) {
-            let const_val = match new_const(context, &to.into_const()?) {
+            let const_val = match new_const(context, &to.into_const().expect("Failed to recognize number or bool, this is a bug in the compiler, please report it")) {
                 Ok(pos) => pos,
-                Err(_) => None?,
+                Err(_) => panic!("Failed to process number or bool, this is a bug in the compiler, please report it"),
             };
             code.extend(&[
                 ReadConst(const_val, POINTER_REG),
@@ -2079,7 +2096,7 @@ fn cast(
             return Some(());
         }
     }
-    None
+    Some(())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2097,8 +2114,10 @@ fn correct_kind(
     fun: &InnerPath,
     line: &Line,
 ) -> Result<ShallowType, CodegenError> {
-    if ShallowType::is_primitive(kind) {
-        return Ok(kind.clone());
+    if kind.is_primitive() {
+        let mut kind = kind.clone();
+        kind.kind = dictionary::KindType::Primitive;
+        return Ok(kind);
     }
     let mut file = fun.clone();
     for i in 0..kind.main.len()-1 {
@@ -2123,31 +2142,34 @@ fn get_kind(
     location: &InnerPath,
     line: &Line,
 ) -> Result<ShallowType, CodegenError> {
-    let file = match objects.0.get(&location.file) {
-        Some(f) => f,
-        None => {
-            return Err(CodegenError::FunctionNotFound(location.clone()));
+    if location.kind == ImportKinds::Rd {
+        let file = match objects.0.get(&location.file) {
+            Some(f) => f,
+            None => {
+                return Err(CodegenError::ImportNotFound(location.file.clone(), line.clone()));
+            }
+        };
+        for fun in file.functions.iter() {
+            if fun.identifier.clone().unwrap().as_ref() == location.ident {
+                return Ok(ShallowType::from_fun(fun, location.file.clone()));
+            }
         }
-    };
-    for fun in file.functions.iter() {
-        if fun.identifier.clone().unwrap().as_ref() == location.ident {
-            return Ok(ShallowType::from_fun(fun, location.file.clone()));
+        for structt in file.structs.iter() {
+            if structt.identifier == location.ident {
+                return Ok(ShallowType::from_struct(structt, location.file.clone()));
+            }
         }
-    }
-    for structt in file.structs.iter() {
-        if structt.identifier == location.ident {
-            return Ok(ShallowType::from_struct(structt, location.file.clone()));
+        for traitt in file.traits.iter() {
+            if traitt.identifier == location.ident {
+                return Ok(ShallowType::from_trait(traitt, location.file.clone()));
+            }
         }
-    }
-    for traitt in file.traits.iter() {
-        if traitt.identifier == location.ident {
-            return Ok(ShallowType::from_trait(traitt, location.file.clone()));
+        for enumm in file.enums.iter() {
+            if enumm.identifier == location.ident {
+                return Ok(ShallowType::from_enum(enumm, location.file.clone()));
+            }
         }
-    }
-    for enumm in file.enums.iter() {
-        if enumm.identifier == location.ident {
-            return Ok(ShallowType::from_enum(enumm, location.file.clone()));
-        }
+        return Err(CodegenError::KindNotFound(location.ident.clone(), line.clone()));
     }
     let file = match objects.1.get(&location.file) {
         Some(f) => f,
@@ -2158,6 +2180,11 @@ fn get_kind(
     for fun in file.functions.iter() {
         if fun.name == location.ident {
             return Ok(ShallowType::bfrom_fun(fun, location.file.clone()));
+        }
+    }
+    for user_data in file.user_data.iter() {
+        if user_data.name == location.ident {
+            return Ok(ShallowType::from_user_data(&user_data.name, location.file.clone()));
         }
     }
     Err(CodegenError::KindNotFound(location.ident.clone(), line.clone()))

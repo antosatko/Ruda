@@ -1,6 +1,11 @@
 import "#io"
 import "#fs"
 
+struct Danda {
+
+}
+
 fun main() {
-    let file: File = fs.fileOpen("test.txt")
+    let a = new [50, 60]
+    let b = new 5
 }
