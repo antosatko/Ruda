@@ -825,8 +825,35 @@ fn gen_value(
                 ))?,
             };
             let pos_cloned = var.pos.clone();
-            code.read(&pos_cloned, GENERAL_REG1);
-            pos
+            match value.refs {
+                expression_parser::Ref::Dereferencing(depth) => {
+                    code.read(&pos_cloned, POINTER_REG);
+                    for _ in 0..depth {
+                        code.extend(&[
+                            ReadPtr(POINTER_REG),
+                        ]);
+                    }
+                    code.push(Move(POINTER_REG, GENERAL_REG1));
+                    let mut kind = var.kind.as_ref().unwrap().clone();
+                    kind.refs -= depth;
+                    Position::Pointer(kind)
+                }
+                expression_parser::Ref::Reference(depth) => {
+                    if depth > 1 {
+                        Err(CodegenError::CannotDereference(
+                            depth,
+                            kind.clone(),
+                            value.root.1.clone(),
+                        ))?;
+                    }
+                    code.ptr(&pos_cloned, GENERAL_REG1);
+                    pos
+                }
+                expression_parser::Ref::None => {
+                    code.read(&pos_cloned, GENERAL_REG1);
+                    pos
+                }
+            }
         }
         _ => pos,
     };
@@ -1713,22 +1740,40 @@ fn get_scope(
                                 merge_code(&mut code.code, &conclusion_code.code, 0);
                             }
                             Position::Pointer(kind) => {
-                                let deref = if let Ref::Dereferencing(count) = val.refs {
-                                    if count > kind.refs {
-                                        Err(CodegenError::CannotDereference(
-                                            count,
-                                            kind.clone(),
-                                            val.line.clone(),
-                                        ))?;
-                                    }
-                                    count
+                                // save pointer to temp var
+                                let temp_var = create_var_pos(other_scopes);
+                                let cache = last!(other_scopes);
+                                cache.variables.insert(
+                                    max_scope_len.to_string(),
+                                    Variable {
+                                        kind: Some(kind.clone()),
+                                        pos: temp_var.clone(),
+                                        value: None,
+                                        line: val.root.1.clone(),
+                                    },
+                                );
+                                max_scope_len += 1;
+                                let expr = expression(
+                                    objects,
+                                    expr,
+                                    other_scopes,
+                                    &mut expr_code,
+                                    context,
+                                    &fun,
+                                    &mut max_scope_len,
+                                    Some(kind.clone()),
+                                )?;
+                                if let Operators::Equal = op {
+                                    conclusion_code.read(&temp_var, POINTER_REG);
+                                    conclusion_code.extend(&[
+                                        WritePtr(GENERAL_REG1),
+                                    ]);
                                 } else {
-                                    0
-                                };
-                                code.push(Instructions::Move(GENERAL_REG1, POINTER_REG));
-                                for _ in 0..deref {
-                                    code.push(Instructions::ReadPtr(POINTER_REG));
                                 }
+                                
+                                merge_code(&mut code.code, &target_code.code, 0);
+                                merge_code(&mut code.code, &expr_code.code, 0);
+                                merge_code(&mut code.code, &conclusion_code.code, 0);
                             }
                             _ => todo!(),
                         }
@@ -1908,6 +1953,23 @@ impl Code {
         match from {
             MemoryTypes::Stack(n) => {
                 self.code.push(Instructions::Read(*n, to));
+            }
+            MemoryTypes::Register(n) => {
+                let n = n.to_num();
+                match n == to {
+                    true => {}
+                    false => self.code.push(Instructions::Move(n, to)),
+                }
+            }
+        }
+    }
+    pub fn ptr(&mut self, from: &MemoryTypes, to: usize) {
+        match from {
+            MemoryTypes::Stack(n) => {
+                self.code.push(Instructions::Ptr(*n));
+                if to != GENERAL_REG1 {
+                    self.code.push(Instructions::Move(GENERAL_REG1, to));
+                }
             }
             MemoryTypes::Register(n) => {
                 let n = n.to_num();

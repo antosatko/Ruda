@@ -143,6 +143,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
                 // wait for a keypress
                 let key = loop {match term.read_key() {
                     Ok(Key::Char(c)) => break c,
+                    Ok(Key::Enter) => break '\n',
                     Ok(_) => continue,
                     Err(why) => {
                         return Err(runtime_error::ErrTypes::Message(format!(
