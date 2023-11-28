@@ -2,17 +2,26 @@ import "#io"
 import "#fs"
 import "#string"
 
-import "danda.rd"
+// import "danda.rd"
 
+
+struct Danda {
+    a: &int
+
+    
+    new () {
+        self.a = new 0
+    }
+}
 
 fun main() {
-    /*let a: danda.Danda = new danda.Danda(6)
+    let danda = Danda()
 
-    danda.a = 10    */
+    io.println(*danda.a);
 
-    let a: &int = new 5;
+    *danda.a = 10
 
-    *a = string.parse("10");
+    let a: int = *danda.a
 
-    io.println(*a);
+    io.println(a)
 }   

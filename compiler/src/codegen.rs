@@ -244,6 +244,7 @@ pub enum CodegenError {
     CannotIndexNonArray(Position, Line),
     FieldNotInStruct(String, Line),
     CannotDereference(usize, ShallowType, Line),
+    CannotReference(usize, ShallowType, Line),
     CannotGetKind(Position),
 }
 
@@ -721,6 +722,7 @@ fn find_import<'a>(
     ident: &'a str,
     file_name: &'a str,
 ) -> Option<(&'a str, intermediate::dictionary::ImportKinds)> {
+    println!("looking for import {} in {}", ident, file_name);
     match objects.0.get(file_name) {
         Some(dictionary) => {
             for import in dictionary.imports.iter() {
@@ -822,7 +824,62 @@ fn gen_value(
         scope_len,
     )?;
     let kind = match &pos {
-        Position::StructField(_, _, _) => todo!(),
+        Position::StructField(path, field, kind) => {
+            let structt = find_struct(objects, &path.ident, &fun.file).unwrap().1;
+            let kind = structt
+                .fields
+                .iter()
+                .find(|f| f.0 == field.get_ident())
+                .unwrap().1.clone();
+            match value.refs {
+                expression_parser::Ref::Dereferencing(depth) => {
+                    if depth > kind.refs {
+                        Err(CodegenError::CannotDereference(
+                            depth,
+                            kind.clone(),
+                            value.root.1.clone(),
+                        ))?;
+                    }
+                    let start = match expected_type {
+                        ExpectedValueType::Pointer => 1,
+                        ExpectedValueType::Value => 0,
+                    };
+                    for _ in start..depth+1 {
+                        code.extend(&[
+                            ReadPtr(POINTER_REG),
+                        ]);
+                    }
+                    code.push(Move(POINTER_REG, GENERAL_REG1));
+                    let mut kind = kind.clone();
+                    kind.refs -= depth;
+                    Position::Pointer(kind)
+                }
+                expression_parser::Ref::Reference(depth) => {
+                    if depth > 1 {
+                        Err(CodegenError::CannotReference(
+                            depth,
+                            kind.clone(),
+                            value.root.1.clone(),
+                        ))?;
+                    }
+                    todo!();
+                    pos
+                }
+                expression_parser::Ref::None => {
+                    match expected_type {
+                        ExpectedValueType::Pointer => {
+                            Position::Pointer(kind)
+                        }
+                        ExpectedValueType::Value => {
+                            code.extend(&[
+                                ReadPtr(GENERAL_REG1),
+                            ]);
+                            Position::Value(kind)
+                        }
+                    }
+                }
+            }
+        }
         Position::Import(_) => Err(CodegenError::ImportIsNotAValidValue(value.root.1.clone()))?,
         Position::BinImport(_) => Err(CodegenError::ImportIsNotAValidValue(value.root.1.clone()))?,
         Position::Variable(var, kind) => {
@@ -836,6 +893,13 @@ fn gen_value(
             let pos_cloned = var.pos.clone();
             match value.refs {
                 expression_parser::Ref::Dereferencing(depth) => {
+                    if depth > kind.refs {
+                        Err(CodegenError::CannotDereference(
+                            depth,
+                            kind.clone(),
+                            value.root.1.clone(),
+                        ))?;
+                    }
                     code.read(&pos_cloned, POINTER_REG);
                     let start = match expected_type {
                         ExpectedValueType::Pointer => 1,
@@ -853,17 +917,65 @@ fn gen_value(
                 }
                 expression_parser::Ref::Reference(depth) => {
                     if depth > 1 {
-                        Err(CodegenError::CannotDereference(
+                        Err(CodegenError::CannotReference(
                             depth,
                             kind.clone(),
                             value.root.1.clone(),
                         ))?;
                     }
                     code.ptr(&pos_cloned, GENERAL_REG1);
-                    pos
+                    println!("before: {:?}", var.kind);
+                    let mut kind = var.kind.as_ref().unwrap().clone();
+                    kind.refs += 1;
+                    println!("after: {:?}", kind);
+                    Position::Pointer(kind)
                 }
                 expression_parser::Ref::None => {
                     code.read(&pos_cloned, GENERAL_REG1);
+                    pos
+                }
+            }
+        }
+        Position::Pointer(kind) => {
+            println!("HARRY POINTER!! {:?}", kind);
+            match value.refs {
+                expression_parser::Ref::Dereferencing(depth) => {
+                    if depth > kind.refs {
+                        Err(CodegenError::CannotDereference(
+                            depth,
+                            kind.clone(),
+                            value.root.1.clone(),
+                        ))?;
+                    }
+                    code.extend(&[
+                        ReadPtr(GENERAL_REG1),
+                    ]);
+                    let start = match expected_type {
+                        ExpectedValueType::Pointer => 1,
+                        ExpectedValueType::Value => 0,
+                    };
+                    for _ in start..depth {
+                        code.extend(&[
+                            ReadPtr(GENERAL_REG1),
+                        ]);
+                    }
+                    code.push(Move(GENERAL_REG1, GENERAL_REG1));
+                    let mut kind = kind.clone();
+                    kind.refs -= depth;
+                    Position::Pointer(kind)
+                }
+                expression_parser::Ref::Reference(depth) => {
+                    if depth > 1 {
+                        Err(CodegenError::CannotReference(
+                            depth,
+                            kind.clone(),
+                            value.root.1.clone(),
+                        ))?;
+                    }
+                    todo!();
+                    pos
+                }
+                expression_parser::Ref::None => {
                     pos
                 }
             }
@@ -1005,7 +1117,11 @@ fn traverse_tail(
                             scopes,
                             code,
                             fun,
-                            Position::Pointer(return_kind.clone()),
+                            Position::StructField(
+                                InnerPath { file: kind.file.clone().unwrap(), block: None, ident: kind.main.first().unwrap().clone(), kind: ImportKinds::Rd },
+                                StructField::Field(field.1.0.to_string()),
+                                kind,
+                            ),
                             scope_len,
                         );
                     }
@@ -1040,6 +1156,7 @@ fn traverse_tail(
                     println!("{:?}", field);
                     todo!()
                 }
+                Position::Value(_) => todo!(),
             },
             expression_parser::TailNodes::Index(idx) => match &pos {
                 Position::BinImport(_) => Err(CodegenError::CannotIndexFile(node.1.clone()))?,
@@ -1064,6 +1181,7 @@ fn traverse_tail(
                     pos.clone(),
                     node.1.clone(),
                 ))?,
+                Position::Value(_) => todo!(),
             },
             expression_parser::TailNodes::Call(call_params) => match &pos {
                 Position::Function(fun_kind, kind) => {
@@ -2032,6 +2150,16 @@ enum StructField {
     TraitMethod(String, String),
 }
 
+impl StructField {
+    pub fn get_ident(&self) -> String {
+        match self {
+            StructField::Field(ident) => ident.clone(),
+            StructField::Method(ident) => ident.clone(),
+            _ => unreachable!("this is a bug in the compiler, please report it"),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 enum Position {
     Function(FunctionKind, ShallowType),
@@ -2042,6 +2170,7 @@ enum Position {
     Pointer(ShallowType),
     ReturnValue(ShallowType),
     Struct(ShallowType),
+    Value(ShallowType),
 }
 
 impl Position {
@@ -2053,6 +2182,7 @@ impl Position {
             Position::Pointer(kind) => kind.clone(),
             Position::ReturnValue(kind) => kind.clone(),
             Position::Struct(kind) => kind.clone(),
+            Position::Value(kind) => kind.clone(),
             _ => Err(CodegenError::CannotGetKind(self.clone()))?,
         })
     }
@@ -2596,13 +2726,15 @@ fn correct_kind(
     fun: &InnerPath,
     line: &Line,
 ) -> Result<ShallowType, CodegenError> {
+    println!("correcting: {:?}", kind);
     if kind.is_primitive() {
         let mut kind = kind.clone();
         kind.kind = dictionary::KindType::Primitive;
         return Ok(kind);
     }
     let mut file = fun.clone();
-    for i in 0..kind.main.len() - 1 {
+    println!("correcting: {:?}", file);
+    for i in 0..kind.main.len()-1 {
         let import = match find_import(objects, &kind.main[i], &file.file) {
             Some(import) => import,
             None => Err(CodegenError::ImportNotFound(
@@ -2610,6 +2742,8 @@ fn correct_kind(
                 line.clone(),
             ))?,
         };
+        println!("{:?}", file);
+        println!("import: {:?}", import);
         file = InnerPath {
             file: import.0.to_string(),
             block: None,
@@ -2618,6 +2752,7 @@ fn correct_kind(
         };
     }
     file.ident = kind.main.last().unwrap().clone();
+    println!("final: {:?}", file);
     let kind = get_kind(objects, &file, line)?;
     Ok(kind)
 }
@@ -2661,6 +2796,8 @@ fn get_kind(
                 return Ok(ShallowType::from_enum(enumm, location.file.clone()));
             }
         }
+        println!("{} {}", location.ident, location.file);
+        println!("{:?}", file);
         return Err(CodegenError::KindNotFound(
             location.ident.clone(),
             line.clone(),
