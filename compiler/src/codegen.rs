@@ -5,7 +5,7 @@ use std::fmt::Pointer;
 use std::ops::Index;
 use std::panic::Location;
 use std::thread::Scope;
-use std::vec;
+use std::{path, vec};
 
 use runtime::runtime_types::{
     self, Instructions, Memory, Stack, Types, ARGS_REG, CODE_PTR_REG, GENERAL_REG1, GENERAL_REG2,
@@ -653,8 +653,17 @@ fn expression(
                     .set_kind(dictionary::KindType::Primitive)
                     .build();
             } else {
-                return_kind =
-                    gen_value(objects, value, context, scopes, code, fun, scope_len, ExpectedValueType::Value)?.get_kind()?;
+                return_kind = gen_value(
+                    objects,
+                    value,
+                    context,
+                    scopes,
+                    code,
+                    fun,
+                    scope_len,
+                    ExpectedValueType::Value,
+                )?
+                .get_kind()?;
             }
             for un in value.unary.iter() {
                 return_kind = native_unary_operand(
@@ -825,12 +834,18 @@ fn gen_value(
     )?;
     let kind = match &pos {
         Position::StructField(path, field, kind) => {
+            let ident = match field {
+                StructField::Field(ident) => ident,
+                _ => todo!(),
+            };
             let structt = find_struct(objects, &path.ident, &fun.file).unwrap().1;
             let kind = structt
                 .fields
                 .iter()
                 .find(|f| f.0 == field.get_ident())
-                .unwrap().1.clone();
+                .unwrap()
+                .1
+                .clone();
             match value.refs {
                 expression_parser::Ref::Dereferencing(depth) => {
                     if depth > kind.refs {
@@ -844,10 +859,8 @@ fn gen_value(
                         ExpectedValueType::Pointer => 1,
                         ExpectedValueType::Value => 0,
                     };
-                    for _ in start..depth+1 {
-                        code.extend(&[
-                            ReadPtr(POINTER_REG),
-                        ]);
+                    for _ in start..depth + 1 {
+                        code.extend(&[ReadPtr(POINTER_REG)]);
                     }
                     code.push(Move(POINTER_REG, GENERAL_REG1));
                     let mut kind = kind.clone();
@@ -865,19 +878,13 @@ fn gen_value(
                     todo!();
                     pos
                 }
-                expression_parser::Ref::None => {
-                    match expected_type {
-                        ExpectedValueType::Pointer => {
-                            Position::Pointer(kind)
-                        }
-                        ExpectedValueType::Value => {
-                            code.extend(&[
-                                ReadPtr(GENERAL_REG1),
-                            ]);
-                            Position::Value(kind)
-                        }
+                expression_parser::Ref::None => match expected_type {
+                    ExpectedValueType::Pointer => Position::Pointer(kind),
+                    ExpectedValueType::Value => {
+                        code.extend(&[ReadPtr(GENERAL_REG1)]);
+                        Position::Value(kind)
                     }
-                }
+                },
             }
         }
         Position::Import(_) => Err(CodegenError::ImportIsNotAValidValue(value.root.1.clone()))?,
@@ -906,9 +913,7 @@ fn gen_value(
                         ExpectedValueType::Value => 0,
                     };
                     for _ in start..depth {
-                        code.extend(&[
-                            ReadPtr(POINTER_REG),
-                        ]);
+                        code.extend(&[ReadPtr(POINTER_REG)]);
                     }
                     code.push(Move(POINTER_REG, GENERAL_REG1));
                     let mut kind = var.kind.as_ref().unwrap().clone();
@@ -947,17 +952,13 @@ fn gen_value(
                             value.root.1.clone(),
                         ))?;
                     }
-                    code.extend(&[
-                        ReadPtr(GENERAL_REG1),
-                    ]);
+                    code.extend(&[ReadPtr(GENERAL_REG1)]);
                     let start = match expected_type {
                         ExpectedValueType::Pointer => 1,
                         ExpectedValueType::Value => 0,
                     };
                     for _ in start..depth {
-                        code.extend(&[
-                            ReadPtr(GENERAL_REG1),
-                        ]);
+                        code.extend(&[ReadPtr(GENERAL_REG1)]);
                     }
                     code.push(Move(GENERAL_REG1, GENERAL_REG1));
                     let mut kind = kind.clone();
@@ -975,9 +976,7 @@ fn gen_value(
                     todo!();
                     pos
                 }
-                expression_parser::Ref::None => {
-                    pos
-                }
+                expression_parser::Ref::None => pos,
             }
         }
         _ => pos,
@@ -1094,36 +1093,41 @@ fn traverse_tail(
                         )
                         .unwrap()
                         .1;
-                        let field = match structt
-                            .fields
-                            .iter()
-                            .enumerate()
-                            .find(|field| &field.1 .0 == ident)
-                        {
-                            Some(field) => field,
+                        let field = match structt.get_field(&ident) {
+                            Some((field, idx)) => match field {
+                                StructField::Field(ident) => {
+                                    code.read(&pos_cloned, POINTER_REG);
+                                    code.extend(&[IndexStatic(idx + 1), Move(POINTER_REG, GENERAL_REG1)]);
+                                    return_kind = structt.fields[idx].1.clone();
+                                    return_kind.refs += 1;
+                                    return traverse_tail(
+                                        objects,
+                                        tail,
+                                        context,
+                                        scopes,
+                                        code,
+                                        fun,
+                                        Position::StructField(
+                                            InnerPath {
+                                                file: kind.file.clone().unwrap(),
+                                                block: None,
+                                                ident: kind.main.first().unwrap().clone(),
+                                                kind: ImportKinds::Rd,
+                                            },
+                                            StructField::Field(ident.clone()),
+                                            kind,
+                                        ),
+                                        scope_len,
+                                    );
+                                    
+                                },
+                                _ => todo!(),
+                            },
                             None => Err(CodegenError::FieldNotInStruct(
                                 ident.clone(),
                                 node.1.clone(),
                             ))?,
                         };
-                        code.read(&pos_cloned, POINTER_REG);
-                        code.extend(&[IndexStatic(field.0 + 1), Move(POINTER_REG, GENERAL_REG1)]);
-                        return_kind = field.1 .1.clone();
-                        return_kind.refs += 1;
-                        return traverse_tail(
-                            objects,
-                            tail,
-                            context,
-                            scopes,
-                            code,
-                            fun,
-                            Position::StructField(
-                                InnerPath { file: kind.file.clone().unwrap(), block: None, ident: kind.main.first().unwrap().clone(), kind: ImportKinds::Rd },
-                                StructField::Field(field.1.0.to_string()),
-                                kind,
-                            ),
-                            scope_len,
-                        );
                     }
                 }
                 Position::StructField(path, field, kind) => {
@@ -1236,6 +1240,20 @@ fn traverse_tail(
                         fun,
                     )?;
                     return_kind = kind;
+                }
+                Position::StructField(path, field, kind) => {
+                    let ident = match field {
+                        StructField::Method(ident) => ident,
+                        _ => todo!(),
+                    };
+                    let structt = find_struct(
+                        objects,
+                        &kind.main.first().unwrap(),
+                        &kind.file.as_ref().unwrap(),
+                    )
+                    .unwrap()
+                    .1;
+                    panic!("path: {:?}, field: {:?}, kind: {:?}, ident: {:?}", path, field, kind, ident);
                 }
                 _ => Err(CodegenError::CanCallOnlyFunctions(node.1.clone()))?,
             },
@@ -1896,12 +1914,10 @@ fn get_scope(
                                 )?;
                                 if let Operators::Equal = op {
                                     conclusion_code.read(&temp_var, POINTER_REG);
-                                    conclusion_code.extend(&[
-                                        WritePtr(GENERAL_REG1),
-                                    ]);
+                                    conclusion_code.extend(&[WritePtr(GENERAL_REG1)]);
                                 } else {
                                 }
-                                
+
                                 merge_code(&mut code.code, &target_code.code, 0);
                                 merge_code(&mut code.code, &expr_code.code, 0);
                                 merge_code(&mut code.code, &conclusion_code.code, 0);
@@ -2143,7 +2159,7 @@ impl Code {
 }
 
 #[derive(Debug, Clone)]
-enum StructField {
+pub enum StructField {
     Field(String),
     Method(String),
     OverloadedOperator(Operators),
@@ -2209,13 +2225,14 @@ impl InnerPath {
         let file = match objects.0.get_mut(&self.file) {
             Some(f) => f,
             None => {
+                panic!("0");
                 return Err(CodegenError::FunctionNotFound(self.clone()));
             }
         };
         match &self.block {
             Some(b) => {
                 for structt in file.structs.iter_mut() {
-                    if structt.identifier == self.ident {
+                    if &structt.identifier == b {
                         for fun in structt.functions.iter_mut() {
                             if &fun.identifier.clone().unwrap() == b {
                                 return Ok(fun);
@@ -2223,6 +2240,7 @@ impl InnerPath {
                         }
                     }
                 }
+                panic!("1");
                 Err(CodegenError::FunctionNotFound(self.clone()))
             }
             None => {
@@ -2231,6 +2249,7 @@ impl InnerPath {
                         return Ok(fun);
                     }
                 }
+                panic!("2");
                 Err(CodegenError::FunctionNotFound(self.clone()))
             }
         }
@@ -2239,6 +2258,7 @@ impl InnerPath {
         let file = match objects.0.get(&self.file) {
             Some(f) => f,
             None => {
+                panic!("3");
                 return Err(CodegenError::FunctionNotFound(self.clone()));
             }
         };
@@ -2253,6 +2273,7 @@ impl InnerPath {
                         }
                     }
                 }
+                panic!("4");
                 Err(CodegenError::FunctionNotFound(self.clone()))
             }
             None => {
@@ -2261,6 +2282,7 @@ impl InnerPath {
                         return Ok(fun);
                     }
                 }
+                panic!("5");
                 Err(CodegenError::FunctionNotFound(self.clone()))
             }
         }
@@ -2396,7 +2418,10 @@ fn native_operand(
             }
         }
         Operators::Equal => {
-            if left.is_primitive_simple() && right.is_primitive_simple() && left.cmp(right).is_equal() {
+            if left.is_primitive_simple()
+                && right.is_primitive_simple()
+                && left.cmp(right).is_equal()
+            {
                 code.extend(&[Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(
                     ShTypeBuilder::new()
@@ -2450,7 +2475,10 @@ fn native_operand(
                         .build(),
                 );
             }
-            if left.is_primitive_simple() && right.is_primitive_simple() && left.cmp(right).is_equal() {
+            if left.is_primitive_simple()
+                && right.is_primitive_simple()
+                && left.cmp(right).is_equal()
+            {
                 code.extend(&[Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(
                     ShTypeBuilder::new()
@@ -2476,7 +2504,10 @@ fn native_operand(
                         .build(),
                 );
             }
-            if left.is_primitive_simple() && right.is_primitive_simple() && left.cmp(right).is_equal() {
+            if left.is_primitive_simple()
+                && right.is_primitive_simple()
+                && left.cmp(right).is_equal()
+            {
                 code.extend(&[
                     Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1),
                     Not(GENERAL_REG1, GENERAL_REG1),
@@ -2492,7 +2523,10 @@ fn native_operand(
             }
         }
         Operators::And => {
-            if left.is_primitive_simple() && right.is_primitive_simple() && left.cmp(right).is_equal() {
+            if left.is_primitive_simple()
+                && right.is_primitive_simple()
+                && left.cmp(right).is_equal()
+            {
                 code.extend(&[And(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(
                     ShTypeBuilder::new()
@@ -2505,7 +2539,10 @@ fn native_operand(
             }
         }
         Operators::Or => {
-            if left.is_primitive_simple() && right.is_primitive_simple() && left.cmp(right).is_equal() {
+            if left.is_primitive_simple()
+                && right.is_primitive_simple()
+                && left.cmp(right).is_equal()
+            {
                 code.extend(&[Or(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(
                     ShTypeBuilder::new()
@@ -2518,7 +2555,10 @@ fn native_operand(
             }
         }
         Operators::Ampersant => {
-            if left.is_primitive_simple() && right.is_primitive_simple() && left.cmp(right).is_equal() {
+            if left.is_primitive_simple()
+                && right.is_primitive_simple()
+                && left.cmp(right).is_equal()
+            {
                 code.extend(&[And(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(
                     ShTypeBuilder::new()
@@ -2531,7 +2571,10 @@ fn native_operand(
             }
         }
         Operators::Pipe => {
-            if left.is_primitive_simple() && right.is_primitive_simple() && left.cmp(right).is_equal() {
+            if left.is_primitive_simple()
+                && right.is_primitive_simple()
+                && left.cmp(right).is_equal()
+            {
                 code.extend(&[Or(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(
                     ShTypeBuilder::new()
@@ -2734,7 +2777,7 @@ fn correct_kind(
     }
     let mut file = fun.clone();
     println!("correcting: {:?}", file);
-    for i in 0..kind.main.len()-1 {
+    for i in 0..kind.main.len() - 1 {
         let import = match find_import(objects, &kind.main[i], &file.file) {
             Some(import) => import,
             None => Err(CodegenError::ImportNotFound(
@@ -2827,7 +2870,6 @@ fn get_kind(
         line.clone(),
     ))
 }
-
 
 pub enum ExpectedValueType {
     Value,

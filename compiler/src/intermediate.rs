@@ -6,7 +6,7 @@ pub mod dictionary {
         expression_parser::{self, get_args, ValueType},
         lexer::tokenizer::{Operators, Tokens},
         libloader::{self, Const},
-        tree_walker::tree_walker::{self, ArgNodeType, Err, Line, Node}, codegen::InnerPath,
+        tree_walker::tree_walker::{self, ArgNodeType, Err, Line, Node}, codegen::{InnerPath, self},
     };
     use core::panic;
     use std::{collections::HashMap, fs::DirEntry, io::Read};
@@ -1100,6 +1100,29 @@ pub mod dictionary {
         pub overloads: Vec<Overload>,
         /// index of function that is a constructor
         pub constructor: Option<usize>,
+    }
+    impl Struct {
+        pub fn get_field(&self, name: &str) -> Option<(crate::codegen::StructField, usize)> {
+            for field in self.fields.iter().enumerate() {
+                if field.1.0 == name {
+                    return Some((crate::codegen::StructField::Field(field.1.0.clone()), field.0));
+                }
+            }
+            for method in &self.functions {
+                if let Some(ident) = &method.identifier {
+                    if ident == name {
+                        return Some((crate::codegen::StructField::Method(method.identifier.clone().unwrap()), 0));
+                    }
+                }
+            }
+            for overload in &self.overloads {
+                if  &overload.arg.identifier == name {
+                    return Some((crate::codegen::StructField::OverloadedOperator(todo!()), 0));
+                }
+            }
+
+            None
+        }
     }
     #[derive(Debug)]
     pub struct Implementation {
