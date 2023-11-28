@@ -1416,6 +1416,9 @@ pub mod dictionary {
     // print formating
     impl std::fmt::Debug for ShallowType {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            for _ in 0..self.refs {
+                write!(f, "&")?;
+            };
             if let Some(fun) = &self.is_fun {
                 write!(f, "{}", fun.identifier.as_ref().unwrap())?;
                 write!(f, "(")?;
@@ -1450,6 +1453,9 @@ pub mod dictionary {
                 }
                 write!(f, ">")?;
             }
+            if self.nullable {
+                write!(f, "?")?;
+            }
             Ok(())
         }
     }
@@ -1465,6 +1471,11 @@ pub mod dictionary {
         BinFun,
         SelfRef,
         None,
+    }
+    macro_rules! display_simple {
+        ($this: ident) => {
+            format!("{:?}", $this).trim_start_matches("&").trim_end_matches("?").to_string()
+        };
     }
 
     impl ShallowType {
@@ -1513,7 +1524,7 @@ pub mod dictionary {
             TypeComparison::Equal
         }
         pub fn is_null(&self) -> bool {
-            self.is_primitive() && self.main == vec![String::from("null")]
+            self.is_primitive() && format!("{:?}", self) == "null"
         }
         pub fn is_number(&self) -> bool {
             let temp = format!("{:?}", self);
@@ -1523,8 +1534,12 @@ pub mod dictionary {
             self.is_primitive() && format!("{:?}", self) == "string"
         }
         pub fn is_primitive(&self) -> bool {
-            let name = &format!("{:?}", self);
+            let name = &format!("{:?}", self).trim_start_matches("&").trim_end_matches("?").to_string();
             self.kind == KindType::Primitive || (name == "int" || name == "float" || name == "char" || name == "uint" || name == "bool" || name == "null" || name == "string") 
+        }
+        pub fn is_primitive_simple(&self) -> bool {
+            let name = &format!("{:?}", self);
+            self.kind == KindType::Primitive || (name == "int" || name == "float" || name == "char" || name == "uint" || name == "bool" || name == "null" || name == "string")
         }
         pub fn is_bool(&self) -> bool {
             self.is_primitive() && format!("{:?}", self) == "bool"
@@ -1821,12 +1836,16 @@ pub mod dictionary {
         pub fn is_not_equal(&self) -> bool {
             match self {
                 TypeComparison::NotEqual => true,
+                TypeComparison::ArrayDiff(_, _) => true,
+                TypeComparison::ReferenceDiff(_) => true,
+                TypeComparison::NotNullable => true,
                 _ => false,
             }
         }
         pub fn is_compatible(&self) -> bool {
             match self {
                 TypeComparison::Compatible => true,
+                TypeComparison::Equal => true,
                 _ => false,
             }
         }

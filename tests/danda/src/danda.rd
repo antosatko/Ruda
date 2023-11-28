@@ -1,11 +1,13 @@
 import "#io"
 
-
+/*
 struct Danda {
     a: int
+    e: int
 
     
     new(a:int) {
-        io.println(a)
+        self.e = a
+        io.println(self.e)
     }
-}
+}*/

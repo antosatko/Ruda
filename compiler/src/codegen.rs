@@ -269,7 +269,6 @@ fn gen_fun<'a>(
     }];
     let this_fun = fun.get(objects)?;
     for arg in this_fun.args.iter() {
-        println!("{:?}", arg);
         let pos = create_var_pos(&scopes);
         scopes[0].variables.insert(
             arg.identifier.clone(),
@@ -410,7 +409,8 @@ fn expression(
                                 AllocateStatic(1),
                                 WritePtr(GENERAL_REG1),
                                 Move(POINTER_REG, GENERAL_REG1),
-                            ])
+                            ]);
+                            return_kind.refs += 1;
                         }
                     }
                 }
@@ -653,7 +653,7 @@ fn expression(
                     .build();
             } else {
                 return_kind =
-                    gen_value(objects, value, context, scopes, code, fun, scope_len)?.get_kind()?;
+                    gen_value(objects, value, context, scopes, code, fun, scope_len, ExpectedValueType::Value)?.get_kind()?;
             }
             for un in value.unary.iter() {
                 return_kind = native_unary_operand(
@@ -673,6 +673,14 @@ fn expression(
     if let Some(expected_type) = expected_type {
         let cmp = expected_type.cmp(&return_kind);
         if cmp.is_not_equal() {
+            if expected_type.refs != return_kind.refs {
+                Err(CodegenError::VariableTypeMismatch(
+                    expected_type.clone(),
+                    return_kind.clone(),
+                    cmp,
+                    line.clone(),
+                ))?;
+            }
             match cast(
                 objects,
                 &mut return_kind,
@@ -793,6 +801,7 @@ fn gen_value(
     code: &mut Code,
     fun: &InnerPath,
     scope_len: &mut usize,
+    expected_type: ExpectedValueType,
 ) -> Result<Position, CodegenError> {
     use Instructions::*;
     let root = identify_root(
@@ -828,7 +837,11 @@ fn gen_value(
             match value.refs {
                 expression_parser::Ref::Dereferencing(depth) => {
                     code.read(&pos_cloned, POINTER_REG);
-                    for _ in 0..depth {
+                    let start = match expected_type {
+                        ExpectedValueType::Pointer => 1,
+                        ExpectedValueType::Value => 0,
+                    };
+                    for _ in start..depth {
                         code.extend(&[
                             ReadPtr(POINTER_REG),
                         ]);
@@ -888,7 +901,6 @@ fn identify_root(
     if let Some(fun) = find_fun(objects, &ident, &file) {
         let kind = match &fun {
             FunctionKind::Fun(fun) => {
-                println!("{:?}", fun);
                 let fun = fun.get(objects)?;
                 fun.return_type.clone().unwrap_or(
                     ShTypeBuilder::new()
@@ -898,7 +910,6 @@ fn identify_root(
                 )
             }
             FunctionKind::Binary(fun) => {
-                println!("{:?}", fun);
                 let fun = fun.get_bin(objects)?;
                 fun.return_type.clone()
             }
@@ -1693,6 +1704,7 @@ fn get_scope(
                             &mut target_code,
                             fun,
                             &mut max_scope_len,
+                            ExpectedValueType::Pointer,
                         )?;
                         match pos {
                             Position::Variable(var, _) => {
@@ -1753,6 +1765,7 @@ fn get_scope(
                                     },
                                 );
                                 max_scope_len += 1;
+                                target_code.write(POINTER_REG, &temp_var);
                                 let expr = expression(
                                     objects,
                                     expr,
@@ -2174,7 +2187,7 @@ fn native_operand(
                         .set_kind(dictionary::KindType::Primitive)
                         .build(),
                 );
-            } else if left.is_string() && right.is_primitive() {
+            } else if left.is_string() && right.is_primitive_simple() {
                 cast(
                     objects,
                     right,
@@ -2190,7 +2203,7 @@ fn native_operand(
                 )?;
                 code.extend(&[Cal(CORE_LIB, 2), Move(RETURN_REG, GENERAL_REG1)]);
                 return Some(ShTypeBuilder::new().set_name("string").build());
-            } else if left.is_primitive() && right.is_string() {
+            } else if left.is_primitive_simple() && right.is_string() {
                 code.push(Swap(GENERAL_REG1, GENERAL_REG2));
                 cast(
                     objects,
@@ -2253,7 +2266,7 @@ fn native_operand(
             }
         }
         Operators::Equal => {
-            if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
+            if left.is_primitive_simple() && right.is_primitive_simple() && left.cmp(right).is_equal() {
                 code.extend(&[Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(
                     ShTypeBuilder::new()
@@ -2307,7 +2320,7 @@ fn native_operand(
                         .build(),
                 );
             }
-            if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
+            if left.is_primitive_simple() && right.is_primitive_simple() && left.cmp(right).is_equal() {
                 code.extend(&[Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(
                     ShTypeBuilder::new()
@@ -2333,7 +2346,7 @@ fn native_operand(
                         .build(),
                 );
             }
-            if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
+            if left.is_primitive_simple() && right.is_primitive_simple() && left.cmp(right).is_equal() {
                 code.extend(&[
                     Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1),
                     Not(GENERAL_REG1, GENERAL_REG1),
@@ -2349,7 +2362,7 @@ fn native_operand(
             }
         }
         Operators::And => {
-            if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
+            if left.is_primitive_simple() && right.is_primitive_simple() && left.cmp(right).is_equal() {
                 code.extend(&[And(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(
                     ShTypeBuilder::new()
@@ -2362,7 +2375,7 @@ fn native_operand(
             }
         }
         Operators::Or => {
-            if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
+            if left.is_primitive_simple() && right.is_primitive_simple() && left.cmp(right).is_equal() {
                 code.extend(&[Or(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(
                     ShTypeBuilder::new()
@@ -2375,7 +2388,7 @@ fn native_operand(
             }
         }
         Operators::Ampersant => {
-            if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
+            if left.is_primitive_simple() && right.is_primitive_simple() && left.cmp(right).is_equal() {
                 code.extend(&[And(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(
                     ShTypeBuilder::new()
@@ -2388,7 +2401,7 @@ fn native_operand(
             }
         }
         Operators::Pipe => {
-            if left.is_primitive() && right.is_primitive() && left.cmp(right).is_equal() {
+            if left.is_primitive_simple() && right.is_primitive_simple() && left.cmp(right).is_equal() {
                 code.extend(&[Or(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(
                     ShTypeBuilder::new()
@@ -2481,7 +2494,7 @@ fn native_unary_operand(
     }
     match op.unwrap().0 {
         Operators::Not => {
-            if kind.is_primitive() {
+            if kind.is_primitive_simple() {
                 if cast(
                     objects,
                     kind,
@@ -2545,7 +2558,7 @@ fn cast(
     if from.cmp(to).is_equal() {
         return Some(());
     }
-    if from.is_primitive() && to.is_primitive() {
+    if from.is_primitive_simple() && to.is_primitive_simple() {
         if to.is_string() {
             if register != GENERAL_REG2 {
                 code.extend(&[Move(register, GENERAL_REG2)]);
@@ -2565,7 +2578,7 @@ fn cast(
             return Some(());
         }
     }
-    Some(())
+    None
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2676,4 +2689,10 @@ fn get_kind(
         location.ident.clone(),
         line.clone(),
     ))
+}
+
+
+pub enum ExpectedValueType {
+    Value,
+    Pointer,
 }
