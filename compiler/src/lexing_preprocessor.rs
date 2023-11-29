@@ -202,6 +202,8 @@ pub mod lexing_preprocessor {
                                 if str == "\n" {
                                     break;
                                 }
+                            } else if let Tokens::EndOfFile = &tokens[i] {
+                                break;
                             }
                             remove(tokens, i);
                             i += 1;

@@ -11,7 +11,7 @@ struct Danda {
     
     new () {
         self.a = 10
-        io.print("new")
+        io.print("new" + self.a)
     }
 
     fun b(self, a: int) {
@@ -25,3 +25,5 @@ fun main() {
     danda.b(7);
     danda.b(8);
 }   
+
+// highlight self
