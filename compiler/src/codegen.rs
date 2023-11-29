@@ -49,10 +49,12 @@ pub fn gen(
         .extend(consts.iter().map(|c| c.to_runtime()));
     let main_path = InnerPath::main();
     let fun_locs = gen_all_fun_ids(objects)?;
-    //gen_fun(objects, &main_path, &mut vm_context)?;
+    println!("fun ids: {:?}", fun_locs);
     gen_all_funs(objects, &mut vm_context)?;
     fix_fun_calls(objects, &mut vm_context, &fun_locs)?;
     call_main(main_path.get(objects)?, &mut vm_context)?;
+    println!("code: {:?}", vm_context.code.data);
+    println!("objects: {:?}", objects.0);
     Ok(vm_context)
 }
 
@@ -63,10 +65,10 @@ fn call_main(main: &Function, context: &mut runtime_types::Context) -> Result<()
     context.code.data.extend(&[
         End,
         ReserveStack(consts_len, 0),
-        Goto(main.location.unwrap()),
+        Goto(main.location),
     ]);
     // swap all returns in main with end
-    for i in main.location.unwrap()..main.instrs_end {
+    for i in main.location..main.instrs_end {
         match context.code.data[i] {
             Return => {
                 context.code.data[i] = End;
@@ -86,8 +88,10 @@ fn fix_fun_calls(
     for instr in context.code.data.iter_mut() {
         match instr {
             Instructions::Jump(id) => {
+                println!("jumping to {:?}", fun_ids[*id]);
                 let fun = fun_ids[*id].get(objects)?;
-                *id = fun.location.unwrap();
+                println!("Position: {:?}", fun.location);
+                *id = fun.location;
             }
             _ => {}
         }
@@ -103,6 +107,13 @@ fn gen_all_fun_ids(objects: &mut Context) -> Result<Vec<InnerPath>, CodegenError
     let keys = objects.0.keys().map(|s| s.clone()).collect::<Vec<_>>();
     let mut paths = Vec::new();
     let mut id = 0;
+    // do main first
+    let main = InnerPath::main();
+    paths.push(main.clone());
+    let main = main.get_mut(objects).unwrap();
+    main.id = id;
+    id += 1;
+
     for file in keys {
         for fun in 0..objects.0.get(&file).unwrap().functions.len() {
             let fun = InnerPath {
@@ -114,12 +125,17 @@ fn gen_all_fun_ids(objects: &mut Context) -> Result<Vec<InnerPath>, CodegenError
                     .unwrap(),
                 kind: ImportKinds::Rd,
             };
+            // skip main
+            if fun.ident == "main" {
+                continue;
+            }
             paths.push(fun.clone());
             let fun = fun.get_mut(objects).unwrap();
             fun.id = id;
             id += 1;
         }
         for structt in 0..objects.0.get(&file).unwrap().structs.len() {
+            println!("struct: {}", structt);
             let path = InnerPath {
                 file: file.clone(),
                 block: Some(
@@ -134,18 +150,35 @@ fn gen_all_fun_ids(objects: &mut Context) -> Result<Vec<InnerPath>, CodegenError
                 .functions
                 .len()
             {
+                println!("fun: {}", fun);
+                println!("id: {}", id);
                 let mut fun_path = path.clone();
                 fun_path.ident = objects.0.get(&file).unwrap().structs[structt].functions[fun]
                     .identifier
                     .clone()
-                    .unwrap_or(path.block.clone().unwrap());
+                    .unwrap();
+                println!("--- identifier: {}", fun_path.ident);
                 paths.push(fun_path.clone());
-                let fun = fun_path.get_mut(objects).unwrap();
+                let fun = match fun_path.get_mut(objects) {
+                    Ok(fun) => fun,
+                    Err(err) => {
+                        println!("fun path: {:?}", fun_path);
+                        println!("fun id: {}", id);
+                        return Err(err);
+                    }
+                };
+                println!("fun before: {:?}", fun);
                 fun.id = id;
                 id += 1;
+                println!("fun after: {:?}", fun);
+                println!("fun path: {:?}", fun_path);
+                println!("fun id: {}", fun.id);
+                println!("fun loc: {:?}", fun.location);
             }
         }
     }
+    println!("fun ids: {:?}", paths);
+
     Ok(paths)
 }
 
@@ -183,16 +216,23 @@ fn gen_all_funs(
                 .len()
             {
                 let mut fun_path = path.clone();
-                fun_path.ident = objects.0.get(&file).unwrap().structs[structt].functions[fun]
-                    .identifier
-                    .clone()
-                    .unwrap_or(path.block.clone().unwrap());
-                gen_fun(
-                    objects,
-                    &fun_path,
-                    context,
-                    &fun_path.ident == fun_path.block.as_ref().unwrap(),
-                )?;
+                let mut is_constructor = false;
+                match objects.0.get(&file).unwrap().structs[structt].functions[fun].identifier {
+                    Some(ref ident) => {
+                        fun_path.ident = ident.clone();
+                        // if the name of the function is the same as the struct
+                        // then it's a constructor
+                        if ident == &path.block.clone().unwrap() {
+                            is_constructor = true;
+                        }
+                    }
+                    None => {
+                        fun_path.ident = path.block.clone().unwrap();
+                    }
+                }
+                println!("generating function {:?}", fun_path);
+                println!("is constructor: {}", is_constructor);
+                gen_fun(objects, &fun_path, context, is_constructor)?;
             }
         }
     }
@@ -269,6 +309,34 @@ fn gen_fun<'a>(
         variables: HashMap::new(),
     }];
     let this_fun = fun.get(objects)?;
+    let takes_self = this_fun.takes_self;
+    if takes_self {
+        let structt = objects
+            .0
+            .get(&fun.file)
+            .unwrap()
+            .structs
+            .iter()
+            .find(|struc| struc.identifier == fun.block.clone().unwrap())
+            .clone()
+            .unwrap();
+        let struct_kind = ShallowType::from_struct(
+            structt.identifier.clone(),
+            fun.file.clone(),
+            structt.line.clone(),
+        );
+        let pos = create_var_pos(&scopes);
+        scopes[0].variables.insert(
+            "self".to_string(),
+            Variable {
+                kind: Some(struct_kind.clone()),
+                pos,
+                value: None,
+                line: this_fun.line.clone(),
+            },
+        );
+        args_scope_len += 1;
+    }
     for arg in this_fun.args.iter() {
         let pos = create_var_pos(&scopes);
         scopes[0].variables.insert(
@@ -300,9 +368,9 @@ fn gen_fun<'a>(
             "self".to_string(),
             Variable {
                 kind: Some(ShallowType::from_struct(
-                    this_fun.identifier.clone().unwrap(),
+                    structt.identifier.clone(),
                     fun.file.clone(),
-                    this_fun.line.clone(),
+                    structt.line.clone(),
                 )),
                 pos,
                 value: None,
@@ -352,7 +420,9 @@ fn gen_fun<'a>(
     merge_code(&mut temp, &code.code, scope_len);
     let pos = merge_code(&mut context.code.data, &temp, scope_len);
     let this_fun = fun.get_mut(objects)?;
-    this_fun.location = Some(pos.0);
+    println!("| fun: {:?}", fun);
+    println!("| fun loc: {:?}", pos.0);
+    this_fun.location = pos.0;
     this_fun.instrs_end = pos.1;
     this_fun.stack_size = Some(scope_len);
     Ok(true)
@@ -784,6 +854,7 @@ fn find_struct<'a>(
     ident: &'a str,
     file_name: &'a str,
 ) -> Option<(&'a str, &'a dictionary::Struct)> {
+    println!("looking for struct {} in {}", ident, file_name);
     match objects.0.get(file_name) {
         Some(dictionary) => {
             for struc in dictionary.structs.iter() {
@@ -992,6 +1063,8 @@ fn identify_root(
     line: &Line,
 ) -> Result<Position, CodegenError> {
     if let Some(scopes) = scopes {
+        println!("looking for {} in scopes", ident);
+        println!("scopes: {:?}", scopes);
         if let Some(var) = find_var(scopes, &ident) {
             return Ok(Position::Variable(
                 ident.to_string(),
@@ -1074,7 +1147,7 @@ fn traverse_tail(
                         objects, tail, context, scopes, code, fun, root, scope_len,
                     );
                 }
-                Position::Variable(vname, kind) => {
+                Position::Variable(vname, _kind) => {
                     let var = match find_var(&scopes, &vname) {
                         Some(var) => var,
                         None => Err(CodegenError::VariableNotFound(
@@ -1085,10 +1158,11 @@ fn traverse_tail(
                     let pos_cloned = var.pos.clone();
                     let kind = var.kind.as_ref().unwrap().clone();
 
+                    println!("vname: {}, struct_kind: {:?}", vname, kind);
                     if kind.kind == dictionary::KindType::Struct {
                         let structt = find_struct(
                             objects,
-                            &kind.main.first().unwrap(),
+                            &_kind.main.first().unwrap(),
                             &kind.file.as_ref().unwrap(),
                         )
                         .unwrap()
@@ -1110,7 +1184,7 @@ fn traverse_tail(
                                         Position::StructField(
                                             InnerPath {
                                                 file: kind.file.clone().unwrap(),
-                                                block: None,
+                                                block: Some(structt.identifier.to_string()),
                                                 ident: kind.main.first().unwrap().clone(),
                                                 kind: ImportKinds::Rd,
                                             },
@@ -1119,8 +1193,29 @@ fn traverse_tail(
                                         ),
                                         scope_len,
                                     );
-                                    
                                 },
+                                StructField::Method(ident) => {
+                                    code.read(&pos_cloned, GENERAL_REG1);
+                                    return traverse_tail(
+                                        objects,
+                                        tail,
+                                        context,
+                                        scopes,
+                                        code,
+                                        fun,
+                                        Position::StructField(
+                                            InnerPath {
+                                                file: kind.file.clone().unwrap(),
+                                                block: Some(kind.main.last().as_ref().unwrap().to_string()),
+                                                ident: ident.clone(),
+                                                kind: ImportKinds::Rd,
+                                            },
+                                            StructField::Method(ident.clone()),
+                                            kind,
+                                        ),
+                                        scope_len,
+                                    );
+                                }
                                 _ => todo!(),
                             },
                             None => Err(CodegenError::FieldNotInStruct(
@@ -1191,6 +1286,7 @@ fn traverse_tail(
                 Position::Function(fun_kind, kind) => {
                     match fun_kind {
                         FunctionKind::Fun(fun_path) => {
+                            println!("*path: {:?}", fun_path);
                             let fun_kind = call_fun(
                                 objects,
                                 fun_path,
@@ -1242,18 +1338,23 @@ fn traverse_tail(
                     return_kind = kind;
                 }
                 Position::StructField(path, field, kind) => {
-                    let ident = match field {
+                    match field {
                         StructField::Method(ident) => ident,
                         _ => todo!(),
                     };
-                    let structt = find_struct(
+                    code.push(Move(GENERAL_REG1, RETURN_REG));
+                    let kind = call_fun(
                         objects,
-                        &kind.main.first().unwrap(),
-                        &kind.file.as_ref().unwrap(),
-                    )
-                    .unwrap()
-                    .1;
-                    panic!("path: {:?}, field: {:?}, kind: {:?}, ident: {:?}", path, field, kind, ident);
+                        path,
+                        context,
+                        scopes,
+                        code,
+                        scope_len,
+                        call_params,
+                        &node.1,
+                        fun,
+                    )?;
+                    return Ok(Position::Value(kind));
                 }
                 _ => Err(CodegenError::CanCallOnlyFunctions(node.1.clone()))?,
             },
@@ -1375,6 +1476,7 @@ fn call_fun(
     use Instructions::*;
     let mut temp_code = Code { code: Vec::new() };
     let called_fun = fun.get(objects)?;
+    println!(": called fun: {:?}", called_fun);
     *scope_len += 1;
     let obj = create_var_pos(scopes);
     let scopes_len = scopes.len();
@@ -1387,9 +1489,10 @@ fn call_fun(
             line: line.clone(),
         },
     );
+    let takes_self = called_fun.takes_self;
     temp_code.extend(&[
         Freeze,
-        AllocateStatic(called_fun.args.len().max(call_params.args.len())),
+        AllocateStatic(called_fun.args.len().max(call_params.args.len() + takes_self as usize)),
     ]);
     temp_code.write(POINTER_REG, &obj);
     // setup args
@@ -1399,6 +1502,10 @@ fn call_fun(
             call_params.args.len(),
             line.clone(),
         ))?;
+    }
+    if takes_self {
+        temp_code.push(Move(RETURN_REG, GENERAL_REG1));
+        temp_code.extend(&[IndexStatic(0), WritePtr(GENERAL_REG1)])
     }
     let mut args = Vec::new();
     for (idx, arg) in call_params
@@ -1419,7 +1526,7 @@ fn call_fun(
         )?;
         args.push(kind);
         temp_code.read(&obj, POINTER_REG);
-        temp_code.extend(&[IndexStatic(idx), WritePtr(GENERAL_REG1)])
+        temp_code.extend(&[IndexStatic(idx+1), WritePtr(GENERAL_REG1)])
     }
     // type check
     let called_fun = fun.get(objects)?;
@@ -1446,6 +1553,9 @@ fn call_fun(
         Unfreeze,
         Move(RETURN_REG, GENERAL_REG1),
     ]);
+    println!("called fun: {:?}", called_fun.id);
+    println!("{:?}", fun);
+    println!("this: {:?}", this);
     merge_code(&mut code.code, &temp_code.code, *scope_len);
     Ok(called_fun.return_type.clone().unwrap_or(
         ShTypeBuilder::new()
@@ -2225,7 +2335,6 @@ impl InnerPath {
         let file = match objects.0.get_mut(&self.file) {
             Some(f) => f,
             None => {
-                panic!("0");
                 return Err(CodegenError::FunctionNotFound(self.clone()));
             }
         };
@@ -2234,13 +2343,14 @@ impl InnerPath {
                 for structt in file.structs.iter_mut() {
                     if &structt.identifier == b {
                         for fun in structt.functions.iter_mut() {
-                            if &fun.identifier.clone().unwrap() == b {
+                            if fun.identifier.as_ref().unwrap() == &self.ident || fun.identifier.as_ref().unwrap() == b {
+                                println!("attempting to find function: {:?}", self);
+                                println!("found function: {:?}", fun);
                                 return Ok(fun);
                             }
                         }
                     }
                 }
-                panic!("1");
                 Err(CodegenError::FunctionNotFound(self.clone()))
             }
             None => {
@@ -2249,7 +2359,6 @@ impl InnerPath {
                         return Ok(fun);
                     }
                 }
-                panic!("2");
                 Err(CodegenError::FunctionNotFound(self.clone()))
             }
         }
@@ -2258,22 +2367,20 @@ impl InnerPath {
         let file = match objects.0.get(&self.file) {
             Some(f) => f,
             None => {
-                panic!("3");
                 return Err(CodegenError::FunctionNotFound(self.clone()));
             }
         };
         match &self.block {
             Some(b) => {
                 for structt in file.structs.iter() {
-                    if structt.identifier == self.ident {
+                    if &structt.identifier == b {
                         for fun in structt.functions.iter() {
-                            if &fun.identifier.clone().unwrap() == b {
+                            if &fun.identifier.clone().unwrap() == &self.ident {
                                 return Ok(fun);
                             }
                         }
                     }
                 }
-                panic!("4");
                 Err(CodegenError::FunctionNotFound(self.clone()))
             }
             None => {
@@ -2282,7 +2389,6 @@ impl InnerPath {
                         return Ok(fun);
                     }
                 }
-                panic!("5");
                 Err(CodegenError::FunctionNotFound(self.clone()))
             }
         }

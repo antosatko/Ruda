@@ -6,20 +6,22 @@ import "#string"
 
 
 struct Danda {
-    a: &int
+    a: int
 
-
+    
     new () {
-        self.a = new 0
+        self.a = 10
+        io.print("new")
     }
 
-    fun b() {
-        io.println("Hello World")
+    fun b(self, a: int) {
+        io.print(self.a + a)
     }
 }
 
 fun main() {
-    let danda = new Danda()
-    
-    danda.b()
+    io.print("hello world");
+    let danda = new Danda();
+    danda.b(7);
+    danda.b(8);
 }   

@@ -332,7 +332,7 @@ pub mod dictionary {
                                 identifier: Some(get_ident(&node)),
                                 args,
                                 stack_size: None,
-                                location: None,
+                                location: 0,
                                 instrs_end: 0,
                                 return_type,
                                 generics: Vec::new(),
@@ -341,6 +341,7 @@ pub mod dictionary {
                                 line: constructor.line,
                                 pointers: None,
                                 id: 0,
+                                takes_self: false,
                             });
                             Some(functions.len() - 1)
                         }else {
@@ -662,26 +663,13 @@ pub mod dictionary {
         } else {
             None
         };
-        let mut args = Vec::new();
+        let mut takes_self = false;
+        let mut args: Vec<Arg> = Vec::new();
         for arg in step_inside_arr(node, "arguments") {
             if let Tokens::Text(name) = &arg.name {
                 match name.as_str() {
                     "self_arg" => {
-                        args.push(Arg {
-                            identifier: String::from("self"),
-                            kind: ShallowType {
-                                is_fun: None,
-                                array_depth: 0,
-                                refs: count_refs(&arg),
-                                main: vec![String::from("Self")],
-                                generics: Vec::new(),
-                                line: arg.line,
-                                nullable: false,
-                                file: None,
-                                kind: KindType::SelfRef,
-                            },
-                            line: arg.line,
-                        });
+                        takes_self = true;
                     }
                     "arg" => {
                         let ident = get_ident(arg);
@@ -730,7 +718,7 @@ pub mod dictionary {
             identifier,
             args,
             stack_size: None,
-            location: None,
+            location: 0,
             instrs_end: 0,
             return_type: kind,
             generics,
@@ -739,6 +727,7 @@ pub mod dictionary {
             line: node.line,
             pointers: None,
             id: 0,
+            takes_self,
         }
     }
     pub fn public(node: &Node) -> bool {
@@ -1041,7 +1030,7 @@ pub mod dictionary {
         /// size needed to allocate on stack while function call (args.len() included)
         pub stack_size: Option<usize>,
         /// location in bytecode, so runtime knows where to jump
-        pub location: Option<usize>,
+        pub location: usize,
         pub instrs_end: usize,
         pub return_type: Option<ShallowType>,
         pub can_yeet: bool,
@@ -1051,6 +1040,7 @@ pub mod dictionary {
         pub line: Line,
         pub pointers: Option<usize>,
         pub id: usize,
+        pub takes_self: bool,
     }
     /// used to correct function calls
     #[derive(Debug, Clone)]
