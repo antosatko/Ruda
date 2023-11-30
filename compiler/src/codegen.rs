@@ -525,6 +525,7 @@ fn expression(
                                                     // do nothing
                                                 }
                                                 None => {
+                                                    panic!("2");
                                                     Err(CodegenError::CouldNotCastTo(
                                                         kind.clone(),
                                                         temp_kind.clone().unwrap(),
@@ -844,10 +845,14 @@ fn find_struct<'a>(
     ident: &'a str,
     file_name: &'a str,
 ) -> Option<(&'a str, &'a dictionary::Struct)> {
+    println!("looking for struct: {} in {}", ident, file_name);
     match objects.0.get(file_name) {
         Some(dictionary) => {
+            println!("found file");
             for struc in dictionary.structs.iter() {
+                println!("checking struct: {:?}", struc.identifier);
                 if struc.identifier == ident {
+                    println!("found struct");
                     return Some((file_name, struc));
                 }
             }
@@ -882,6 +887,7 @@ fn gen_value(
         &fun.file,
         &value.root.1,
     )?;
+    println!("root: {:?}", root);
     let pos = traverse_tail(
         objects,
         &mut value.tail.iter(),
@@ -892,13 +898,16 @@ fn gen_value(
         root,
         scope_len,
     )?;
+    println!("pos: {:?}", pos);
     let kind = match &pos {
         Position::StructField(path, field, kind) => {
             let ident = match field {
                 StructField::Field(ident) => ident,
                 _ => todo!(),
             };
-            let structt = find_struct(objects, &path.ident, &fun.file).unwrap().1;
+            let structt = find_struct(objects, &path.ident, kind.file.as_ref().unwrap())
+                .unwrap()
+                .1;
             let kind = structt
                 .fields
                 .iter()
@@ -1132,6 +1141,7 @@ fn traverse_tail(
                     );
                 }
                 Position::Variable(vname, _kind) => {
+                    println!("vname: {}", vname);
                     let var = match find_var(&scopes, &vname) {
                         Some(var) => var,
                         None => Err(CodegenError::VariableNotFound(
@@ -1157,7 +1167,7 @@ fn traverse_tail(
                                     code.extend(&[IndexStatic(idx + 1), Move(POINTER_REG, GENERAL_REG1)]);
                                     return_kind = structt.fields[idx].1.clone();
                                     return_kind.refs += 1;
-                                    return traverse_tail(
+                                    let pos = traverse_tail(
                                         objects,
                                         tail,
                                         context,
@@ -1176,6 +1186,7 @@ fn traverse_tail(
                                         ),
                                         scope_len,
                                     );
+                                    return pos;
                                 },
                                 StructField::Method(ident) => {
                                     code.read(&pos_cloned, GENERAL_REG1);
@@ -1682,6 +1693,7 @@ fn get_scope(
                         code.write(GENERAL_REG1, &pos);
                     }
                     None => {
+                        panic!("0");
                         return Err(CodegenError::CouldNotCastTo(expr_kind, kind, line.clone()));
                     }
                 }
@@ -2779,6 +2791,7 @@ fn native_unary_operand(
                 )
                 .is_none()
                 {
+                    panic!("1");
                     return Err(CodegenError::CouldNotCastTo(
                         kind.clone(),
                         ShTypeBuilder::new()

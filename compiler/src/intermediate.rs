@@ -1586,6 +1586,15 @@ pub mod dictionary {
             let name = &format!("{:?}", self);
             self.kind == KindType::Primitive || (name == "int" || name == "float" || name == "char" || name == "uint" || name == "bool" || name == "null" || name == "string")
         }
+        pub fn core_is_primitive(&self) -> bool {
+            let mut kind = self.clone();
+            kind.array_depth = 0;
+            kind.refs = 0;
+            kind.nullable = false;
+            kind.generics = Vec::new();
+            let name = &format!("{:?}", self);
+            name == "int" || name == "float" || name == "char" || name == "uint" || name == "bool" || name == "null" || name == "string" || name == "null" || name == "string"
+        }
         pub fn is_bool(&self) -> bool {
             self.is_primitive() && format!("{:?}", self) == "bool"
         }
