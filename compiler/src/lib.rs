@@ -167,10 +167,10 @@ pub fn build_dictionaries(
     };
     let mut imports = Vec::new();
     let mut dictionaries = Dictionaries::new();
-    match build_dictionary(&main, ast, main_.strip_suffix(".rd").unwrap_or(main_)) {
+    match build_dictionary(&main, ast, main_) {
         Ok(res) => {
             if res.1.len() > 0 {
-                panic!("internal error 1. please contact the developer.")
+                return Err((ErrorOrigin::AnalyzationError(res.1), main_.to_string()));
             }
             new_imports(&mut imports, res.2);
             dictionaries.insert(main_.to_string(), res.0);

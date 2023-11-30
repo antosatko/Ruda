@@ -49,12 +49,9 @@ pub fn gen(
         .extend(consts.iter().map(|c| c.to_runtime()));
     let main_path = InnerPath::main();
     let fun_locs = gen_all_fun_ids(objects)?;
-    println!("fun ids: {:?}", fun_locs);
     gen_all_funs(objects, &mut vm_context)?;
     fix_fun_calls(objects, &mut vm_context, &fun_locs)?;
     call_main(main_path.get(objects)?, &mut vm_context)?;
-    println!("code: {:?}", vm_context.code.data);
-    println!("objects: {:?}", objects.0);
     Ok(vm_context)
 }
 
@@ -88,9 +85,7 @@ fn fix_fun_calls(
     for instr in context.code.data.iter_mut() {
         match instr {
             Instructions::Jump(id) => {
-                println!("jumping to {:?}", fun_ids[*id]);
                 let fun = fun_ids[*id].get(objects)?;
-                println!("Position: {:?}", fun.location);
                 *id = fun.location;
             }
             _ => {}
@@ -135,7 +130,6 @@ fn gen_all_fun_ids(objects: &mut Context) -> Result<Vec<InnerPath>, CodegenError
             id += 1;
         }
         for structt in 0..objects.0.get(&file).unwrap().structs.len() {
-            println!("struct: {}", structt);
             let path = InnerPath {
                 file: file.clone(),
                 block: Some(
@@ -150,34 +144,23 @@ fn gen_all_fun_ids(objects: &mut Context) -> Result<Vec<InnerPath>, CodegenError
                 .functions
                 .len()
             {
-                println!("fun: {}", fun);
-                println!("id: {}", id);
                 let mut fun_path = path.clone();
                 fun_path.ident = objects.0.get(&file).unwrap().structs[structt].functions[fun]
                     .identifier
                     .clone()
                     .unwrap();
-                println!("--- identifier: {}", fun_path.ident);
                 paths.push(fun_path.clone());
                 let fun = match fun_path.get_mut(objects) {
                     Ok(fun) => fun,
                     Err(err) => {
-                        println!("fun path: {:?}", fun_path);
-                        println!("fun id: {}", id);
                         return Err(err);
                     }
                 };
-                println!("fun before: {:?}", fun);
                 fun.id = id;
                 id += 1;
-                println!("fun after: {:?}", fun);
-                println!("fun path: {:?}", fun_path);
-                println!("fun id: {}", fun.id);
-                println!("fun loc: {:?}", fun.location);
             }
         }
     }
-    println!("fun ids: {:?}", paths);
 
     Ok(paths)
 }
@@ -230,8 +213,6 @@ fn gen_all_funs(
                         fun_path.ident = path.block.clone().unwrap();
                     }
                 }
-                println!("generating function {:?}", fun_path);
-                println!("is constructor: {}", is_constructor);
                 gen_fun(objects, &fun_path, context, is_constructor)?;
             }
         }
@@ -420,8 +401,6 @@ fn gen_fun<'a>(
     merge_code(&mut temp, &code.code, scope_len);
     let pos = merge_code(&mut context.code.data, &temp, scope_len);
     let this_fun = fun.get_mut(objects)?;
-    println!("| fun: {:?}", fun);
-    println!("| fun loc: {:?}", pos.0);
     this_fun.location = pos.0;
     this_fun.instrs_end = pos.1;
     this_fun.stack_size = Some(scope_len);
@@ -609,7 +588,7 @@ fn expression(
             }
         }
         ValueType::AnonymousFunction(_) => todo!(),
-        ValueType::Parenthesis(expr, tail, unary) => {
+        ValueType::Parenthesis(expr, tail, unary, modificator) => {
             let mut kind = expression(
                 objects,
                 expr,
@@ -618,7 +597,17 @@ fn expression(
                 context,
                 &fun,
                 scope_len,
-                expected_type.clone(),
+                None,
+            )?;
+            traverse_tail(
+                objects,
+                &mut tail.iter(),
+                context,
+                scopes,
+                code,
+                fun,
+                Position::Value(kind.clone()),
+                scope_len,
             )?;
             for un in unary.iter() {
                 kind = native_unary_operand(
@@ -632,12 +621,14 @@ fn expression(
                     GENERAL_REG1,
                 )?;
             }
-            for (node, line) in tail.iter() {
-                match node {
-                    expression_parser::TailNodes::Nested(_) => todo!(),
-                    expression_parser::TailNodes::Index(_) => todo!(),
-                    expression_parser::TailNodes::Call(_) => todo!(),
-                    expression_parser::TailNodes::Cast(_) => todo!(),
+            if let Some(modi) = modificator {
+                if modi.0 == "new" {
+                    code.extend(&[
+                        AllocateStatic(1),
+                        WritePtr(GENERAL_REG1),
+                        Move(POINTER_REG, GENERAL_REG1),
+                    ]);
+                    kind.refs += 1;
                 }
             }
             return_kind = kind;
@@ -801,7 +792,6 @@ fn find_import<'a>(
     ident: &'a str,
     file_name: &'a str,
 ) -> Option<(&'a str, intermediate::dictionary::ImportKinds)> {
-    println!("looking for import {} in {}", ident, file_name);
     match objects.0.get(file_name) {
         Some(dictionary) => {
             for import in dictionary.imports.iter() {
@@ -854,7 +844,6 @@ fn find_struct<'a>(
     ident: &'a str,
     file_name: &'a str,
 ) -> Option<(&'a str, &'a dictionary::Struct)> {
-    println!("looking for struct {} in {}", ident, file_name);
     match objects.0.get(file_name) {
         Some(dictionary) => {
             for struc in dictionary.structs.iter() {
@@ -1000,10 +989,8 @@ fn gen_value(
                         ))?;
                     }
                     code.ptr(&pos_cloned, GENERAL_REG1);
-                    println!("before: {:?}", var.kind);
                     let mut kind = var.kind.as_ref().unwrap().clone();
                     kind.refs += 1;
-                    println!("after: {:?}", kind);
                     Position::Pointer(kind)
                 }
                 expression_parser::Ref::None => {
@@ -1013,7 +1000,6 @@ fn gen_value(
             }
         }
         Position::Pointer(kind) => {
-            println!("HARRY POINTER!! {:?}", kind);
             match value.refs {
                 expression_parser::Ref::Dereferencing(depth) => {
                     if depth > kind.refs {
@@ -1063,8 +1049,6 @@ fn identify_root(
     line: &Line,
 ) -> Result<Position, CodegenError> {
     if let Some(scopes) = scopes {
-        println!("looking for {} in scopes", ident);
-        println!("scopes: {:?}", scopes);
         if let Some(var) = find_var(scopes, &ident) {
             return Ok(Position::Variable(
                 ident.to_string(),
@@ -1158,7 +1142,6 @@ fn traverse_tail(
                     let pos_cloned = var.pos.clone();
                     let kind = var.kind.as_ref().unwrap().clone();
 
-                    println!("vname: {}, struct_kind: {:?}", vname, kind);
                     if kind.kind == dictionary::KindType::Struct {
                         let structt = find_struct(
                             objects,
@@ -1252,7 +1235,6 @@ fn traverse_tail(
                             node.1.clone(),
                         ))?,
                     };
-                    println!("{:?}", field);
                     todo!()
                 }
                 Position::Value(_) => todo!(),
@@ -1286,7 +1268,6 @@ fn traverse_tail(
                 Position::Function(fun_kind, kind) => {
                     match fun_kind {
                         FunctionKind::Fun(fun_path) => {
-                            println!("*path: {:?}", fun_path);
                             let fun_kind = call_fun(
                                 objects,
                                 fun_path,
@@ -1476,7 +1457,6 @@ fn call_fun(
     use Instructions::*;
     let mut temp_code = Code { code: Vec::new() };
     let called_fun = fun.get(objects)?;
-    println!(": called fun: {:?}", called_fun);
     *scope_len += 1;
     let obj = create_var_pos(scopes);
     let scopes_len = scopes.len();
@@ -1526,7 +1506,7 @@ fn call_fun(
         )?;
         args.push(kind);
         temp_code.read(&obj, POINTER_REG);
-        temp_code.extend(&[IndexStatic(idx+1), WritePtr(GENERAL_REG1)])
+        temp_code.extend(&[IndexStatic(idx+takes_self as usize), WritePtr(GENERAL_REG1)])
     }
     // type check
     let called_fun = fun.get(objects)?;
@@ -1553,9 +1533,6 @@ fn call_fun(
         Unfreeze,
         Move(RETURN_REG, GENERAL_REG1),
     ]);
-    println!("called fun: {:?}", called_fun.id);
-    println!("{:?}", fun);
-    println!("this: {:?}", this);
     merge_code(&mut code.code, &temp_code.code, *scope_len);
     Ok(called_fun.return_type.clone().unwrap_or(
         ShTypeBuilder::new()
@@ -1677,6 +1654,12 @@ fn get_scope(
                 let kind = match kind {
                     Some(kind) => kind.clone(),
                     None => expr_kind.clone(),
+                };
+                let kind = match correct_kind(&objects, &kind, &fun, &line) {
+                    Ok(kind) => kind,
+                    Err(e) => {
+                        return Err(e);
+                    }
                 };
                 match cast(
                     objects,
@@ -2035,7 +2018,9 @@ fn get_scope(
                             _ => todo!(),
                         }
                     }
-                    ValueType::Parenthesis(_, _, _) => todo!(),
+                    ValueType::Parenthesis(value, tail, unaries, _) => {
+
+                    }
                     _ => {
                         unreachable!(
                             "target not handled properly by the compiler, please report this bug"
@@ -2344,8 +2329,6 @@ impl InnerPath {
                     if &structt.identifier == b {
                         for fun in structt.functions.iter_mut() {
                             if fun.identifier.as_ref().unwrap() == &self.ident || fun.identifier.as_ref().unwrap() == b {
-                                println!("attempting to find function: {:?}", self);
-                                println!("found function: {:?}", fun);
                                 return Ok(fun);
                             }
                         }
@@ -2875,14 +2858,12 @@ fn correct_kind(
     fun: &InnerPath,
     line: &Line,
 ) -> Result<ShallowType, CodegenError> {
-    println!("correcting: {:?}", kind);
     if kind.is_primitive() {
         let mut kind = kind.clone();
         kind.kind = dictionary::KindType::Primitive;
         return Ok(kind);
     }
     let mut file = fun.clone();
-    println!("correcting: {:?}", file);
     for i in 0..kind.main.len() - 1 {
         let import = match find_import(objects, &kind.main[i], &file.file) {
             Some(import) => import,
@@ -2891,8 +2872,6 @@ fn correct_kind(
                 line.clone(),
             ))?,
         };
-        println!("{:?}", file);
-        println!("import: {:?}", import);
         file = InnerPath {
             file: import.0.to_string(),
             block: None,
@@ -2901,7 +2880,6 @@ fn correct_kind(
         };
     }
     file.ident = kind.main.last().unwrap().clone();
-    println!("final: {:?}", file);
     let kind = get_kind(objects, &file, line)?;
     Ok(kind)
 }
@@ -2945,8 +2923,6 @@ fn get_kind(
                 return Ok(ShallowType::from_enum(enumm, location.file.clone()));
             }
         }
-        println!("{} {}", location.ident, location.file);
-        println!("{:?}", file);
         return Err(CodegenError::KindNotFound(
             location.ident.clone(),
             line.clone(),

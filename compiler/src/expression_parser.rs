@@ -19,7 +19,7 @@ pub fn traverse_da_fokin_value(val: &ValueType, depth: usize) {
         ValueType::Literal(val) => {
             println!("{}Literal {:?}", "-".repeat(depth), val.value);
         }
-        ValueType::Parenthesis(val, _, _) => {
+        ValueType::Parenthesis(val, _, _, _) => {
             println!("{}Parenthesis", "-".repeat(depth));
             traverse_da_fokin_value(val, depth + 1);
         }
@@ -212,7 +212,7 @@ pub fn try_get_value(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) ->
         return Some(ValueType::Literal(lit));
     }
     if let Some(paren) = try_get_parenthesis(step_inside_val(&node, "value"), errors, file_name) {
-        return Some(ValueType::Parenthesis(Box::new(paren.0), paren.1, prepend.2));
+        return Some(ValueType::Parenthesis(Box::new(paren.0), paren.1, prepend.2, prepend.1));
     }
     None
 }
@@ -486,7 +486,7 @@ pub enum ValueType {
     Literal(Literal),
     AnonymousFunction(Function),
     /// parenthesis
-    Parenthesis(Box<ValueType>, Vec<(TailNodes, Line)>, Vec<(Operators, Line)>),
+    Parenthesis(Box<ValueType>, Vec<(TailNodes, Line)>, Vec<(Operators, Line)>, Option<(String, Line)>),
     Expression(Box<ExprNode>),
     /// only for inner functionality
     Operator(Operators, Line),

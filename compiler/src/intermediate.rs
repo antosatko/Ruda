@@ -177,7 +177,7 @@ pub mod dictionary {
                 }
             }
             ValueType::Blank => Some(ConstValue::Undefined),
-            ValueType::Parenthesis(v, t, unary) => {
+            ValueType::Parenthesis(v, t, unary, modificator) => {
                 if t.len() != 0 {
                     None
                 } else {
@@ -381,6 +381,35 @@ pub mod dictionary {
                         get_ident(key),
                         get_type(step_inside_val(key, "type"), errors, file_name),
                     ))
+                }
+                // check for conflicting names
+                let mut fnames = Vec::new();
+                for field in &result.fields {
+                    fnames.push(field.0.clone());
+                    if field.0 == result.identifier {
+                        errors.push(ErrType::ConflictingNames(
+                            field.0.to_string(),
+                            field.1.line,
+                        ))
+                    }
+                }
+                let mut mnames = Vec::new();
+                for fun in &result.functions {
+                    if let Some(ident) = &fun.identifier {
+                        mnames.push(ident.clone());
+                    }
+                }
+                for field in &result.fields {
+                    for fun in &result.functions {
+                        if let Some(ident) = &fun.identifier {
+                            if ident == &field.0 {
+                                errors.push(ErrType::ConflictingNames(
+                                    ident.to_string(),
+                                    fun.line,
+                                ))
+                            }
+                        }
+                    }
                 }
                 if dictionary.register_id(result.identifier.to_string(), IdentifierKinds::Struct) {
                     dictionary.structs.push(result);
@@ -771,6 +800,7 @@ pub mod dictionary {
         refs
     }
     pub fn get_type(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> ShallowType {
+        println!("found kind, file: {}", file_name);
         let nullable = if let Some(val) = try_step_inside_val(node, "optional") {
             val.name == Tokens::Optional
         } else {
@@ -1520,7 +1550,7 @@ pub mod dictionary {
             if self.array_depth != other.array_depth {
                 return TypeComparison::NotEqual
             }
-            if self.main != other.main {
+            if self.main.last() != other.main.last() {
                 return TypeComparison::NotEqual;
             }
             /*if self.generics.len() != other.generics.len() {
@@ -1532,6 +1562,8 @@ pub mod dictionary {
                 }
             }*/
             if self.file != other.file && !self.is_primitive() && !other.is_primitive() {
+                println!("{} != {}", display_simple!(self), display_simple!(other));
+                println!("{} != {}", self.file.as_ref().unwrap(), other.file.as_ref().unwrap());
                 return TypeComparison::NotEqual;
             }
             TypeComparison::Equal
