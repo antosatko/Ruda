@@ -421,7 +421,7 @@ fn expression(
     use Instructions::*;
     let mut return_kind = ShallowType::empty();
     let mut line = Line { column: 0, line: 0 };
-    let expected_type = match expected_type {
+    let mut expected_type = match expected_type {
         Some(kind) => Some(correct_kind(objects, &kind, fun, &line)?),
         None => None,
     };
@@ -525,7 +525,6 @@ fn expression(
                                                     // do nothing
                                                 }
                                                 None => {
-                                                    panic!("2");
                                                     Err(CodegenError::CouldNotCastTo(
                                                         kind.clone(),
                                                         temp_kind.clone().unwrap(),
@@ -561,7 +560,6 @@ fn expression(
                             code.extend(&[ReadConst(pos, GENERAL_REG1)]);
                             return_kind = ShTypeBuilder::new()
                                 .set_name("string")
-                                .set_refs(depth)
                                 .set_kind(dictionary::KindType::Primitive)
                                 .build();
                         }
@@ -845,14 +843,10 @@ fn find_struct<'a>(
     ident: &'a str,
     file_name: &'a str,
 ) -> Option<(&'a str, &'a dictionary::Struct)> {
-    println!("looking for struct: {} in {}", ident, file_name);
     match objects.0.get(file_name) {
         Some(dictionary) => {
-            println!("found file");
             for struc in dictionary.structs.iter() {
-                println!("checking struct: {:?}", struc.identifier);
                 if struc.identifier == ident {
-                    println!("found struct");
                     return Some((file_name, struc));
                 }
             }
@@ -887,7 +881,6 @@ fn gen_value(
         &fun.file,
         &value.root.1,
     )?;
-    println!("root: {:?}", root);
     let pos = traverse_tail(
         objects,
         &mut value.tail.iter(),
@@ -898,7 +891,6 @@ fn gen_value(
         root,
         scope_len,
     )?;
-    println!("pos: {:?}", pos);
     let kind = match &pos {
         Position::StructField(path, field, kind) => {
             let ident = match field {
@@ -1141,7 +1133,6 @@ fn traverse_tail(
                     );
                 }
                 Position::Variable(vname, _kind) => {
-                    println!("vname: {}", vname);
                     let var = match find_var(&scopes, &vname) {
                         Some(var) => var,
                         None => Err(CodegenError::VariableNotFound(
@@ -1331,8 +1322,6 @@ fn traverse_tail(
                         fun,
                     )?;
                     kind.file = Some(path.file.clone());
-                    println!(":{:?}", kind);
-                    println!(":{:?}", kind.file);
                     return Ok(Position::Value(kind));
                 }
                 Position::StructField(path, field, kind) => {
@@ -2878,7 +2867,9 @@ fn correct_kind(
     fun: &InnerPath,
     line: &Line,
 ) -> Result<ShallowType, CodegenError> {
-    println!(">{:?}, {:?}", kind, fun);
+    if kind.array_depth > 0 {
+        return Ok(kind.clone());
+    }
     if kind.is_primitive() {
         let mut kind = kind.clone();
         kind.kind = dictionary::KindType::Primitive;
@@ -2902,7 +2893,6 @@ fn correct_kind(
         };
     }
     file.ident = kind.main.last().unwrap().clone();
-    println!("|{:?}, {:?}", kind, file);
     let kind = get_kind(objects, &file, line)?;
     Ok(kind)
 }
@@ -2912,16 +2902,7 @@ fn get_kind(
     location: &InnerPath,
     line: &Line,
 ) -> Result<ShallowType, CodegenError> {
-    if location.kind == ImportKinds::Rd {
-        let file = match objects.0.get(&location.file) {
-            Some(f) => f,
-            None => {
-                return Err(CodegenError::ImportNotFound(
-                    location.file.clone(),
-                    line.clone(),
-                ));
-            }
-        };
+    if let Some(file) = objects.0.get(&location.file) {
         for fun in file.functions.iter() {
             if fun.identifier.clone().unwrap().as_ref() == location.ident {
                 return Ok(ShallowType::from_fun(fun, location.file.clone()));
@@ -2946,7 +2927,6 @@ fn get_kind(
                 return Ok(ShallowType::from_enum(enumm, location.file.clone()));
             }
         }
-        println!("{} {}", location.ident, location.file);
         return Err(CodegenError::KindNotFound(
             location.ident.clone(),
             line.clone(),
@@ -2955,7 +2935,10 @@ fn get_kind(
     let file = match objects.1.get(&location.file) {
         Some(f) => f,
         None => {
-            return Err(CodegenError::FunctionNotFound(location.clone()));
+            return Err(CodegenError::KindNotFound(
+                location.ident.clone(),
+                line.clone(),
+            ));
         }
     };
     for fun in file.functions.iter() {

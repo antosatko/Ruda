@@ -7,12 +7,9 @@ import "danda.rd"
 
 
 fun main() {
-    let a = danda.Danda(6)
-    let b: int = 6
-    let c = a.a
-    a.a = 7
-    io.println(a.a)
+    let file = fs.fileOpen(&"text.txt")
+    let file1: fs.File = file
 }
 
 
-// highlight self
+// highlight self null

@@ -441,7 +441,7 @@ pub mod dictionary {
                 };
                 dictionary.imports.push(Import {
                     path,
-                    alias: alias.strip_suffix(".rd").unwrap_or(&alias).to_string(),
+                    alias: alias.trim_end_matches(".rd").to_string(),
                     line: node.line,
                     kind,
                 });
@@ -800,7 +800,6 @@ pub mod dictionary {
         refs
     }
     pub fn get_type(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> ShallowType {
-        println!("found kind, file: {}", file_name);
         let nullable = if let Some(val) = try_step_inside_val(node, "optional") {
             val.name == Tokens::Optional
         } else {
