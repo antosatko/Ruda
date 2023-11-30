@@ -1268,7 +1268,7 @@ fn traverse_tail(
                 Position::Function(fun_kind, kind) => {
                     match fun_kind {
                         FunctionKind::Fun(fun_path) => {
-                            let fun_kind = call_fun(
+                            let mut fun_kind = call_fun(
                                 objects,
                                 fun_path,
                                 context,
@@ -1279,9 +1279,11 @@ fn traverse_tail(
                                 &node.1,
                                 fun,
                             )?;
+                            fun_kind.file = Some(fun_path.file.clone());
+                            return Ok(Position::Value(fun_kind));
                         }
                         FunctionKind::Binary(fun_path) => {
-                            let kind = call_binary(
+                            let mut kind = call_binary(
                                 objects,
                                 fun_path,
                                 context,
@@ -1292,7 +1294,8 @@ fn traverse_tail(
                                 &node.1,
                                 &fun,
                             )?;
-                            return_kind = kind;
+                            kind.file = Some(fun_path.file.clone());
+                            return Ok(Position::Value(kind));
                         }
                         FunctionKind::Dynamic(fun) => todo!("dynamic function call"),
                     };
@@ -1305,7 +1308,7 @@ fn traverse_tail(
                         ident: constructor.to_string(),
                         kind: ImportKinds::Rd,
                     };
-                    let kind = call_fun(
+                    let mut kind = call_fun(
                         objects,
                         &path,
                         context,
@@ -1316,7 +1319,10 @@ fn traverse_tail(
                         &node.1,
                         fun,
                     )?;
-                    return_kind = kind;
+                    kind.file = Some(path.file.clone());
+                    println!(":{:?}", kind);
+                    println!(":{:?}", kind.file);
+                    return Ok(Position::Value(kind));
                 }
                 Position::StructField(path, field, kind) => {
                     match field {
@@ -1324,7 +1330,7 @@ fn traverse_tail(
                         _ => todo!(),
                     };
                     code.push(Move(GENERAL_REG1, RETURN_REG));
-                    let kind = call_fun(
+                    let mut kind = call_fun(
                         objects,
                         path,
                         context,
@@ -1335,6 +1341,7 @@ fn traverse_tail(
                         &node.1,
                         fun,
                     )?;
+                    kind.file = Some(path.file.clone());
                     return Ok(Position::Value(kind));
                 }
                 _ => Err(CodegenError::CanCallOnlyFunctions(node.1.clone()))?,
@@ -2858,12 +2865,14 @@ fn correct_kind(
     fun: &InnerPath,
     line: &Line,
 ) -> Result<ShallowType, CodegenError> {
+    println!(">{:?}, {:?}", kind, fun);
     if kind.is_primitive() {
         let mut kind = kind.clone();
         kind.kind = dictionary::KindType::Primitive;
         return Ok(kind);
     }
     let mut file = fun.clone();
+    file.file = kind.file.clone().unwrap_or(file.file);
     for i in 0..kind.main.len() - 1 {
         let import = match find_import(objects, &kind.main[i], &file.file) {
             Some(import) => import,
@@ -2880,6 +2889,7 @@ fn correct_kind(
         };
     }
     file.ident = kind.main.last().unwrap().clone();
+    println!("|{:?}, {:?}", kind, file);
     let kind = get_kind(objects, &file, line)?;
     Ok(kind)
 }
@@ -2923,6 +2933,7 @@ fn get_kind(
                 return Ok(ShallowType::from_enum(enumm, location.file.clone()));
             }
         }
+        println!("{} {}", location.ident, location.file);
         return Err(CodegenError::KindNotFound(
             location.ident.clone(),
             line.clone(),

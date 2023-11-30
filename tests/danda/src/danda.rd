@@ -1,9 +1,9 @@
 import "#io"
 
 struct Danda {
-    a: int
+    a: float
 
-    new (a: int) {
+    new (a: float) {
         self.a = a
     }
 }
