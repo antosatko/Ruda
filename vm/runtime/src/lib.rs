@@ -705,6 +705,10 @@ impl Context {
                     Types::Pointer(num1, _) => operation!(ptr, eq, num1, bool, r1, r2, res),
                     Types::Bool(var1) => operation!(Bool, eq, var1, bool, r1, r2, res),
                     Types::Char(char1) => operation!(Char, eq, char1, bool, r1, r2, res),
+                    Types::Null => match self.memory.registers[r2] {
+                        Types::Null => self.memory.registers[res] = Types::Bool(true),
+                        _ => self.memory.registers[res] = Types::Bool(false),
+                    },
                     _ => {
                         return self.panic_rt(ErrTypes::WrongTypeOperation(
                             self.memory.registers[r1],
@@ -936,6 +940,14 @@ impl Context {
             // - dont match on each iteration
             FillRange(val, len) => {
                 let value = self.memory.registers[val];
+                let len = if let Types::Usize(len) = self.memory.registers[len] {
+                    len
+                } else {
+                    return self.panic_rt(ErrTypes::WrongTypeOperation(
+                        self.memory.registers[len],
+                        FillRange(0, 0),
+                    ));
+                };
                 if let Types::Pointer(u_size, kind) = self.memory.registers[POINTER_REG] {
                     for i in 0..len {
                         match kind {
@@ -960,6 +972,7 @@ impl Context {
                         }
                     }
                 }
+                self.next_line();
             }
             Type(reg1, reg2) => {
                 use std::mem::discriminant;

@@ -312,6 +312,22 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
                 )));
             }
         }
+        // std::file_exists
+        // takes string
+        // returns bool
+        8 => {
+            let args = get_args!();
+            if let Types::Pointer(u_size, PointerTypes::String) =
+                args[0]
+            {
+                let string = m.strings.to_string(u_size);
+                return Ok(Types::Bool(std::path::Path::new(&string).exists()));
+            } else {
+                return Err(runtime_error::ErrTypes::Message(
+                    "Invalid argument".to_owned(),
+                ));
+            }
+        }
         _ => {
             unreachable!("Invalid function id")
         }
@@ -335,6 +351,7 @@ fn register() -> String {
     fun fileWrite(fileName=reg.ptr: string, data=reg.G1: string)! > 1i
     fun fileAppend(fileName=reg.ptr: string, data=reg.G1: string)! > 2i
     fun fileOpen(fileName=reg.ptr: string)!: File > 3i
+    fun fileExists(fileName=reg.ptr: string): bool > 8i
 
     "#
     .to_string()

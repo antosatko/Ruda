@@ -59,11 +59,10 @@ fn call_main(main: &Function, context: &mut runtime_types::Context) -> Result<()
     use Instructions::*;
     context.code.entry_point = context.code.data.len() + 1;
     let consts_len = context.memory.stack.data.len();
-    context.code.data.extend(&[
-        End,
-        ReserveStack(consts_len, 0),
-        Goto(main.location),
-    ]);
+    context
+        .code
+        .data
+        .extend(&[End, ReserveStack(consts_len, 0), Goto(main.location)]);
     // swap all returns in main with end
     for i in main.location..main.instrs_end {
         match context.code.data[i] {
@@ -467,7 +466,71 @@ fn expression(
                 expression_parser::Literals::Array(arr) => {
                     let pos = {
                         match arr {
-                            expression_parser::ArrayRule::Fill { value, size } => todo!(),
+                            expression_parser::ArrayRule::Fill { value, size } => {
+                                let expected = match expected_type {
+                                    Some(ref kind) => {
+                                        if kind.array_depth == 0 {
+                                            Err(CodegenError::CoudNotCastAnArrayToANonArray(
+                                                kind.clone(),
+                                                lit.line.clone(),
+                                            ))?;
+                                        }
+                                        let mut temp = kind.clone();
+                                        temp.array_depth -= 1;
+                                        Some(correct_kind(objects, &temp, fun, &lit.line)?)
+                                    }
+                                    None => None,
+                                };
+                                let value = expression(
+                                    objects,
+                                    value,
+                                    scopes,
+                                    code,
+                                    context,
+                                    &fun,
+                                    scope_len,
+                                    expected.clone(),
+                                )?;
+                                *scope_len += 1;
+                                let value_var = create_var_pos(scopes);
+                                let scopes_len = scopes.len();
+                                scopes[scopes_len - 1].variables.insert(
+                                    scope_len.to_string(),
+                                    Variable {
+                                        kind: Some(value.clone()),
+                                        pos: value_var.clone(),
+                                        value: None,
+                                        line: lit.line.clone(),
+                                    },
+                                );
+                                code.write(GENERAL_REG1, &value_var);
+
+                                let size = expression(
+                                    objects,
+                                    size,
+                                    scopes,
+                                    code,
+                                    context,
+                                    &fun,
+                                    scope_len,
+                                    Some(
+                                        ShTypeBuilder::new()
+                                            .set_name("uint")
+                                            .set_kind(dictionary::KindType::Primitive)
+                                            .build(),
+                                    ),
+                                )?;
+
+                                code.read(&value_var, GENERAL_REG2);
+                                code.extend(&[
+                                    Allocate(GENERAL_REG1),
+                                    FillRange(GENERAL_REG2, GENERAL_REG1),
+                                    Move(POINTER_REG, GENERAL_REG1),
+                                ]);
+                                return_kind = value;
+                                return_kind.array_depth += 1;
+                                return Ok(return_kind);
+                            }
                             // logic is pretty much the same as filling args in a function
                             expression_parser::ArrayRule::Explicit(values) => {
                                 let mut kind = match &expected_type {
@@ -480,10 +543,11 @@ fn expression(
                                         }
                                         let mut temp = kind.clone();
                                         temp.array_depth -= 1;
-                                        Some(temp)
+                                        Some(correct_kind(objects, &temp, fun, &lit.line)?)
                                     }
                                     None => None,
                                 };
+                                println!("{:?}", kind);
                                 code.extend(&[AllocateStatic(values.len())]);
                                 *scope_len += 1;
                                 let obj = create_var_pos(scopes);
@@ -511,6 +575,8 @@ fn expression(
                                     )?);
                                     match &kind {
                                         Some(kind) => {
+                                            println!("kind: {:?}", kind);
+                                            println!("temp_kind: {:?}", temp_kind);
                                             match cast(
                                                 objects,
                                                 &mut kind.clone(),
@@ -543,6 +609,8 @@ fn expression(
                                 code.read(&obj, GENERAL_REG1);
                                 return_kind = kind.unwrap().clone();
                                 return_kind.array_depth += 1;
+                                println!("{:?}", return_kind);
+                                return Ok(return_kind);
                             }
                         }
                     };
@@ -588,16 +656,7 @@ fn expression(
         }
         ValueType::AnonymousFunction(_) => todo!(),
         ValueType::Parenthesis(expr, tail, unary, modificator) => {
-            let mut kind = expression(
-                objects,
-                expr,
-                scopes,
-                code,
-                context,
-                &fun,
-                scope_len,
-                None,
-            )?;
+            let mut kind = expression(objects, expr, scopes, code, context, &fun, scope_len, None)?;
             traverse_tail(
                 objects,
                 &mut tail.iter(),
@@ -1000,43 +1059,41 @@ fn gen_value(
                 }
             }
         }
-        Position::Pointer(kind) => {
-            match value.refs {
-                expression_parser::Ref::Dereferencing(depth) => {
-                    if depth > kind.refs {
-                        Err(CodegenError::CannotDereference(
-                            depth,
-                            kind.clone(),
-                            value.root.1.clone(),
-                        ))?;
-                    }
+        Position::Pointer(kind) => match value.refs {
+            expression_parser::Ref::Dereferencing(depth) => {
+                if depth > kind.refs {
+                    Err(CodegenError::CannotDereference(
+                        depth,
+                        kind.clone(),
+                        value.root.1.clone(),
+                    ))?;
+                }
+                code.extend(&[ReadPtr(GENERAL_REG1)]);
+                let start = match expected_type {
+                    ExpectedValueType::Pointer => 1,
+                    ExpectedValueType::Value => 0,
+                };
+                for _ in start..depth {
                     code.extend(&[ReadPtr(GENERAL_REG1)]);
-                    let start = match expected_type {
-                        ExpectedValueType::Pointer => 1,
-                        ExpectedValueType::Value => 0,
-                    };
-                    for _ in start..depth {
-                        code.extend(&[ReadPtr(GENERAL_REG1)]);
-                    }
-                    code.push(Move(GENERAL_REG1, GENERAL_REG1));
-                    let mut kind = kind.clone();
-                    kind.refs -= depth;
-                    Position::Pointer(kind)
                 }
-                expression_parser::Ref::Reference(depth) => {
-                    if depth > 1 {
-                        Err(CodegenError::CannotReference(
-                            depth,
-                            kind.clone(),
-                            value.root.1.clone(),
-                        ))?;
-                    }
-                    todo!();
-                    pos
-                }
-                expression_parser::Ref::None => pos,
+                code.push(Move(GENERAL_REG1, GENERAL_REG1));
+                let mut kind = kind.clone();
+                kind.refs -= depth;
+                Position::Pointer(kind)
             }
-        }
+            expression_parser::Ref::Reference(depth) => {
+                if depth > 1 {
+                    Err(CodegenError::CannotReference(
+                        depth,
+                        kind.clone(),
+                        value.root.1.clone(),
+                    ))?;
+                }
+                todo!();
+                pos
+            }
+            expression_parser::Ref::None => pos,
+        },
         _ => pos,
     };
     Ok(kind)
@@ -1155,7 +1212,10 @@ fn traverse_tail(
                             Some((field, idx)) => match field {
                                 StructField::Field(ident) => {
                                     code.read(&pos_cloned, POINTER_REG);
-                                    code.extend(&[IndexStatic(idx + 1), Move(POINTER_REG, GENERAL_REG1)]);
+                                    code.extend(&[
+                                        IndexStatic(idx + 1),
+                                        Move(POINTER_REG, GENERAL_REG1),
+                                    ]);
                                     return_kind = structt.fields[idx].1.clone();
                                     return_kind.refs += 1;
                                     let pos = traverse_tail(
@@ -1178,7 +1238,7 @@ fn traverse_tail(
                                         scope_len,
                                     );
                                     return pos;
-                                },
+                                }
                                 StructField::Method(ident) => {
                                     code.read(&pos_cloned, GENERAL_REG1);
                                     return traverse_tail(
@@ -1191,7 +1251,9 @@ fn traverse_tail(
                                         Position::StructField(
                                             InnerPath {
                                                 file: kind.file.clone().unwrap(),
-                                                block: Some(kind.main.last().as_ref().unwrap().to_string()),
+                                                block: Some(
+                                                    kind.main.last().as_ref().unwrap().to_string(),
+                                                ),
                                                 ident: ident.clone(),
                                                 kind: ImportKinds::Rd,
                                             },
@@ -1211,7 +1273,7 @@ fn traverse_tail(
                     }
                 }
                 Position::StructField(path, field, kind) => {
-                    todo!()
+                    let structt = find_struct(objects, &path.ident, &path.file);
                 }
                 Position::Function(_, kind) => {
                     Err(CodegenError::CannotAttachMethodsToFunctions(node.1.clone()))?
@@ -1479,7 +1541,12 @@ fn call_fun(
     let takes_self = called_fun.takes_self;
     temp_code.extend(&[
         Freeze,
-        AllocateStatic(called_fun.args.len().max(call_params.args.len() + takes_self as usize)),
+        AllocateStatic(
+            called_fun
+                .args
+                .len()
+                .max(call_params.args.len() + takes_self as usize),
+        ),
     ]);
     temp_code.write(POINTER_REG, &obj);
     // setup args
@@ -1513,7 +1580,10 @@ fn call_fun(
         )?;
         args.push(kind);
         temp_code.read(&obj, POINTER_REG);
-        temp_code.extend(&[IndexStatic(idx+takes_self as usize), WritePtr(GENERAL_REG1)])
+        temp_code.extend(&[
+            IndexStatic(idx + takes_self as usize),
+            WritePtr(GENERAL_REG1),
+        ])
     }
     // type check
     let called_fun = fun.get(objects)?;
@@ -1682,7 +1752,6 @@ fn get_scope(
                         code.write(GENERAL_REG1, &pos);
                     }
                     None => {
-                        panic!("0");
                         return Err(CodegenError::CouldNotCastTo(expr_kind, kind, line.clone()));
                     }
                 }
@@ -2017,6 +2086,26 @@ fn get_scope(
                                     conclusion_code.read(&temp_var, POINTER_REG);
                                     conclusion_code.extend(&[WritePtr(GENERAL_REG1)]);
                                 } else {
+                                    conclusion_code.read(&temp_var, POINTER_REG);
+                                    conclusion_code.push(ReadPtr(GENERAL_REG2));
+                                    conclusion_code.push(Swap(GENERAL_REG1, GENERAL_REG2));
+                                    match native_operand(
+                                        objects,
+                                        &op,
+                                        &kind.clone(),
+                                        &expr,
+                                        &mut conclusion_code,
+                                        context,
+                                        &fun,
+                                        &line,
+                                    ) {
+                                        Some(_) => (),
+                                        None => {
+                                            unreachable!("non native operand, this is a bug in the compiler, please report it");
+                                        }
+                                    };
+                                    conclusion_code.read(&temp_var, POINTER_REG);
+                                    conclusion_code.extend(&[WritePtr(GENERAL_REG1)]);
                                 }
 
                                 merge_code(&mut code.code, &target_code.code, 0);
@@ -2026,9 +2115,7 @@ fn get_scope(
                             _ => todo!(),
                         }
                     }
-                    ValueType::Parenthesis(value, tail, unaries, _) => {
-
-                    }
+                    ValueType::Parenthesis(value, tail, unaries, _) => {}
                     _ => {
                         unreachable!(
                             "target not handled properly by the compiler, please report this bug"
@@ -2336,7 +2423,9 @@ impl InnerPath {
                 for structt in file.structs.iter_mut() {
                     if &structt.identifier == b {
                         for fun in structt.functions.iter_mut() {
-                            if fun.identifier.as_ref().unwrap() == &self.ident || fun.identifier.as_ref().unwrap() == b {
+                            if fun.identifier.as_ref().unwrap() == &self.ident
+                                || fun.identifier.as_ref().unwrap() == b
+                            {
                                 return Ok(fun);
                             }
                         }
@@ -2588,6 +2677,15 @@ fn native_operand(
             }
         }
         Operators::NotEqual => {
+            if left.is_null() && right.is_null() {
+                code.extend(&[Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
+                return Some(
+                    ShTypeBuilder::new()
+                        .set_name("bool")
+                        .set_kind(dictionary::KindType::Primitive)
+                        .build(),
+                );
+            }
             if left.is_string() && right.is_string() {
                 code.extend(&[
                     Cal(CORE_LIB, 3),
@@ -2826,6 +2924,12 @@ fn cast(
     register: usize,
 ) -> Option<()> {
     use Instructions::*;
+    if to.array_depth > 0 && to.array_depth == from.array_depth {
+        return Some(());
+    }
+    if to.nullable && from.is_null() {
+        return Some(());
+    }
     if from.cmp(to).is_equal() {
         return Some(());
     }
@@ -2893,8 +2997,12 @@ fn correct_kind(
         };
     }
     file.ident = kind.main.last().unwrap().clone();
-    let kind = get_kind(objects, &file, line)?;
-    Ok(kind)
+    let mut real = get_kind(objects, &file, line)?;
+    real.refs = kind.refs;
+    real.nullable = kind.nullable;
+    real.array_depth = kind.array_depth;
+    real.line = line.clone();
+    Ok(real)
 }
 
 fn get_kind(
