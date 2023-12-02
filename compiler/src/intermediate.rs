@@ -3,10 +3,11 @@ pub mod dictionary {
 
     use crate::{
         codeblock_parser,
-        expression_parser::{self, get_args, ValueType},
+        codegen::{self, InnerPath},
+        expression_parser::{self, get_args, ValueType, Root, try_get_literal},
         lexer::tokenizer::{Operators, Tokens},
         libloader::{self, Const},
-        tree_walker::tree_walker::{self, ArgNodeType, Err, Line, Node}, codegen::{InnerPath, self},
+        tree_walker::tree_walker::{self, ArgNodeType, Err, Line, Node},
     };
     use core::panic;
     use std::{collections::HashMap, fs::DirEntry, io::Read};
@@ -82,39 +83,30 @@ pub mod dictionary {
         errors: &mut Vec<ErrType>,
     ) -> Option<ConstValue> {
         match constant {
-            ValueType::Literal(val) => {
-                if val.is_simple() {
-                    ConstValue::from_literal(&val, &dictionary, errors)
-                } else {
-                    None
-                }
-            }
             ValueType::AnonymousFunction(fun) => Some(ConstValue::Function((*fun).clone())),
             ValueType::Value(val) => {
                 let unaries = &val.unary;
-                let val = if val.is_simple() {
-                    if val.tail.len() == 0 {
-                        match val.root.0.as_str() {
-                            "true" => Some(ConstValue::Bool(true)),
-                            "false" => Some(ConstValue::Bool(false)),
-                            _ => {
-                                let const_val = dictionary.find_const(&val.root.0);
-                                if let Some(const_val) = const_val {
-                                    if let Some(val) = &const_val.real_value {
-                                        Some((*val).clone())
-                                    } else {
-                                        None
-                                    }
+                let val = match &val.root.0 {
+                    Root::Identifier(val) => match val.as_str() {
+                        "true" => Some(ConstValue::Bool(true)),
+                        "false" => Some(ConstValue::Bool(false)),
+                        _ => {
+                            let const_val = dictionary.find_const(&val);
+                            if let Some(const_val) = const_val {
+                                if let Some(val) = &const_val.real_value {
+                                    Some((*val).clone())
                                 } else {
                                     None
                                 }
+                            } else {
+                                None
                             }
                         }
-                    } else {
-                        None
                     }
-                } else {
-                    None
+                    Root::Literal(lit) => {
+                        ConstValue::from_literal(lit, dictionary, errors)
+                    },
+                    Root::Parenthesis(val) => analyze_const(val, dictionary, errors),
                 };
                 match val {
                     Some(mut val) => {
@@ -177,13 +169,6 @@ pub mod dictionary {
                 }
             }
             ValueType::Blank => Some(ConstValue::Undefined),
-            ValueType::Parenthesis(v, t, unary, modificator) => {
-                if t.len() != 0 {
-                    None
-                } else {
-                    analyze_const(v, dictionary, errors)
-                }
-            }
             _ => None,
         }
     }
@@ -197,7 +182,12 @@ pub mod dictionary {
             load_node(node, dictionary, errors, file_name);
         }
     }
-    pub fn load_node(node: &Node, dictionary: &mut Dictionary, errors: &mut Vec<ErrType>, file_name: &str) {
+    pub fn load_node(
+        node: &Node,
+        dictionary: &mut Dictionary,
+        errors: &mut Vec<ErrType>,
+        file_name: &str,
+    ) {
         let name = if let Tokens::Text(name) = &node.name {
             name
         } else {
@@ -283,9 +273,8 @@ pub mod dictionary {
                     for method in step_inside_arr(&impl_node, "methods") {
                         if let Tokens::Text(txt) = &method.name {
                             match txt.as_str() {
-                                "KWOverload" => {
-                                    overloads.push(get_overload_siginifier(&method, errors, file_name))
-                                }
+                                "KWOverload" => overloads
+                                    .push(get_overload_siginifier(&method, errors, file_name)),
                                 "KWFun" => {
                                     functions.push(get_fun_siginifier(&method, errors, file_name));
                                 }
@@ -300,59 +289,63 @@ pub mod dictionary {
                         line: impl_node.line,
                     })
                 }
-                let constructor = if let Some(constructor) = try_step_inside_val(&node, "constructor") {
-                    if let Tokens::Text(txt) = &constructor.name {
-                        if txt == "KWConstructor" {
-                            let mut args = Vec::new();
-                            for arg in step_inside_arr(&constructor, "arguments") {
-                                let ident = get_ident(&arg);
-                                let kind = get_type(step_inside_val(&arg, "type"), errors, file_name);
-                                args.push(Arg {
-                                    identifier: ident,
-                                    kind,
-                                    line: arg.line,
-                                })
-                            }
-                            let code = if constructor.nodes.contains_key("code") {
-                                codeblock_parser::generate_tree(
-                                    step_inside_val(&constructor, "code"),
-                                    errors,
-                                    file_name,
-                                )
+                let constructor =
+                    if let Some(constructor) = try_step_inside_val(&node, "constructor") {
+                        if let Tokens::Text(txt) = &constructor.name {
+                            if txt == "KWConstructor" {
+                                let mut args = Vec::new();
+                                for arg in step_inside_arr(&constructor, "arguments") {
+                                    let ident = get_ident(&arg);
+                                    let kind =
+                                        get_type(step_inside_val(&arg, "type"), errors, file_name);
+                                    args.push(Arg {
+                                        identifier: ident,
+                                        kind,
+                                        line: arg.line,
+                                    })
+                                }
+                                let code = if constructor.nodes.contains_key("code") {
+                                    codeblock_parser::generate_tree(
+                                        step_inside_val(&constructor, "code"),
+                                        errors,
+                                        file_name,
+                                    )
+                                } else {
+                                    vec![]
+                                };
+                                let return_type = Some(
+                                    ShTypeBuilder::new()
+                                        .set_name(&get_ident(node))
+                                        .set_file(file_name.to_string())
+                                        .set_kind(KindType::Struct)
+                                        .build(),
+                                );
+                                functions.push(Function {
+                                    can_yeet: false,
+                                    identifier: Some(get_ident(&node)),
+                                    args,
+                                    stack_size: None,
+                                    location: 0,
+                                    instrs_end: 0,
+                                    return_type,
+                                    generics: Vec::new(),
+                                    public: false,
+                                    code,
+                                    line: constructor.line,
+                                    pointers: None,
+                                    id: 0,
+                                    takes_self: false,
+                                });
+                                Some(functions.len() - 1)
                             } else {
-                                vec![]
-                            };
-                            let return_type = Some(ShTypeBuilder::new()
-                                                            .set_name(&get_ident(node))
-                                                            .set_file(file_name.to_string())
-                                                            .set_kind(KindType::Struct)
-                                                            .build());
-                            functions.push(Function {
-                                can_yeet: false,
-                                identifier: Some(get_ident(&node)),
-                                args,
-                                stack_size: None,
-                                location: 0,
-                                instrs_end: 0,
-                                return_type,
-                                generics: Vec::new(),
-                                public: false,
-                                code,
-                                line: constructor.line,
-                                pointers: None,
-                                id: 0,
-                                takes_self: false,
-                            });
-                            Some(functions.len() - 1)
-                        }else {
+                                None
+                            }
+                        } else {
                             None
                         }
-                    }else {
+                    } else {
                         None
-                    }
-                }else {
-                    None
-                };
+                    };
                 let mut result = Struct {
                     identifier: get_ident(node),
                     fields: Vec::new(),
@@ -387,10 +380,7 @@ pub mod dictionary {
                 for field in &result.fields {
                     fnames.push(field.0.clone());
                     if field.0 == result.identifier {
-                        errors.push(ErrType::ConflictingNames(
-                            field.0.to_string(),
-                            field.1.line,
-                        ))
+                        errors.push(ErrType::ConflictingNames(field.0.to_string(), field.1.line))
                     }
                 }
                 let mut mnames = Vec::new();
@@ -403,10 +393,7 @@ pub mod dictionary {
                     for fun in &result.functions {
                         if let Some(ident) = &fun.identifier {
                             if ident == &field.0 {
-                                errors.push(ErrType::ConflictingNames(
-                                    ident.to_string(),
-                                    fun.line,
-                                ))
+                                errors.push(ErrType::ConflictingNames(ident.to_string(), fun.line))
                             }
                         }
                     }
@@ -429,7 +416,7 @@ pub mod dictionary {
                 let mut kind = ImportKinds::Rd;
                 let alias = match try_get_ident(&node) {
                     Some(alias) => alias,
-                    None =>{
+                    None => {
                         let alias = path.split("/").last().unwrap();
                         if alias.starts_with("#") {
                             kind = ImportKinds::Dll;
@@ -437,7 +424,7 @@ pub mod dictionary {
                         } else {
                             alias.to_string()
                         }
-                    },
+                    }
                 };
                 dictionary.imports.push(Import {
                     path,
@@ -494,7 +481,7 @@ pub mod dictionary {
                         value: expression_parser::expr_into_tree(
                             step_inside_val(&node, "expression"),
                             errors,
-                            file_name
+                            file_name,
                         ),
                         real_value: None,
                         line: node.line,
@@ -582,7 +569,8 @@ pub mod dictionary {
                     if let Tokens::Text(txt) = &val.name {
                         match txt.as_str() {
                             "expression" => {
-                                let expr = expression_parser::expr_into_tree(&val, errors, file_name);
+                                let expr =
+                                    expression_parser::expr_into_tree(&val, errors, file_name);
                                 //expression_parser::traverse_da_fokin_value(&expr, 0);
                                 fields.push((ident, ErrorField::Expression(expr)));
                             }
@@ -647,7 +635,11 @@ pub mod dictionary {
         }
         result
     }
-    pub fn get_overload_siginifier(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> Overload {
+    pub fn get_overload_siginifier(
+        node: &Node,
+        errors: &mut Vec<ErrType>,
+        file_name: &str,
+    ) -> Overload {
         let operator = get_operator(step_inside_val(&node, "op"));
         let generics = get_generics_decl(&node, errors);
         let kind = if let Some(kind) = try_step_inside_val(step_inside_val(&node, "type"), "type") {
@@ -839,10 +831,10 @@ pub mod dictionary {
                     let mut kind = get_type(&arr_kind, errors, file_name);
                     kind.array_depth += 1;
                     return kind;
-                }else {
+                } else {
                     unreachable!()
                 }
-            }else {
+            } else {
                 unreachable!("This is a bug in the compiler, please report it to the developers");
             }
         };
@@ -858,7 +850,11 @@ pub mod dictionary {
             kind: KindType::None,
         }
     }
-    pub fn get_generics_expr(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> GenericExpr {
+    pub fn get_generics_expr(
+        node: &Node,
+        errors: &mut Vec<ErrType>,
+        file_name: &str,
+    ) -> GenericExpr {
         let mut result = Vec::new();
         if let Some(arr) = try_step_inside_arr(step_inside_val(node, "generic"), "types") {
             for generic_expr in arr {
@@ -907,7 +903,9 @@ pub mod dictionary {
     pub fn get_loop_ident(node: &Node) -> Option<String> {
         if let Tokens::Text(txt) = &step_inside_val(&node, "identifier").name {
             if txt == "loop_ident" {
-                if let Tokens::String(txt) = &step_inside_val(&step_inside_val(&node, "identifier"), "identifier").name {
+                if let Tokens::String(txt) =
+                    &step_inside_val(&step_inside_val(&node, "identifier"), "identifier").name
+                {
                     return Some(txt.to_string());
                 }
             }
@@ -1123,19 +1121,25 @@ pub mod dictionary {
     impl Struct {
         pub fn get_field(&self, name: &str) -> Option<(crate::codegen::StructField, usize)> {
             for field in self.fields.iter().enumerate() {
-                if field.1.0 == name {
-                    return Some((crate::codegen::StructField::Field(field.1.0.clone()), field.0));
+                if field.1 .0 == name {
+                    return Some((
+                        crate::codegen::StructField::Field(field.1 .0.clone()),
+                        field.0,
+                    ));
                 }
             }
             for method in &self.functions {
                 if let Some(ident) = &method.identifier {
                     if ident == name {
-                        return Some((crate::codegen::StructField::Method(method.identifier.clone().unwrap()), 0));
+                        return Some((
+                            crate::codegen::StructField::Method(method.identifier.clone().unwrap()),
+                            0,
+                        ));
                     }
                 }
             }
             for overload in &self.overloads {
-                if  &overload.arg.identifier == name {
+                if &overload.arg.identifier == name {
                     return Some((crate::codegen::StructField::OverloadedOperator(todo!()), 0));
                 }
             }
@@ -1184,67 +1188,56 @@ pub mod dictionary {
     }
     impl ConstValue {
         pub fn from_literal(
-            literal: &expression_parser::Literal,
+            literal: &expression_parser::Literals,
             dictionary: &Dictionary,
             errors: &mut Vec<ErrType>,
         ) -> Option<ConstValue> {
-            let mut negate = -1.0;
-            for op in &literal.unary {
-                match op.0 {
-                    Operators::Minus => negate *= -1.0,
-                    _ => {}
+            match &literal {
+                expression_parser::Literals::Number(num) => {
+                    if let Tokens::Number(num, kind) = *num {
+                        match kind {
+                            'f' => Some(ConstValue::Float(num as f64)),
+                            'u' => Some(ConstValue::Int(num as i64 as i64)),
+                            'n' => Some(ConstValue::Number(num)),
+                            'i' => Some(ConstValue::Int(num as i64 as i64)),
+                            'c' => Some(ConstValue::Char(num as u8 as char)),
+                            _ => None,
+                        }
+                    } else {
+                        None
+                    }
                 }
-            }
-            if literal.is_simple() {
-                match &literal.value {
-                    expression_parser::Literals::Number(num) => {
-                        if let Tokens::Number(num, kind) = *num {
-                            match kind {
-                                'f' => Some(ConstValue::Float(num as f64 * negate)),
-                                'u' => Some(ConstValue::Int(num as i64 * negate as i64)),
-                                'n' => Some(ConstValue::Number(num * negate)),
-                                'i' => Some(ConstValue::Int(num as i64 * negate as i64)),
-                                'c' => Some(ConstValue::Char(num as u8 as char)),
-                                _ => None,
+                expression_parser::Literals::Char(c) => Some(ConstValue::Char(*c)),
+                expression_parser::Literals::Array(arr_rule) => match arr_rule {
+                    expression_parser::ArrayRule::Fill { value, size } => {
+                        let mut arr = Vec::new();
+                        let s = analyze_const(&size, dictionary, errors);
+                        let v = analyze_const(&value, dictionary, errors)
+                            .unwrap_or(ConstValue::Undefined);
+                        if let Some(n) = s {
+                            if let Some(n_data) = n.into_number() {
+                                let (i, _) = n_data;
+                                for _ in 0..i as usize {
+                                    arr.push(v.clone());
+                                }
                             }
+                            Some(ConstValue::Array(arr))
                         } else {
                             None
                         }
                     }
-                    expression_parser::Literals::Char(c) => Some(ConstValue::Char(*c)),
-                    expression_parser::Literals::Array(arr_rule) => match arr_rule {
-                        expression_parser::ArrayRule::Fill { value, size } => {
-                            let mut arr = Vec::new();
-                            let s = analyze_const(&size, dictionary, errors);
-                            let v = analyze_const(&value, dictionary, errors)
-                                .unwrap_or(ConstValue::Undefined);
-                            if let Some(n) = s {
-                                if let Some(n_data) = n.into_number() {
-                                    let (i, _) = n_data;
-                                    for _ in 0..i as usize {
-                                        arr.push(v.clone());
-                                    }
-                                }
-                                Some(ConstValue::Array(arr))
-                            } else {
-                                None
-                            }
+                    expression_parser::ArrayRule::Explicit(values) => {
+                        let mut arr = Vec::new();
+                        for v in values {
+                            let c = analyze_const(&v, dictionary, errors);
+                            arr.push(c.unwrap_or(ConstValue::Undefined));
                         }
-                        expression_parser::ArrayRule::Explicit(values) => {
-                            let mut arr = Vec::new();
-                            for v in values {
-                                let c = analyze_const(&v, dictionary, errors);
-                                arr.push(c.unwrap_or(ConstValue::Undefined));
-                            }
-                            Some(ConstValue::Array(arr))
-                        }
-                    },
-                    expression_parser::Literals::String(str) => {
-                        Some(ConstValue::String(str.clone()))
+                        Some(ConstValue::Array(arr))
                     }
+                },
+                expression_parser::Literals::String(str) => {
+                    Some(ConstValue::String(str.clone()))
                 }
-            } else {
-                None
             }
         }
         pub fn into_number(&self) -> Option<(f64, char)> {
@@ -1460,7 +1453,7 @@ pub mod dictionary {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             for _ in 0..self.refs {
                 write!(f, "&")?;
-            };
+            }
             if let Some(fun) = &self.is_fun {
                 write!(f, "{}", fun.identifier.as_ref().unwrap())?;
                 write!(f, "(")?;
@@ -1516,7 +1509,10 @@ pub mod dictionary {
     }
     macro_rules! display_simple {
         ($this: ident) => {
-            format!("{:?}", $this).trim_start_matches("&").trim_end_matches("?").to_string()
+            format!("{:?}", $this)
+                .trim_start_matches("&")
+                .trim_end_matches("?")
+                .to_string()
         };
     }
 
@@ -1547,7 +1543,7 @@ pub mod dictionary {
             }
             // check if both are the same array depth
             if self.array_depth != other.array_depth {
-                return TypeComparison::NotEqual
+                return TypeComparison::NotEqual;
             }
             if self.main.last() != other.main.last() {
                 return TypeComparison::NotEqual;
@@ -1562,7 +1558,11 @@ pub mod dictionary {
             }*/
             if self.file != other.file && !self.is_primitive() && !other.is_primitive() {
                 println!("{} != {}", display_simple!(self), display_simple!(other));
-                println!("{} != {}", self.file.as_ref().unwrap(), other.file.as_ref().unwrap());
+                println!(
+                    "{} != {}",
+                    self.file.as_ref().unwrap(),
+                    other.file.as_ref().unwrap()
+                );
                 return TypeComparison::NotEqual;
             }
             TypeComparison::Equal
@@ -1572,18 +1572,36 @@ pub mod dictionary {
         }
         pub fn is_number(&self) -> bool {
             let temp = format!("{:?}", self);
-            self.is_primitive() && (temp == "int" || temp == "float" || temp == "char" || temp == "uint")
+            self.is_primitive()
+                && (temp == "int" || temp == "float" || temp == "char" || temp == "uint")
         }
         pub fn is_string(&self) -> bool {
             self.is_primitive() && format!("{:?}", self) == "string"
         }
         pub fn is_primitive(&self) -> bool {
-            let name = &format!("{:?}", self).trim_start_matches("&").trim_end_matches("?").to_string();
-            self.kind == KindType::Primitive || (name == "int" || name == "float" || name == "char" || name == "uint" || name == "bool" || name == "null" || name == "string") 
+            let name = &format!("{:?}", self)
+                .trim_start_matches("&")
+                .trim_end_matches("?")
+                .to_string();
+            self.kind == KindType::Primitive
+                || (name == "int"
+                    || name == "float"
+                    || name == "char"
+                    || name == "uint"
+                    || name == "bool"
+                    || name == "null"
+                    || name == "string")
         }
         pub fn is_primitive_simple(&self) -> bool {
             let name = &format!("{:?}", self);
-            self.kind == KindType::Primitive || (name == "int" || name == "float" || name == "char" || name == "uint" || name == "bool" || name == "null" || name == "string")
+            self.kind == KindType::Primitive
+                || (name == "int"
+                    || name == "float"
+                    || name == "char"
+                    || name == "uint"
+                    || name == "bool"
+                    || name == "null"
+                    || name == "string")
         }
         pub fn core_is_primitive(&self) -> bool {
             let mut kind = self.clone();
@@ -1592,7 +1610,15 @@ pub mod dictionary {
             kind.nullable = false;
             kind.generics = Vec::new();
             let name = &format!("{:?}", self);
-            name == "int" || name == "float" || name == "char" || name == "uint" || name == "bool" || name == "null" || name == "string" || name == "null" || name == "string"
+            name == "int"
+                || name == "float"
+                || name == "char"
+                || name == "uint"
+                || name == "bool"
+                || name == "null"
+                || name == "string"
+                || name == "null"
+                || name == "string"
         }
         pub fn is_bool(&self) -> bool {
             self.is_primitive() && format!("{:?}", self) == "bool"
@@ -1751,7 +1777,15 @@ pub mod dictionary {
             };
             let len = main.len();
             let first = &main[0];
-            if len == 1 && first == "int" && first == "uint" && first == "float" && first == "char" && first == "bool" && first == "string" && first == "null" {
+            if len == 1
+                && first == "int"
+                && first == "uint"
+                && first == "float"
+                && first == "char"
+                && first == "bool"
+                && first == "string"
+                && first == "null"
+            {
                 self.kind = KindType::Primitive;
             }
             ShallowType {
@@ -1877,7 +1911,7 @@ pub mod dictionary {
         /// len1 len2
         ArrayDiff(usize, usize),
         /// The other type is null while this doesnt allow null
-        NotNullable
+        NotNullable,
     }
     impl TypeComparison {
         pub fn is_equal(&self) -> bool {

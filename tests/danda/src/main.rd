@@ -6,9 +6,7 @@ import "danda.rd"
 
 
 fun main() {
+    let a = 60
 
-    let test = sdf?
+    a = (6+2)
 }
-
-
-// highlight self null

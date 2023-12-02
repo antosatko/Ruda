@@ -321,7 +321,7 @@ if str.NaN() {
 "
 KWYeet err
 	"yeet" harderr="true"
-	variable set="err"
+	value set="err"
 	;?;
 
 
@@ -570,8 +570,7 @@ expression [nodes ignore
 	"_" ? set="ignore" end="true"
 	anonymous_function ? set="nodes" end="false"
 	value ? set="nodes"
-	operator ? set="nodes" back="1"
-	notempty ! nodes="nodes";
+	operator ? set="nodes" back="1";
 
 expression_option [nodes ignore
 	"_" ? set="ignore" end="true"
@@ -586,16 +585,15 @@ example: danda[5].touch_grass(9)
               ~~~~~~~~~~~~~~~~~~ <- everything here is tail
 "
 variable_tail [nodes
-	nested ? set="nodes" back="0"
-	idx ? set="nodes" back="1"
-	function_call ? set="nodes" back="2"
+	nested ? set="nodes" back="0" harderr="true"
+	idx ? set="nodes" back="1" harderr="true"
+	function_call ? set="nodes" back="2" harderr="true"
 	cast ? set="nodes";
 
 free_parenthesis expression tail
 	( harderr="true"
 	expression set="expression"
-	)
-	variable_tail set="tail";
+	);
 
 operator op
 	< ? set="op" end="true"
@@ -640,30 +638,34 @@ overloadable_op op
 
 parenthesis [expressions
 	( harderr="true"
+	) ? end="true"
 	expression_option ? set="expressions"
-	, ? back="1"
+		, ? back="1"
 	);
 
 value_prepend ref keywords unary
 	ref_tok ? set="ref"
 	value_mod ? set="keywords" harderr="true"
-	unary_op set="unary";
+	unary_op ? set="unary";
 
-value value prepend
+value root prepend tail
 	value_prepend set="prepend"
-	variable ? set="value" end="false"
-	literal ? set="value" end="false"
+	value_root set="root" harderr="true"
+	variable_tail set="tail";
+
+value_root value
+	ident ? set="value" end="false"
+	"'number" ? set="value" end="true"
+	"'char" ? set="value" end="true"
+	"'string" ? set="value" end="true"
 	free_parenthesis ? set="value" end="false"
+	array_expr ? set="value" end="false"
 	"'any" err="true";
+
 
 unary_op [op
 	! ? set="op" back="0"
 	- ? set="op" back="1";
-
-variable identifier tail
-	ident set="identifier"
-	variable_tail set="tail";
-
 
 literal value
 	"'number" ? set="value" end="true"

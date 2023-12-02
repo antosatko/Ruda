@@ -155,6 +155,23 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
                 // return the key
                 return Ok(Types::Char(key));
             }
+            // std::clear
+            7 => {
+                use console::Term;
+                let term = Term::stdout();
+                // clear the terminal
+                match term.clear_screen() {
+                    Ok(_) => (),
+                    Err(why) => {
+                        return Err(runtime_error::ErrTypes::Message(format!(
+                            "Couldn't clear screen: {}",
+                            why
+                        )))
+                    }
+                
+                };
+                return Ok(Types::Void);
+            }
             _ => {
                 unreachable!("Invalid function id")
             }
@@ -175,6 +192,7 @@ fn register() -> String {
     fun vmargs(): &[string] > 4i
     fun inputln(): string > 5i
     fun getChar(): char > 6i
+    fun clear()! > 7i
     "#.to_string()
 }
 

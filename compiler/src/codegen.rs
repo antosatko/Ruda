@@ -13,7 +13,7 @@ use runtime::runtime_types::{
 };
 
 use crate::codeblock_parser::Nodes;
-use crate::expression_parser::{self, traverse_da_fokin_value, FunctionCall, Ref, ValueType};
+use crate::expression_parser::{self, traverse_da_fokin_value, FunctionCall, Ref, ValueType, Root};
 use crate::intermediate::dictionary::{
     self, Arg, ConstValue, Correction, Function, ShTypeBuilder, ShallowType, TypeComparison,
 };
@@ -425,7 +425,7 @@ fn expression(
         None => None,
     };
     match expr {
-        ValueType::Literal(lit) => {
+        /*ValueType::Literal(lit) => {
             match &lit.value {
                 expression_parser::Literals::Number(tok) => {
                     if lit.refs != Ref::None {
@@ -653,9 +653,9 @@ fn expression(
                         .build();
                 }
             }
-        }
+        }*/
         ValueType::AnonymousFunction(_) => todo!(),
-        ValueType::Parenthesis(expr, tail, unary, modificator) => {
+        /*ValueType::Parenthesis(expr, tail, unary, modificator) => {
             let mut kind = expression(objects, expr, scopes, code, context, &fun, scope_len, None)?;
             traverse_tail(
                 objects,
@@ -690,7 +690,7 @@ fn expression(
                 }
             }
             return_kind = kind;
-        }
+        }*/
         ValueType::Expression(expr) => {
             let left = match expr.left.as_ref() {
                 Some(left) => left,
@@ -714,6 +714,7 @@ fn expression(
                     line: expr.line.clone(),
                 },
             );
+            println!("variables: {:?}", scopes[len - 1].variables);
             code.write(GENERAL_REG1, &var);
             let right_kind = expression(
                 objects,
@@ -753,7 +754,7 @@ fn expression(
         ),
         ValueType::Value(value) => {
             // check for inner const
-            if value.is_true_simple() && value.root.0 == "true" {
+            /*if value.is_true_simple() && value.root.0 == "true" {
                 code.push(ReadConst(1, GENERAL_REG1));
                 return_kind = ShTypeBuilder::new()
                     .set_name("bool")
@@ -771,7 +772,7 @@ fn expression(
                     .set_name("null")
                     .set_kind(dictionary::KindType::Primitive)
                     .build();
-            } else {
+            } else {*/
                 return_kind = gen_value(
                     objects,
                     value,
@@ -783,7 +784,7 @@ fn expression(
                     ExpectedValueType::Value,
                 )?
                 .get_kind()?;
-            }
+            //}
             for un in value.unary.iter() {
                 return_kind = native_unary_operand(
                     objects,
@@ -939,7 +940,11 @@ fn gen_value(
         Some(scopes),
         &fun.file,
         &value.root.1,
+        context,
+        code,
+        scope_len,
     )?;
+    println!("{:?}", root);
     let pos = traverse_tail(
         objects,
         &mut value.tail.iter(),
@@ -1100,66 +1105,118 @@ fn gen_value(
 }
 
 fn identify_root(
-    objects: &Context,
-    ident: &str,
+    objects: &mut Context,
+    ident: &Root,
     scopes: Option<&mut Vec<ScopeCached>>,
     file: &str,
     line: &Line,
+    context: &mut runtime_types::Context,
+    code: &mut Code,
+    scope_len: &mut usize,
 ) -> Result<Position, CodegenError> {
-    if let Some(scopes) = scopes {
-        if let Some(var) = find_var(scopes, &ident) {
-            return Ok(Position::Variable(
+    use Instructions::*;
+    match ident {
+        Root::Identifier(ident) => {
+            if let Some(scopes) = scopes {
+                if let Some(var) = find_var(scopes, &ident) {
+                    return Ok(Position::Variable(
+                        ident.to_string(),
+                        var.kind.clone().unwrap(),
+                    ));
+                }
+            }
+            if let Some((fname, kind)) = find_import(objects, &ident, &file) {
+                match kind {
+                    dictionary::ImportKinds::Dll => {
+                        return Ok(Position::BinImport(fname.to_string()));
+                    }
+                    dictionary::ImportKinds::Rd => {
+                        return Ok(Position::Import(fname.to_string()));
+                    }
+                }
+            }
+            if let Some(fun) = find_fun(objects, &ident, &file) {
+                let kind = match &fun {
+                    FunctionKind::Fun(fun) => {
+                        let fun = fun.get(objects)?;
+                        fun.return_type.clone().unwrap_or(
+                            ShTypeBuilder::new()
+                                .set_name("null")
+                                .set_kind(dictionary::KindType::Primitive)
+                                .build(),
+                        )
+                    }
+                    FunctionKind::Binary(fun) => {
+                        let fun = fun.get_bin(objects)?;
+                        fun.return_type.clone()
+                    }
+                    FunctionKind::Dynamic(kind) => kind.clone(),
+                };
+                return Ok(Position::Function(fun, kind));
+            }
+            if let Some((fname, struc)) = find_struct(objects, &ident, &file) {
+                return Ok(Position::Struct(ShallowType::from_struct(
+                    struc.identifier.to_string(),
+                    fname.to_string(),
+                    struc.line,
+                )));
+            }
+            Err(CodegenError::VariableNotFound(
                 ident.to_string(),
-                var.kind.clone().unwrap(),
-            ));
-        }
-    }
-    if let Some((fname, kind)) = find_import(objects, &ident, &file) {
-        match kind {
-            dictionary::ImportKinds::Dll => {
-                return Ok(Position::BinImport(fname.to_string()));
-            }
-            dictionary::ImportKinds::Rd => {
-                return Ok(Position::Import(fname.to_string()));
-            }
-        }
-    }
-    if let Some(fun) = find_fun(objects, &ident, &file) {
-        let kind = match &fun {
-            FunctionKind::Fun(fun) => {
-                let fun = fun.get(objects)?;
-                fun.return_type.clone().unwrap_or(
-                    ShTypeBuilder::new()
-                        .set_name("null")
+                line.clone(),
+            ))?
+        },
+        Root::Literal(lit) => {
+            match lit {
+                expression_parser::Literals::Number(n) => {
+                    let const_num = match n.into_const_number() {
+                        Some(num) => num,
+                        None => {
+                            unreachable!("number not handled properly by the compiler, please report this bug");
+                        }
+                    };
+                    let pos = new_const(context, &const_num.0)?;
+                    code.push(ReadConst(pos, GENERAL_REG1));
+                    return Ok(Position::Value(const_num.1));
+                },
+                expression_parser::Literals::Array(rule) => todo!(),
+                expression_parser::Literals::String(str) => {
+                    let pos = new_const(context, &ConstValue::String(str.clone()))?;
+                    code.push(ReadConst(pos, GENERAL_REG1));
+                    return Ok(Position::Value(ShTypeBuilder::new()
+                        .set_name("string")
                         .set_kind(dictionary::KindType::Primitive)
-                        .build(),
-                )
+                        .build()));
+                }
+                expression_parser::Literals::Char(c) => {
+                    let pos = new_const(context, &ConstValue::Char(*c))?;
+                    code.push(ReadConst(pos, GENERAL_REG1));
+                    return Ok(Position::Value(ShTypeBuilder::new()
+                        .set_name("char")
+                        .set_kind(dictionary::KindType::Primitive)
+                        .build()));
+                }
             }
-            FunctionKind::Binary(fun) => {
-                let fun = fun.get_bin(objects)?;
-                fun.return_type.clone()
-            }
-            FunctionKind::Dynamic(kind) => kind.clone(),
-        };
-        return Ok(Position::Function(fun, kind));
+        },
+        Root::Parenthesis(val) => {
+            let kind = expression(
+                objects,
+                val,
+                scopes.unwrap(),
+                code,
+                context,
+                &InnerPath {
+                    file: file.to_string(),
+                    block: None,
+                    ident: "".to_string(),
+                    kind: ImportKinds::Rd,
+                },
+                scope_len,
+                None,
+            )?;
+            return Ok(Position::Value(kind));
+        },
     }
-    if let Some((fname, struc)) = find_struct(objects, &ident, &file) {
-        return Ok(Position::Struct(ShallowType::from_struct(
-            struc.identifier.to_string(),
-            fname.to_string(),
-            struc.line,
-        )));
-    }
-    // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE
-    // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE
-    // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE
-    Err(CodegenError::VariableNotFound(
-        ident.to_string(),
-        line.clone(),
-    ))?
-    // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE
-    // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE
-    // THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE THIS ONE
 }
 
 fn traverse_tail(
@@ -1178,13 +1235,13 @@ fn traverse_tail(
         Some(node) => match &node.0 {
             expression_parser::TailNodes::Nested(ident) => match &pos {
                 Position::Import(fname) => {
-                    let root = identify_root(objects, &ident, Some(scopes), &fname, &node.1)?;
+                    let root = identify_root(objects, &Root::Identifier(ident.to_string()), Some(scopes), &fname, &node.1, context, code, scope_len)?;
                     return traverse_tail(
                         objects, tail, context, scopes, code, fun, root, scope_len,
                     );
                 }
                 Position::BinImport(fname) => {
-                    let root = identify_root(objects, &ident, Some(scopes), &fname, &node.1)?;
+                    let root = identify_root(objects, &Root::Identifier(ident.to_string()), Some(scopes), &fname, &node.1, context, code, scope_len)?;
                     return traverse_tail(
                         objects, tail, context, scopes, code, fun, root, scope_len,
                     );
@@ -1278,9 +1335,6 @@ fn traverse_tail(
                 Position::Function(_, kind) => {
                     Err(CodegenError::CannotAttachMethodsToFunctions(node.1.clone()))?
                 }
-                Position::ReturnValue(val) => {
-                    todo!()
-                }
                 Position::Pointer(ptr) => {
                     todo!()
                 }
@@ -1321,7 +1375,6 @@ fn traverse_tail(
                 Position::Pointer(ptr) => {
                     todo!()
                 }
-                Position::ReturnValue(_) => todo!(),
                 Position::Struct(_) => Err(CodegenError::CannotIndexNonArray(
                     pos.clone(),
                     node.1.clone(),
@@ -2115,7 +2168,6 @@ fn get_scope(
                             _ => todo!(),
                         }
                     }
-                    ValueType::Parenthesis(value, tail, unaries, _) => {}
                     _ => {
                         unreachable!(
                             "target not handled properly by the compiler, please report this bug"
@@ -2374,7 +2426,6 @@ enum Position {
     BinImport(String),
     Variable(String, ShallowType),
     Pointer(ShallowType),
-    ReturnValue(ShallowType),
     Struct(ShallowType),
     Value(ShallowType),
 }
@@ -2386,7 +2437,6 @@ impl Position {
             Position::StructField(_, _, kind) => kind.clone(),
             Position::Variable(_, kind) => kind.clone(),
             Position::Pointer(kind) => kind.clone(),
-            Position::ReturnValue(kind) => kind.clone(),
             Position::Struct(kind) => kind.clone(),
             Position::Value(kind) => kind.clone(),
             _ => Err(CodegenError::CannotGetKind(self.clone()))?,

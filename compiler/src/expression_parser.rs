@@ -16,13 +16,6 @@ pub fn traverse_da_fokin_value(val: &ValueType, depth: usize) {
         ValueType::Value(val) => {
             println!("{}Value {:?}", "-".repeat(depth), val.root);
         }
-        ValueType::Literal(val) => {
-            println!("{}Literal {:?}", "-".repeat(depth), val.value);
-        }
-        ValueType::Parenthesis(val, _, _, _) => {
-            println!("{}Parenthesis", "-".repeat(depth));
-            traverse_da_fokin_value(val, depth + 1);
-        }
         ValueType::Expression(val) => {
             println!(
                 "{}Expression {:?}",
@@ -52,7 +45,7 @@ pub fn expr_into_tree(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -
     //println!("expr_into_tree: {:?}", node);
     let nodes = step_inside_arr(&node, "nodes");
     if nodes.len() == 0 {
-        return ValueType::Expression(Box::new(ExprNode::blank()));
+        return ValueType::Blank;
     }
     if let Tokens::Text(str) = &nodes[0].name {
         if str == "anonymous_function" {
@@ -176,7 +169,11 @@ impl std::fmt::Display for TreeTransformError {
     }
 }
 
-pub fn transform_expr(nodes: &Vec<Node>, errors: &mut Vec<ErrType>, file_name: &str) -> Vec<ValueType> {
+pub fn transform_expr(
+    nodes: &Vec<Node>,
+    errors: &mut Vec<ErrType>,
+    file_name: &str,
+) -> Vec<ValueType> {
     let mut result = vec![];
     for node in nodes {
         if let Some(op) = try_get_op(&node, errors) {
@@ -198,30 +195,91 @@ pub fn try_get_value(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) ->
         }
     }
     let prepend = get_prepend(step_inside_val(&node, "prepend"), errors);
-    if let Some(car) = try_get_variable(step_inside_val(&node, "value"), errors, file_name) {
-        return Some(ValueType::Value(Variable {
-            unary: prepend.2,
-            refs: prepend.0,
-            modificatior: prepend.1,
-            root: car.0,
-            tail: car.1,
-            line: node.line,
-        }));
+    let tail = get_tail(step_inside_val(&node, "tail"), errors, file_name);
+    let root = get_root(step_inside_val(&node, "root"), errors, file_name);
+    return Some(ValueType::Value(Variable {
+        unary: prepend.2,
+        refs: prepend.0,
+        modificatior: prepend.1,
+        // change this to real root
+        root: (root, step_inside_val(&node, "root").line),
+        tail,
+        line: node.line,
+    }));
+}
+
+/// returns root of value
+fn get_root(_node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> Root {
+    if let Tokens::Text(txt) = &_node.name {
+        if txt != "value_root" {
+            unreachable!("get_root has to be called on root node, please report this bug")
+        }
     }
-    if let Some(lit) = try_get_literal(step_inside_val(&node, "value"), errors, &prepend, file_name) {
-        return Some(ValueType::Literal(lit));
+    let node = step_inside_val(&_node, "value");
+    match &node.name {
+        Tokens::Text(txt) => {
+            if txt == "free_parenthesis" {
+                let expr = try_get_parenthesis(&node, errors, file_name);
+                if let Some(expr) = expr {
+                    return Root::Parenthesis(Box::new(expr));
+                }
+            }
+            if txt == "ident" {
+                let ident = match &step_inside_val(&node, "identifier").name {
+                    Tokens::Text(txt) => txt,
+                    _ => unreachable!("ident has to have identifier as a child, please report this bug"),
+                };
+                return Root::Identifier(ident.clone());
+            }
+            if txt == "array_expr" {
+                let array = step_inside_val(&node, "array");
+                let name = if let Tokens::Text(txt) = &array.name {
+                    txt.as_str()
+                } else {
+                    unreachable!("array_expr has to have array as a child, please report this bug")
+                };
+                match name {
+                    "array_builder" => {
+                        let value = expr_into_tree(&step_inside_val(&array, "value"), errors, file_name);
+                        let size = expr_into_tree(&step_inside_val(&array, "size"), errors, file_name);
+                        return Root::Literal(Literals::Array(ArrayRule::Fill {
+                            value: Box::new(value),
+                            size: Box::new(size),
+                        }));
+                    }
+                    "array_literal" => {
+                        let values = step_inside_arr(&array, "values");
+                        let mut result = vec![];
+                        for value in values {
+                            result.push(expr_into_tree(&value, errors, file_name));
+                        }
+                        return Root::Literal(Literals::Array(ArrayRule::Explicit(result)));
+                    }
+                    _ => unreachable!("array_expr has to be either array_builder or array_literal, please report this bug")
+                }
+            }
+        }
+        Tokens::Number(_, _) => {
+            return Root::Literal(Literals::Number(node.name.clone()));
+        }
+        Tokens::String(str) => {
+            return Root::Literal(Literals::String(str.clone()));
+        }
+        Tokens::Char(chr) => {
+            return Root::Literal(Literals::Char(chr.clone()));
+        }
+        _ => {
+            unreachable!("get_root has to be called on root node, please report this bug")
+        }
     }
-    if let Some(paren) = try_get_parenthesis(step_inside_val(&node, "value"), errors, file_name) {
-        return Some(ValueType::Parenthesis(Box::new(paren.0), paren.1, prepend.2, prepend.1));
-    }
-    None
+    unreachable!("get_root has to be called on root node, please report this bug")
 }
 
 pub fn try_get_literal(
     node: &Node,
     errors: &mut Vec<ErrType>,
     prepend: &(Ref, Option<(String, Line)>, Vec<(Operators, Line)>),
-    file_name: &str
+    file_name: &str,
 ) -> Option<Literal> {
     if let Tokens::Text(txt) = &node.name {
         if txt != "literal" {
@@ -303,7 +361,7 @@ pub fn try_get_literal(
 pub fn try_get_variable(
     node: &Node,
     errors: &mut Vec<ErrType>,
-    file_name: &str
+    file_name: &str,
 ) -> Option<((String, Line), Vec<(TailNodes, Line)>)> {
     if let Tokens::Text(txt) = &node.name {
         if txt != "variable" {
@@ -332,16 +390,15 @@ pub fn get_args(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> Vec<
 pub fn try_get_parenthesis(
     node: &Node,
     errors: &mut Vec<ErrType>,
-    file_name: &str
-) -> Option<(ValueType, Vec<(TailNodes, Line)>)> {
+    file_name: &str,
+) -> Option<ValueType> {
     if let Tokens::Text(txt) = &node.name {
         if txt != "free_parenthesis" {
             return None;
         }
     }
-    let tail = get_tail(step_inside_val(&node, "tail"), errors, file_name);
     let expression = expr_into_tree(step_inside_val(&node, "expression"), errors, file_name);
-    Some((expression, tail))
+    Some(expression)
 }
 
 pub fn get_tail(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> Vec<(TailNodes, Line)> {
@@ -483,10 +540,9 @@ impl ExprNode {
 }
 #[derive(Debug, Clone)]
 pub enum ValueType {
-    Literal(Literal),
     AnonymousFunction(Function),
-    /// parenthesis
-    Parenthesis(Box<ValueType>, Vec<(TailNodes, Line)>, Vec<(Operators, Line)>, Option<(String, Line)>),
+    // parenthesis moved as a root of value
+    // Parenthesis(Box<ValueType>, Vec<(TailNodes, Line)>, Vec<(Operators, Line)>, Option<(String, Line)>),
     Expression(Box<ExprNode>),
     /// only for inner functionality
     Operator(Operators, Line),
@@ -496,9 +552,6 @@ pub enum ValueType {
 impl ValueType {
     pub fn fun(fun: Function) -> ValueType {
         ValueType::AnonymousFunction(fun)
-    }
-    pub fn value(val: Literal) -> ValueType {
-        ValueType::Literal(val)
     }
     pub fn is_expression(&self) -> bool {
         match self {
@@ -556,12 +609,19 @@ pub struct Variable {
     /// for longer variables
     /// example: *danda[5].touch_grass(9)
     ///           ~~~~~ <- this is considered root
-    pub root: (String, Line),
+    pub root: (Root, Line),
     /// for longer variables
     /// example: danda[5].touch_grass(9)
     /// danda is root .. rest is tail
     pub tail: Vec<(TailNodes, Line)>,
     pub line: Line,
+}
+
+#[derive(Debug, Clone)]
+pub enum Root {
+    Literal(Literals),
+    Parenthesis(Box<ValueType>),
+    Identifier(String),
 }
 
 impl Variable {
