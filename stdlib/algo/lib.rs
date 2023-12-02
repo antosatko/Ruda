@@ -15,9 +15,6 @@ use runtime::*;
 
 
 const STRUCT_ID: usize = 0;
-pub struct Algo{
-    my_id: usize,
-}
 
 
 /// returns (this, array_ptr, data_loc, len)
@@ -73,30 +70,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
 
 #[no_mangle]
 fn register() -> String {
-r#"
-struct Array<T(Primitive)> > 0i {
-    data: &T,
-}
-
-impl Array {
-    fun constructor() > 0i
-    fun push(&self=reg.ptr, val=reg.g1: T) > 1i
-    fun pop(&self=reg.ptr)!: T > 2i
-    fun remove(&self=reg.ptr, index=reg.g1: int)!: T > 3i
-    fun len(&self=reg.ptr): int > 4i
-
-
-    // overload [ (index=reg.g1: int)!: &T > 28i // fix overloads first
-}
-
-impl Array trait Iterator {
-    fun next(&self=reg.ptr): T? > 29i
-}
-
-trait Iterator<T> > 1i {
-    fun next(&self=reg.ptr): T?
-}
-"#.to_string()
+    String::new()
 }
 
 

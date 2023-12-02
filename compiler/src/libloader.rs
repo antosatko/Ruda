@@ -18,7 +18,8 @@ pub fn load(
     let tree = match generate_tree(&tokens, ast, &lines) {
         Ok(tree) => tree,
         Err(err) => {
-            return Err(format!("Failed to generate tree. {:?}", err));
+            println!("{}", String::from_utf8_lossy(string));
+            return Err(format!("Failed to generate tree. {:?} in {}", err, file_name));
         }
     };
     let mut errors = Vec::new();

@@ -9,12 +9,17 @@ entry [nodes
 	KWUserdata ? set="nodes" back="7"
 	"'eof";
 
-KWUserdata identifier assign generics
+KWUserdata identifier assign generics [methods [traits constructor
 	"userdata" harderr="true"
 	ident set="identifier"
 	generic_decl ? set="generics"
 	assign set="assign"
-	; ?;
+	{
+	KWConstructor ? set="constructor" back="0"
+	KWFun ? set="methods" back="0" debug="true"
+	KWOverload ? set="methods" back="1"
+	KWImpl ? set="traits" back="0"
+	};
 
 generic_expr [types
 	< harderr="true"
@@ -78,13 +83,7 @@ type_ident_null [nodes nullable
 array_decl type size
 	[ harderr="true"
 	type set="type"
-	; ?
-		num_none set="size"
 	];
-
-num_none num
-	"'int" ? set="num" end="true"
-	"_" ? set="num" end="true";
 
 
 "
@@ -98,13 +97,15 @@ KWType identifier type assign
 	assign set="assign"
 	;?;
 
-KWEnum identifier [values assign
+KWEnum identifier [values assign [methods [traits 
 	"enum" harderr="true"
 	ident set="identifier"
 	assign set="assign"
 	{
 	enum_value ? set="values"
-	, ? back="1"
+	KWFun ? set="methods" back="0"
+	KWOverload ? set="methods" back="1"
+	KWImpl ? set="traits" back="0"
 	};
 
 enum_value identifier default
@@ -120,16 +121,29 @@ struct Danda <T> {
 	age: int,
 	things: [T, 50],
 }
-"
-KWStruct identifier [keys generic assign
+" 
+KWStruct identifier [keys generic assign constructor [methods [traits
 	"struct" harderr="true"
 	ident set="identifier"
 	generic_decl ? set="generic"
 	assign set="assign"
 	{
-	struct_arg ? set="keys"
-	, ? back="1"
+	struct_arg ? set="keys" back="0"
+	KWConstructor ? set="constructor"
+	KWFun ? set="methods" back="0"
+	KWOverload ? set="methods" back="1"
+	KWImpl ? set="traits" back="0"
 	};
+
+KWConstructor args errorable generic assign
+	"new" harderr="true"
+	generic_decl ? set="generic"
+	(
+	arg ? set="args"
+	, ? back="1"
+	)
+	! ? set="errorable"
+	assign set="assign";
 
 struct_arg identifier type
 	ident set="identifier" harderr="true"
@@ -142,12 +156,10 @@ impl Danda(Rusty) {
 	fun move(self){}
 }
 "
-KWImpl identifier [methods [traits generic
+KWImpl identifier [methods generic
 	"impl" harderr="true"
 	ident set="identifier"
-	"trait" ?
-		type_ident ? set="traits"
-		generic_decl ? set="generic"
+	generic_decl ? set="generic"
 	{
 	KWOverload ? set="methods" back="0"
 	KWFun ? set="methods" back="1"
@@ -191,7 +203,7 @@ KWFun identifier [arguments type errorable assign generic
 	generic_decl ? set="generic"
 	(
 	self_arg ? set="arguments"
-	arg ? set="arguments"
+	arg ? set="arguments" debug="true"
 	, ? back="1"
 	)
 	! ? set="errorable"

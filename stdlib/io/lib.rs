@@ -185,6 +185,8 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
 fn register() -> String {
     return r#"
     
+
+    
     fun print(msg=reg.ptr: string) > 0i
     fun println(msg=reg.ptr: string) > 1i
     fun input(): string > 2i

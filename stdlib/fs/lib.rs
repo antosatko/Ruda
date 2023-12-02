@@ -335,12 +335,12 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
     return Ok(runtime_types::Types::Void);
 }
 
+
+
 #[no_mangle]
 fn register() -> String {
     r#"
-    userdata File > 0i
-    
-    impl File {
+    userdata File > 0i {
         fun read(&self=reg.ptr): string > 5i
         fun write(&self=reg.ptr, data=reg.G1:string)! > 6i
         fun append(&self=reg.ptr, data=reg.G1:string)! > 7i

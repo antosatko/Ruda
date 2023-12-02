@@ -1256,7 +1256,7 @@ fn traverse_tail(
                     };
                     let pos_cloned = var.pos.clone();
                     let kind = var.kind.as_ref().unwrap().clone();
-
+                    
                     if kind.kind == dictionary::KindType::Struct {
                         let structt = find_struct(
                             objects,

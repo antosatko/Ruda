@@ -6,7 +6,5 @@ import "danda.rd"
 
 
 fun main() {
-    let a = 60
-
-    a = (6+2)
+    let a = (danda.Danda(9)).add(6)
 }
