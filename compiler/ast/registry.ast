@@ -7,6 +7,7 @@ entry [nodes
 	KWEnum ? set="nodes" back="5"
 	KWConst ? set="nodes" back="6"
 	KWUserdata ? set="nodes" back="7"
+	; ? back="8"
 	"'eof";
 
 KWUserdata identifier assign generics [methods [traits constructor
@@ -198,8 +199,8 @@ fun danda(&self) {}
 fun danda(self) {}
 "
 KWFun identifier [arguments type errorable assign generic
-	"fun" harderr="true"
-	ident set="identifier"
+	"fun" harderr="true" 
+	ident set="identifier" 
 	generic_decl ? set="generic"
 	(
 	self_arg ? set="arguments"
@@ -325,7 +326,7 @@ RESERVED
 
 ident identifier
 	RESERVED ? err="identifier name is reserved"
-	"'text" set="identifier";
+	"'text" set="identifier" debug="true";
 
 assign num
 	>

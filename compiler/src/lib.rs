@@ -268,7 +268,12 @@ pub fn build_binaries(
 
 pub fn build_std_lib(ast: &mut (HashMap<String, Head>, Vec<HeadParam>)) -> Result<Vec<(libloader::Dictionary, String)>, String> {
     let mut binaries = Vec::new();
-    let mut path = env::var("RUDA_PATH").unwrap_or_else(|_| ".".to_string());
+    let mut path = match env::var("RUDA_PATH") {
+        Ok(path) => path,
+        Err(_) => {
+            return Err(format!("Could not find stdlibs."));
+        }
+    };
     path.push_str("/stdlib");
     if !std::path::Path::new(&path).exists() {
         return Err(format!("Could not find stdlib at '{}'.", path));
@@ -312,6 +317,7 @@ pub fn build_std_lib(ast: &mut (HashMap<String, Head>, Vec<HeadParam>)) -> Resul
                 break;
             }
         }
+        println!("Loading stdlib: {}", path);
         let lib = libload(path, ast, &name)?;
         binaries.push((lib, filename));
     }

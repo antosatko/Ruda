@@ -70,7 +70,10 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
 
 #[no_mangle]
 fn register() -> String {
-    String::new()
+    r#"
+    
+    
+    "#.to_string()
 }
 
 

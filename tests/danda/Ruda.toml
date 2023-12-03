@@ -16,7 +16,6 @@ description = "description"
 [dependencies]
 
 [binaries]
-algo = "algo.dll"
 
 [profile.default]
 
