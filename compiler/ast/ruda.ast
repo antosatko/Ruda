@@ -495,7 +495,6 @@ KWOverload op arg type code generic errorable public
 
 
 self_arg args ref
-	ref_type ? set="ref"
 	"self" set="args";
 
 generic_decl [identifiers

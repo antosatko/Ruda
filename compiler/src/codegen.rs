@@ -1,11 +1,7 @@
 use core::panic;
 use intermediate::dictionary::ImportKinds;
 use std::collections::HashMap;
-use std::fmt::Pointer;
-use std::ops::Index;
-use std::panic::Location;
-use std::thread::Scope;
-use std::{path, vec};
+use std::vec;
 
 use runtime::runtime_types::{
     self, Instructions, Memory, Stack, Types, ARGS_REG, CODE_PTR_REG, GENERAL_REG1, GENERAL_REG2,
@@ -13,15 +9,15 @@ use runtime::runtime_types::{
 };
 
 use crate::codeblock_parser::Nodes;
-use crate::expression_parser::{self, traverse_da_fokin_value, FunctionCall, Ref, ValueType, Root};
+use crate::expression_parser::{self, FunctionCall, Ref, ValueType, Root};
 use crate::intermediate::dictionary::{
-    self, Arg, ConstValue, Correction, Function, ShTypeBuilder, ShallowType, TypeComparison,
+    self, Arg, ConstValue, Function, ShTypeBuilder, ShallowType, TypeComparison,
 };
-use crate::lexer::tokenizer::{self, Operators, Tokens};
-use crate::tree_walker::tree_walker::{Err, Line};
+use crate::lexer::tokenizer::{self, Operators};
+use crate::tree_walker::tree_walker::Line;
 use crate::{intermediate, prep_objects::Context};
 
-use crate::libloader::{self, MemoryTypes, Registers};
+use crate::libloader::{self, MemoryTypes};
 
 const CORE_LIB: usize = 4;
 
@@ -956,9 +952,9 @@ fn gen_value(
         scope_len,
     )?;
     let kind = match &pos {
-        Position::StructField(path, field, kind) => {
+        Position::CompoundField(path, field, kind) => {
             let ident = match field {
-                StructField::Field(ident) => ident,
+                CompoundField::Field(ident) => ident,
                 _ => todo!(),
             };
             let structt = find_struct(objects, &path.ident, kind.file.as_ref().unwrap())
@@ -1155,7 +1151,7 @@ fn identify_root(
                 return Ok(Position::Function(fun, kind));
             }
             if let Some((fname, struc)) = find_struct(objects, &ident, &file) {
-                return Ok(Position::Struct(ShallowType::from_struct(
+                return Ok(Position::Compound(ShallowType::from_struct(
                     struc.identifier.to_string(),
                     fname.to_string(),
                     struc.line,
@@ -1267,7 +1263,7 @@ fn traverse_tail(
                         .1;
                         let field = match structt.get_field(&ident) {
                             Some((field, idx)) => match field {
-                                StructField::Field(ident) => {
+                                CompoundField::Field(ident) => {
                                     code.read(&pos_cloned, POINTER_REG);
                                     code.extend(&[
                                         IndexStatic(idx + 1),
@@ -1282,21 +1278,21 @@ fn traverse_tail(
                                         scopes,
                                         code,
                                         fun,
-                                        Position::StructField(
+                                        Position::CompoundField(
                                             InnerPath {
                                                 file: kind.file.clone().unwrap(),
                                                 block: Some(structt.identifier.to_string()),
                                                 ident: kind.main.first().unwrap().clone(),
                                                 kind: ImportKinds::Rd,
                                             },
-                                            StructField::Field(ident.clone()),
+                                            CompoundField::Field(ident.clone()),
                                             kind,
                                         ),
                                         scope_len,
                                     );
                                     return pos;
                                 }
-                                StructField::Method(ident) => {
+                                CompoundField::Method(ident) => {
                                     code.read(&pos_cloned, GENERAL_REG1);
                                     return traverse_tail(
                                         objects,
@@ -1305,7 +1301,7 @@ fn traverse_tail(
                                         scopes,
                                         code,
                                         fun,
-                                        Position::StructField(
+                                        Position::CompoundField(
                                             InnerPath {
                                                 file: kind.file.clone().unwrap(),
                                                 block: Some(
@@ -1314,7 +1310,7 @@ fn traverse_tail(
                                                 ident: ident.clone(),
                                                 kind: ImportKinds::Rd,
                                             },
-                                            StructField::Method(ident.clone()),
+                                            CompoundField::Method(ident.clone()),
                                             kind,
                                         ),
                                         scope_len,
@@ -1329,7 +1325,7 @@ fn traverse_tail(
                         };
                     }
                 }
-                Position::StructField(path, field, kind) => {
+                Position::CompoundField(path, field, kind) => {
                     let structt = find_struct(objects, &path.ident, &path.file);
                 }
                 Position::Function(_, kind) => {
@@ -1338,7 +1334,7 @@ fn traverse_tail(
                 Position::Pointer(ptr) => {
                     todo!()
                 }
-                Position::Struct(kind) => {
+                Position::Compound(kind) => {
                     let structt = find_struct(
                         objects,
                         &kind.main.first().unwrap(),
@@ -1362,7 +1358,7 @@ fn traverse_tail(
                 Position::Function(_, kind) => {
                     Err(CodegenError::CannotIndexFunction(node.1.clone()))?
                 }
-                Position::StructField(_, _, kind) => todo!(),
+                Position::CompoundField(_, _, kind) => todo!(),
                 Position::Import(_) => Err(CodegenError::CannotIndexFile(node.1.clone()))?,
                 Position::Variable(var, kind) => {
                     let var = match find_var(&scopes, &var) {
@@ -1375,7 +1371,7 @@ fn traverse_tail(
                 Position::Pointer(ptr) => {
                     todo!()
                 }
-                Position::Struct(_) => Err(CodegenError::CannotIndexNonArray(
+                Position::Compound(_) => Err(CodegenError::CannotIndexNonArray(
                     pos.clone(),
                     node.1.clone(),
                 ))?,
@@ -1417,7 +1413,7 @@ fn traverse_tail(
                         FunctionKind::Dynamic(fun) => todo!("dynamic function call"),
                     };
                 }
-                Position::Struct(kind) => {
+                Position::Compound(kind) => {
                     let constructor = kind.get_ident();
                     let path = InnerPath {
                         file: kind.file.as_ref().unwrap().to_string(),
@@ -1439,9 +1435,9 @@ fn traverse_tail(
                     kind.file = Some(path.file.clone());
                     return Ok(Position::Value(kind));
                 }
-                Position::StructField(path, field, kind) => {
+                Position::CompoundField(path, field, kind) => {
                     match field {
-                        StructField::Method(ident) => ident,
+                        CompoundField::Method(ident) => ident,
                         _ => todo!(),
                     };
                     code.push(Move(GENERAL_REG1, RETURN_REG));
@@ -2401,18 +2397,18 @@ impl Code {
 }
 
 #[derive(Debug, Clone)]
-pub enum StructField {
+pub enum CompoundField {
     Field(String),
     Method(String),
     OverloadedOperator(Operators),
     TraitMethod(String, String),
 }
 
-impl StructField {
+impl CompoundField {
     pub fn get_ident(&self) -> String {
         match self {
-            StructField::Field(ident) => ident.clone(),
-            StructField::Method(ident) => ident.clone(),
+            CompoundField::Field(ident) => ident.clone(),
+            CompoundField::Method(ident) => ident.clone(),
             _ => unreachable!("this is a bug in the compiler, please report it"),
         }
     }
@@ -2421,12 +2417,12 @@ impl StructField {
 #[derive(Debug, Clone)]
 enum Position {
     Function(FunctionKind, ShallowType),
-    StructField(InnerPath, StructField, ShallowType),
+    CompoundField(InnerPath, CompoundField, ShallowType),
     Import(String),
     BinImport(String),
     Variable(String, ShallowType),
     Pointer(ShallowType),
-    Struct(ShallowType),
+    Compound(ShallowType),
     Value(ShallowType),
 }
 
@@ -2434,10 +2430,10 @@ impl Position {
     pub fn get_kind(&self) -> Result<ShallowType, CodegenError> {
         Ok(match self {
             Position::Function(_, kind) => kind.clone(),
-            Position::StructField(_, _, kind) => kind.clone(),
+            Position::CompoundField(_, _, kind) => kind.clone(),
             Position::Variable(_, kind) => kind.clone(),
             Position::Pointer(kind) => kind.clone(),
-            Position::Struct(kind) => kind.clone(),
+            Position::Compound(kind) => kind.clone(),
             Position::Value(kind) => kind.clone(),
             _ => Err(CodegenError::CannotGetKind(self.clone()))?,
         })

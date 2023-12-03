@@ -136,7 +136,7 @@ KWStruct identifier [keys generic assign constructor [methods [traits
 	KWImpl ? set="traits" back="0"
 	};
 
-KWConstructor args errorable generic assign
+KWConstructor [args errorable generic assign
 	"new" harderr="true"
 	generic_decl ? set="generic"
 	(
@@ -269,7 +269,6 @@ value value
 
 
 self_arg args ref mem
-	ref_type ? set="ref"
 	"self" set="args" harderr="true"
 	mem_loc set="mem";
 	

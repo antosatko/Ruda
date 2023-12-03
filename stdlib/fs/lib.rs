@@ -341,10 +341,13 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
 fn register() -> String {
     r#"
     userdata File > 0i {
-        fun read(&self=reg.ptr): string > 5i
-        fun write(&self=reg.ptr, data=reg.G1:string)! > 6i
-        fun append(&self=reg.ptr, data=reg.G1:string)! > 7i
-        fun close(&self=reg.ptr)! > 4i
+
+        new(file=reg.ptr: string) > 3i
+
+        fun read(self=reg.ptr): string > 5i
+        fun write(self=reg.ptr, data=reg.G1:string)! > 6i
+        fun append(self=reg.ptr, data=reg.G1:string)! > 7i
+        fun close(self=reg.ptr)! > 4i
     }
     
     fun fileRead(fileName=reg.ptr: string): string > 0i

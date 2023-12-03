@@ -1119,11 +1119,11 @@ pub mod dictionary {
         pub constructor: Option<usize>,
     }
     impl Struct {
-        pub fn get_field(&self, name: &str) -> Option<(crate::codegen::StructField, usize)> {
+        pub fn get_field(&self, name: &str) -> Option<(crate::codegen::CompoundField, usize)> {
             for field in self.fields.iter().enumerate() {
                 if field.1 .0 == name {
                     return Some((
-                        crate::codegen::StructField::Field(field.1 .0.clone()),
+                        crate::codegen::CompoundField::Field(field.1 .0.clone()),
                         field.0,
                     ));
                 }
@@ -1132,7 +1132,7 @@ pub mod dictionary {
                 if let Some(ident) = &method.identifier {
                     if ident == name {
                         return Some((
-                            crate::codegen::StructField::Method(method.identifier.clone().unwrap()),
+                            crate::codegen::CompoundField::Method(method.identifier.clone().unwrap()),
                             0,
                         ));
                     }
@@ -1140,7 +1140,7 @@ pub mod dictionary {
             }
             for overload in &self.overloads {
                 if &overload.arg.identifier == name {
-                    return Some((crate::codegen::StructField::OverloadedOperator(todo!()), 0));
+                    return Some((crate::codegen::CompoundField::OverloadedOperator(todo!()), 0));
                 }
             }
 

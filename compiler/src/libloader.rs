@@ -53,12 +53,63 @@ pub fn load(
                             errors.push(ErrType::ConflictingNames(ident.to_string(), node.line))
                         }
                     }
+                    let mut traits = Vec::new();
+                    for impl_node in step_inside_arr(&node, "impls") {
+                        let target =
+                            get_nested_ident(&step_inside_val(&impl_node, "identifier"), &mut errors);
+                        let mut functions = Vec::new();
+                        let mut overloads = Vec::new();
+                        for method in step_inside_arr(&impl_node, "methods") {
+                            if let Tokens::Text(txt) = &method.name {
+                                match txt.as_str() {
+                                    "KWOverload" => overloads
+                                        .push(get_overload_siginifier(&method, &mut errors, file_name)),
+                                    "KWFun" => {
+                                        functions.push(get_fun_siginifier(&method, &mut errors, file_name));
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                        traits.push(Implementation {
+                            target,
+                            functions,
+                            overloads,
+                            line: impl_node.line,
+                        })
+                    }
+                    let mut methods = Vec::new();
+                    let mut overloads = Vec::new();
+                    for method in step_inside_arr(&node, "methods") {
+                        if let Tokens::Text(txt) = &method.name {
+                            match txt.as_str() {
+                                "KWOverload" => {
+                                    overloads.push(get_overload_siginifier(&method, &mut errors, file_name))
+                                }
+                                "KWFun" => {
+                                    methods.push(get_fun_siginifier(&method, &mut errors, file_name));
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                    if let Some(con) =  get_constructor(&step_inside_val(&node, "constructor"), &mut errors, file_name) {
+                        methods.push(Function {
+                            name: ident.clone(),
+                            args: con.0,
+                            return_type: ShallowType::from_user_data(&ident, file_name.to_string()),
+                            errorable: con.1,
+                            assign: con.3,
+                        });
+                    };
                     dictionary.structs.push(Struct {
                         name: ident,
                         generics,
                         fields,
                         assign,
-                        methods: Vec::new(),
+                        methods,
+                        overloads,
+                        traits,
                     });
                 }
                 "KWType" => {
@@ -204,10 +255,62 @@ pub fn load(
                             errors.push(ErrType::ConflictingNames(ident.to_string(), node.line))
                         }
                     }
+                    let mut impls = Vec::new();
+                    for impl_node in step_inside_arr(&node, "traits") {
+                        let target =
+                            get_nested_ident(&step_inside_val(&impl_node, "identifier"), &mut errors);
+                        let mut functions = Vec::new();
+                        let mut overloads = Vec::new();
+                        for method in step_inside_arr(&impl_node, "methods") {
+                            if let Tokens::Text(txt) = &method.name {
+                                match txt.as_str() {
+                                    "KWOverload" => overloads
+                                        .push(get_overload_siginifier(&method, &mut errors, file_name)),
+                                    "KWFun" => {
+                                        functions.push(get_fun_siginifier(&method, &mut errors, file_name));
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                        impls.push(Implementation {
+                            target,
+                            functions,
+                            overloads,
+                            line: impl_node.line,
+                        })
+                    }
+                    let mut methods = Vec::new();
+                    let mut overloads = Vec::new();
+                    for method in step_inside_arr(&node, "methods") {
+                        if let Tokens::Text(txt) = &method.name {
+                            match txt.as_str() {
+                                "KWOverload" => {
+                                    overloads.push(get_overload_siginifier(&method, &mut errors, file_name))
+                                }
+                                "KWFun" => {
+                                    methods.push(get_fun_siginifier(&method, &mut errors, file_name));
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                    if let Some(con) =  get_constructor(&step_inside_val(&node, "constructor"), &mut errors, file_name) {
+                        methods.push(Function {
+                            name: ident.clone(),
+                            args: con.0,
+                            return_type: ShallowType::from_user_data(&ident, file_name.to_string()),
+                            errorable: con.1,
+                            assign: con.3,
+                        });
+                    };
                     dictionary.user_data.push(UserData {
                         name: ident,
                         assign,
                         generics,
+                        methods,
+                        overloads,
+                        impls
                     });
                 }
                 _ => {}
@@ -225,6 +328,33 @@ pub fn load(
     //println!("\n\n{:#?}", dictionary);
     Ok(dictionary)
 }
+
+fn get_constructor(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> Option<(Vec<(String, ShallowType, MemoryTypes, Line)>, bool, Vec<GenericDecl>, usize)> {
+    if let Tokens::Text(txt) = &node.name {
+        if txt != "KWConstructor" {
+            return None;
+        }
+    }
+    let mut args: Vec<(String, ShallowType, MemoryTypes, Line)> = Vec::new();
+    let generics = get_generics_decl(&node, errors);
+    let assign = 0;
+    for arg in step_inside_arr(node, "args") {
+        let ident = get_ident(&arg);
+        let mem_loc = get_mem_loc(&arg);
+        let arg_type = get_type(step_inside_val(&arg, "type"), errors, file_name);
+        let line = arg.line;
+        args.push((ident, arg_type, mem_loc, line));
+    }
+    let errorable =
+        if let Tokens::Operator(Operators::Not) = step_inside_val(node, "errorable").name {
+            true
+        } else {
+            false
+        };
+
+    Some((args, errorable, generics, assign))
+}
+    
 
 fn get_assign(node: &Node) -> usize {
     let node = step_inside_val(&node, "assign");
@@ -401,6 +531,17 @@ pub struct UserData {
     pub name: String,
     pub assign: usize,
     pub generics: Vec<GenericDecl>,
+    pub methods: Vec<Function>,
+    pub overloads: Vec<Overload>,
+    pub impls: Vec<Implementation>,
+}
+
+#[derive(Debug)]
+pub struct Implementation {
+    pub target: Vec<String>,
+    pub functions: Vec<Function>,
+    pub overloads: Vec<Overload>,
+    pub line: Line,
 }
 
 #[derive(Debug)]
@@ -419,6 +560,8 @@ pub struct Struct {
     pub assign: usize,
     pub generics: Vec<GenericDecl>,
     pub methods: Vec<Function>,
+    pub overloads: Vec<Overload>,
+    pub traits: Vec<Implementation>,
 }
 
 #[derive(Debug)]

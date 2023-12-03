@@ -190,8 +190,8 @@ fn register() -> String {
     fun print(msg=reg.ptr: string) > 0i
     fun println(msg=reg.ptr: string) > 1i
     fun input(): string > 2i
-    fun args(): &[string] > 3i
-    fun vmargs(): &[string] > 4i
+    fun args(): [string] > 3i
+    fun vmargs(): [string] > 4i
     fun inputln(): string > 5i
     fun getChar(): char > 6i
     fun clear()! > 7i
