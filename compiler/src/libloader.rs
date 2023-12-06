@@ -97,9 +97,10 @@ pub fn load(
                         methods.push(Function {
                             name: ident.clone(),
                             args: con.0,
-                            return_type: ShallowType::from_user_data(&ident, file_name.to_string()),
+                            return_type: ShallowType::from_userdata(ident.to_string(), file_name.to_string(), node.line),
                             errorable: con.1,
                             assign: con.3,
+                            takes_self: false,
                         });
                     };
                     dictionary.structs.push(Struct {
@@ -299,9 +300,10 @@ pub fn load(
                         methods.push(Function {
                             name: ident.clone(),
                             args: con.0,
-                            return_type: ShallowType::from_user_data(&ident, file_name.to_string()),
+                            return_type: ShallowType::from_userdata(ident.to_string(), file_name.to_string(), node.line),
                             errorable: con.1,
                             assign: con.3,
+                            takes_self: false,
                         });
                     };
                     dictionary.user_data.push(UserData {
@@ -310,7 +312,8 @@ pub fn load(
                         generics,
                         methods,
                         overloads,
-                        impls
+                        impls,
+                        line: node.line,
                     });
                 }
                 _ => {}
@@ -337,7 +340,7 @@ fn get_constructor(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> O
     }
     let mut args: Vec<(String, ShallowType, MemoryTypes, Line)> = Vec::new();
     let generics = get_generics_decl(&node, errors);
-    let assign = 0;
+    let assign = get_assign(&node);
     for arg in step_inside_arr(node, "args") {
         let ident = get_ident(&arg);
         let mem_loc = get_mem_loc(&arg);
@@ -366,14 +369,11 @@ fn get_assign(node: &Node) -> usize {
 }
 fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> Function {
     let mut args: Vec<(String, ShallowType, MemoryTypes, Line)> = Vec::new();
+    let mut takes_self = false;
     for arg in step_inside_arr(node, "arguments") {
         if let Tokens::Text(txt) = &arg.name {
             if txt == "self_arg" {
-                let ident = "self".to_string();
-                let arg_type = ShallowType::empty();
-                let mem_loc = get_mem_loc(&arg);
-                let line = arg.line;
-                args.push((ident, arg_type, mem_loc, line));
+                takes_self = true;
                 continue;
             }
         }
@@ -409,6 +409,7 @@ fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -
         return_type,
         errorable,
         assign: get_assign(node),
+        takes_self,
     }
 }
 
@@ -534,6 +535,18 @@ pub struct UserData {
     pub methods: Vec<Function>,
     pub overloads: Vec<Overload>,
     pub impls: Vec<Implementation>,
+    pub line: Line,
+}
+
+impl UserData {
+    pub fn get_field(&self, name: &str) -> Option<(crate::codegen::CompoundField, usize)> {
+        for (i, field) in self.methods.iter().enumerate() {
+            if field.name == name {
+                return Some((crate::codegen::CompoundField::Method(name.to_string()), 0));
+            }
+        }
+        None
+    }
 }
 
 #[derive(Debug)]
@@ -551,6 +564,7 @@ pub struct Function {
     pub return_type: ShallowType,
     pub errorable: bool,
     pub assign: usize,
+    pub takes_self: bool,
 }
 
 #[derive(Debug)]

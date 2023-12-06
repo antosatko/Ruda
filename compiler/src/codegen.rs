@@ -9,7 +9,7 @@ use runtime::runtime_types::{
 };
 
 use crate::codeblock_parser::Nodes;
-use crate::expression_parser::{self, FunctionCall, Ref, ValueType, Root};
+use crate::expression_parser::{self, FunctionCall, Ref, Root, ValueType};
 use crate::intermediate::dictionary::{
     self, Arg, ConstValue, Function, ShTypeBuilder, ShallowType, TypeComparison,
 };
@@ -262,6 +262,7 @@ pub enum CodegenError {
     CannotDereference(usize, ShallowType, Line),
     CannotReference(usize, ShallowType, Line),
     CannotGetKind(Position),
+    CannotCallType(ShallowType, Line),
 }
 
 pub fn stringify(
@@ -769,17 +770,17 @@ fn expression(
                     .set_kind(dictionary::KindType::Primitive)
                     .build();
             } else {*/
-                return_kind = gen_value(
-                    objects,
-                    value,
-                    context,
-                    scopes,
-                    code,
-                    fun,
-                    scope_len,
-                    ExpectedValueType::Value,
-                )?
-                .get_kind()?;
+            return_kind = gen_value(
+                objects,
+                value,
+                context,
+                scopes,
+                code,
+                fun,
+                scope_len,
+                ExpectedValueType::Value,
+            )?
+            .get_kind()?;
             //}
             for un in value.unary.iter() {
                 return_kind = native_unary_operand(
@@ -904,6 +905,24 @@ fn find_struct<'a>(
             for struc in dictionary.structs.iter() {
                 if struc.identifier == ident {
                     return Some((file_name, struc));
+                }
+            }
+        }
+        None => (),
+    };
+    None
+}
+
+fn find_userdata<'a>(
+    objects: &'a Context,
+    ident: &'a str,
+    file_name: &'a str,
+) -> Option<(&'a str, &'a libloader::UserData)> {
+    match objects.1.get(file_name) {
+        Some(dictionary) => {
+            for userdata in dictionary.user_data.iter() {
+                if userdata.name == ident {
+                    return Some((file_name, userdata));
                 }
             }
         }
@@ -1157,11 +1176,18 @@ fn identify_root(
                     struc.line,
                 )));
             }
+            if let Some((fname, userdata)) = find_userdata(objects, &ident, &file) {
+                return Ok(Position::Compound(ShallowType::from_userdata(
+                    userdata.name.to_string(),
+                    fname.to_string(),
+                    userdata.line,
+                )));
+            }
             Err(CodegenError::VariableNotFound(
                 ident.to_string(),
                 line.clone(),
             ))?
-        },
+        }
         Root::Literal(lit) => {
             match lit {
                 expression_parser::Literals::Number(n) => {
@@ -1174,26 +1200,30 @@ fn identify_root(
                     let pos = new_const(context, &const_num.0)?;
                     code.push(ReadConst(pos, GENERAL_REG1));
                     return Ok(Position::Value(const_num.1));
-                },
+                }
                 expression_parser::Literals::Array(rule) => todo!(),
                 expression_parser::Literals::String(str) => {
                     let pos = new_const(context, &ConstValue::String(str.clone()))?;
                     code.push(ReadConst(pos, GENERAL_REG1));
-                    return Ok(Position::Value(ShTypeBuilder::new()
-                        .set_name("string")
-                        .set_kind(dictionary::KindType::Primitive)
-                        .build()));
+                    return Ok(Position::Value(
+                        ShTypeBuilder::new()
+                            .set_name("string")
+                            .set_kind(dictionary::KindType::Primitive)
+                            .build(),
+                    ));
                 }
                 expression_parser::Literals::Char(c) => {
                     let pos = new_const(context, &ConstValue::Char(*c))?;
                     code.push(ReadConst(pos, GENERAL_REG1));
-                    return Ok(Position::Value(ShTypeBuilder::new()
-                        .set_name("char")
-                        .set_kind(dictionary::KindType::Primitive)
-                        .build()));
+                    return Ok(Position::Value(
+                        ShTypeBuilder::new()
+                            .set_name("char")
+                            .set_kind(dictionary::KindType::Primitive)
+                            .build(),
+                    ));
                 }
             }
-        },
+        }
         Root::Parenthesis(val) => {
             let kind = expression(
                 objects,
@@ -1211,7 +1241,7 @@ fn identify_root(
                 None,
             )?;
             return Ok(Position::Value(kind));
-        },
+        }
     }
 }
 
@@ -1231,13 +1261,31 @@ fn traverse_tail(
         Some(node) => match &node.0 {
             expression_parser::TailNodes::Nested(ident) => match &pos {
                 Position::Import(fname) => {
-                    let root = identify_root(objects, &Root::Identifier(ident.to_string()), Some(scopes), &fname, &node.1, context, code, scope_len)?;
+                    let root = identify_root(
+                        objects,
+                        &Root::Identifier(ident.to_string()),
+                        Some(scopes),
+                        &fname,
+                        &node.1,
+                        context,
+                        code,
+                        scope_len,
+                    )?;
                     return traverse_tail(
                         objects, tail, context, scopes, code, fun, root, scope_len,
                     );
                 }
                 Position::BinImport(fname) => {
-                    let root = identify_root(objects, &Root::Identifier(ident.to_string()), Some(scopes), &fname, &node.1, context, code, scope_len)?;
+                    let root = identify_root(
+                        objects,
+                        &Root::Identifier(ident.to_string()),
+                        Some(scopes),
+                        &fname,
+                        &node.1,
+                        context,
+                        code,
+                        scope_len,
+                    )?;
                     return traverse_tail(
                         objects, tail, context, scopes, code, fun, root, scope_len,
                     );
@@ -1252,77 +1300,138 @@ fn traverse_tail(
                     };
                     let pos_cloned = var.pos.clone();
                     let kind = var.kind.as_ref().unwrap().clone();
-                    
-                    if kind.kind == dictionary::KindType::Struct {
-                        let structt = find_struct(
-                            objects,
-                            &_kind.main.first().unwrap(),
-                            &kind.file.as_ref().unwrap(),
-                        )
-                        .unwrap()
-                        .1;
-                        let field = match structt.get_field(&ident) {
-                            Some((field, idx)) => match field {
-                                CompoundField::Field(ident) => {
-                                    code.read(&pos_cloned, POINTER_REG);
-                                    code.extend(&[
-                                        IndexStatic(idx + 1),
-                                        Move(POINTER_REG, GENERAL_REG1),
-                                    ]);
-                                    return_kind = structt.fields[idx].1.clone();
-                                    return_kind.refs += 1;
-                                    let pos = traverse_tail(
-                                        objects,
-                                        tail,
-                                        context,
-                                        scopes,
-                                        code,
-                                        fun,
-                                        Position::CompoundField(
-                                            InnerPath {
-                                                file: kind.file.clone().unwrap(),
-                                                block: Some(structt.identifier.to_string()),
-                                                ident: kind.main.first().unwrap().clone(),
-                                                kind: ImportKinds::Rd,
-                                            },
-                                            CompoundField::Field(ident.clone()),
-                                            kind,
-                                        ),
-                                        scope_len,
-                                    );
-                                    return pos;
-                                }
-                                CompoundField::Method(ident) => {
-                                    code.read(&pos_cloned, GENERAL_REG1);
-                                    return traverse_tail(
-                                        objects,
-                                        tail,
-                                        context,
-                                        scopes,
-                                        code,
-                                        fun,
-                                        Position::CompoundField(
-                                            InnerPath {
-                                                file: kind.file.clone().unwrap(),
-                                                block: Some(
-                                                    kind.main.last().as_ref().unwrap().to_string(),
-                                                ),
-                                                ident: ident.clone(),
-                                                kind: ImportKinds::Rd,
-                                            },
-                                            CompoundField::Method(ident.clone()),
-                                            kind,
-                                        ),
-                                        scope_len,
-                                    );
-                                }
-                                _ => todo!(),
-                            },
-                            None => Err(CodegenError::FieldNotInStruct(
-                                ident.clone(),
-                                node.1.clone(),
-                            ))?,
-                        };
+
+                    match &kind.kind {
+                        dictionary::KindType::Struct => {
+                            let structt = find_struct(
+                                objects,
+                                &_kind.main.first().unwrap(),
+                                &kind.file.as_ref().unwrap(),
+                            )
+                            .unwrap()
+                            .1;
+                            let field = match structt.get_field(&ident) {
+                                Some((field, idx)) => match field {
+                                    CompoundField::Field(ident) => {
+                                        code.read(&pos_cloned, POINTER_REG);
+                                        code.extend(&[
+                                            IndexStatic(idx + 1),
+                                            Move(POINTER_REG, GENERAL_REG1),
+                                        ]);
+                                        return_kind = structt.fields[idx].1.clone();
+                                        return_kind.refs += 1;
+                                        let pos = traverse_tail(
+                                            objects,
+                                            tail,
+                                            context,
+                                            scopes,
+                                            code,
+                                            fun,
+                                            Position::CompoundField(
+                                                InnerPath {
+                                                    file: kind.file.clone().unwrap(),
+                                                    block: Some(structt.identifier.to_string()),
+                                                    ident: kind.main.first().unwrap().clone(),
+                                                    kind: ImportKinds::Rd,
+                                                },
+                                                CompoundField::Field(ident.clone()),
+                                                kind,
+                                            ),
+                                            scope_len,
+                                        );
+                                        return pos;
+                                    }
+                                    CompoundField::Method(ident) => {
+                                        code.read(&pos_cloned, GENERAL_REG1);
+                                        return traverse_tail(
+                                            objects,
+                                            tail,
+                                            context,
+                                            scopes,
+                                            code,
+                                            fun,
+                                            Position::CompoundField(
+                                                InnerPath {
+                                                    file: kind.file.clone().unwrap(),
+                                                    block: Some(
+                                                        kind.main
+                                                            .last()
+                                                            .as_ref()
+                                                            .unwrap()
+                                                            .to_string(),
+                                                    ),
+                                                    ident: ident.clone(),
+                                                    kind: ImportKinds::Rd,
+                                                },
+                                                CompoundField::Method(ident.clone()),
+                                                kind,
+                                            ),
+                                            scope_len,
+                                        );
+                                    }
+                                    _ => todo!(),
+                                },
+                                None => Err(CodegenError::FieldNotInStruct(
+                                    ident.clone(),
+                                    node.1.clone(),
+                                ))?,
+                            };
+                        }
+                        dictionary::KindType::UserData => {
+                            let userdata = find_userdata(
+                                objects,
+                                &_kind.main.first().unwrap(),
+                                &kind.file.as_ref().unwrap(),
+                            )
+                            .unwrap()
+                            .1;
+                            let field = match userdata.get_field(&ident) {
+                                Some((field, idx)) => match field {
+                                    CompoundField::Method(ident) => {
+                                        code.read(&pos_cloned, GENERAL_REG1);
+                                        code.push(Debug(GENERAL_REG1));
+                                        return traverse_tail(
+                                            objects,
+                                            tail,
+                                            context,
+                                            scopes,
+                                            code,
+                                            fun,
+                                            Position::CompoundField(
+                                                InnerPath {
+                                                    file: kind.file.clone().unwrap(),
+                                                    block: Some(
+                                                        kind.main
+                                                            .last()
+                                                            .as_ref()
+                                                            .unwrap()
+                                                            .to_string(),
+                                                    ),
+                                                    ident: ident.clone(),
+                                                    kind: ImportKinds::Dll,
+                                                },
+                                                CompoundField::Method(ident.clone()),
+                                                kind,
+                                            ),
+                                            scope_len,
+                                        );
+                                    }
+                                    _ => todo!(),
+                                },
+                                None => Err(CodegenError::FieldNotInStruct(
+                                    ident.clone(),
+                                    node.1.clone(),
+                                ))?,
+                            };
+                        }
+                        dictionary::KindType::Enum => todo!(),
+                        dictionary::KindType::Trait => todo!(),
+                        dictionary::KindType::Fun => todo!(),
+                        dictionary::KindType::Primitive => todo!(),
+                        dictionary::KindType::Error => todo!(),
+                        dictionary::KindType::BinFun => todo!(),
+                        dictionary::KindType::SelfRef => todo!(),
+                        dictionary::KindType::None => todo!(),
                     }
                 }
                 Position::CompoundField(path, field, kind) => {
@@ -1335,20 +1444,19 @@ fn traverse_tail(
                     todo!()
                 }
                 Position::Compound(kind) => {
-                    let structt = find_struct(
+                    if let Some((name, structt)) = find_struct(
                         objects,
                         &kind.main.first().unwrap(),
                         &kind.file.as_ref().unwrap(),
-                    )
-                    .unwrap()
-                    .1;
-                    let field = match structt.fields.iter().find(|field| &field.0 == ident) {
-                        Some(field) => field,
-                        None => Err(CodegenError::FieldNotInStruct(
-                            ident.clone(),
-                            node.1.clone(),
-                        ))?,
-                    };
+                    ) {
+                        let field = match structt.fields.iter().find(|field| &field.0 == ident) {
+                            Some(field) => field,
+                            None => Err(CodegenError::FieldNotInStruct(
+                                ident.clone(),
+                                node.1.clone(),
+                            ))?,
+                        };
+                    }
                     todo!()
                 }
                 Position::Value(_) => todo!(),
@@ -1415,13 +1523,18 @@ fn traverse_tail(
                 }
                 Position::Compound(kind) => {
                     let constructor = kind.get_ident();
+                    let import_kind = match kind.kind.to_import_kind() {
+                        Some(kind) => kind,
+                        None => Err(CodegenError::CannotCallType(kind.clone(), node.1.clone()))?,
+                    };
                     let path = InnerPath {
                         file: kind.file.as_ref().unwrap().to_string(),
                         block: Some(constructor.to_string()),
                         ident: constructor.to_string(),
-                        kind: ImportKinds::Rd,
+                        kind: import_kind,
                     };
-                    let mut kind = call_fun(
+                    println!("{:?}", path);
+                    let mut kind = call_whichever(
                         objects,
                         &path,
                         context,
@@ -1441,7 +1554,7 @@ fn traverse_tail(
                         _ => todo!(),
                     };
                     code.push(Move(GENERAL_REG1, RETURN_REG));
-                    let mut kind = call_fun(
+                    let mut kind = call_whichever(
                         objects,
                         path,
                         context,
@@ -1495,10 +1608,11 @@ fn call_binary(
             line: line.clone(),
         },
     );
+    let takes_self = fun.get_bin(objects)?.takes_self;
     let called_fun = fun.get_bin(objects)?;
     temp_code.extend(&[
         Freeze,
-        AllocateStatic(called_fun.args.len().max(call_params.args.len())),
+        AllocateStatic(called_fun.args.len().max(call_params.args.len()) + takes_self as usize),
     ]);
     temp_code.write(POINTER_REG, &obj);
     if called_fun.args.len() != call_params.args.len() {
@@ -1507,6 +1621,10 @@ fn call_binary(
             call_params.args.len(),
             line.clone(),
         ))?;
+    }
+    if takes_self {
+        temp_code.push(Move(RETURN_REG, GENERAL_REG1));
+        temp_code.extend(&[IndexStatic(0), WritePtr(GENERAL_REG1)])
     }
     for (idx, arg) in call_params
         .args
@@ -1526,7 +1644,10 @@ fn call_binary(
         )?;
         args.push(kind);
         temp_code.read(&obj, POINTER_REG);
-        temp_code.extend(&[IndexStatic(idx), WritePtr(GENERAL_REG1)])
+        temp_code.extend(&[
+            IndexStatic(idx + takes_self as usize),
+            WritePtr(GENERAL_REG1),
+        ])
     }
     // type check
     for (idx, arg) in args.iter().enumerate() {
@@ -1666,6 +1787,49 @@ fn call_fun(
             .set_kind(dictionary::KindType::Primitive)
             .build(),
     ))
+}
+
+fn call_whichever(
+    objects: &mut Context,
+    fun: &InnerPath,
+    context: &mut runtime_types::Context,
+    scopes: &mut Vec<ScopeCached>,
+    code: &mut Code,
+    scope_len: &mut usize,
+    call_params: &FunctionCall,
+    line: &Line,
+    this: &InnerPath,
+) -> Result<ShallowType, CodegenError> {
+    match fun.kind {
+        ImportKinds::Dll => {
+            let kind = call_binary(
+                objects,
+                fun,
+                context,
+                scopes,
+                code,
+                scope_len,
+                call_params,
+                line,
+                this,
+            )?;
+            return Ok(kind);
+        }
+        ImportKinds::Rd => {
+            let kind = call_fun(
+                objects,
+                fun,
+                context,
+                scopes,
+                code,
+                scope_len,
+                call_params,
+                line,
+                this,
+            )?;
+            return Ok(kind);
+        }
+    }
 }
 
 fn get_scope(
@@ -2530,7 +2694,27 @@ impl InnerPath {
             }
         };
         match &self.block {
-            Some(b) => Err(CodegenError::FunctionNotFound(self.clone())),
+            Some(b) => {
+                for structt in file.structs.iter() {
+                    if &structt.name == b {
+                        for fun in structt.methods.iter() {
+                            if &fun.name.clone() == &self.ident {
+                                return Ok(fun);
+                            }
+                        }
+                    }
+                }
+                for userdata in file.user_data.iter() {
+                    if &userdata.name == b {
+                        for fun in userdata.methods.iter() {
+                            if &fun.name.clone() == &self.ident {
+                                return Ok(fun);
+                            }
+                        }
+                    }
+                }
+                Err(CodegenError::FunctionNotFound(self.clone()))
+            }
             None => {
                 for fun in file.functions.iter() {
                     if fun.name == self.ident {
@@ -3102,9 +3286,10 @@ fn get_kind(
     }
     for user_data in file.user_data.iter() {
         if user_data.name == location.ident {
-            return Ok(ShallowType::from_user_data(
-                &user_data.name,
+            return Ok(ShallowType::from_userdata(
+                user_data.name.clone(),
                 location.file.clone(),
+                user_data.line,
             ));
         }
     }

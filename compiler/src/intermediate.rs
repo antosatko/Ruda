@@ -1507,6 +1507,22 @@ pub mod dictionary {
         SelfRef,
         None,
     }
+    impl KindType {
+        pub fn to_import_kind(&self) -> Option<ImportKinds> {
+            match self {
+                KindType::Struct => Some(ImportKinds::Rd),
+                KindType::Enum => Some(ImportKinds::Rd),
+                KindType::Trait => Some(ImportKinds::Rd),
+                KindType::Fun => Some(ImportKinds::Rd),
+                KindType::Primitive => None,
+                KindType::UserData => Some(ImportKinds::Dll),
+                KindType::Error => None,
+                KindType::BinFun => Some(ImportKinds::Dll),
+                KindType::SelfRef => None,
+                KindType::None => None,
+            }
+        }
+    }
     macro_rules! display_simple {
         ($this: ident) => {
             format!("{:?}", $this)
@@ -1672,6 +1688,19 @@ pub mod dictionary {
                 kind: KindType::Struct,
             }
         }
+        pub fn from_userdata(ident: String, file: String, line: Line) -> Self {
+            ShallowType {
+                is_fun: None,
+                array_depth: 0,
+                refs: 0,
+                main: vec![ident],
+                generics: Vec::new(),
+                line,
+                nullable: false,
+                file: Some(file),
+                kind: KindType::UserData,
+            }
+        }
         pub fn from_enum(enum_: &Enum, file: String) -> Self {
             ShallowType {
                 is_fun: None,
@@ -1724,19 +1753,6 @@ pub mod dictionary {
                 nullable: false,
                 file: Some(file),
                 kind: KindType::BinFun,
-            }
-        }
-        pub fn from_user_data(ident: &str, file: String) -> Self {
-            ShallowType {
-                is_fun: None,
-                array_depth: 0,
-                refs: 0,
-                main: vec![ident.to_string()],
-                generics: Vec::new(),
-                line: Line { line: 0, column: 0 },
-                nullable: false,
-                file: Some(file),
-                kind: KindType::UserData,
             }
         }
     }
