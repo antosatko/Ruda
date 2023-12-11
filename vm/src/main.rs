@@ -82,13 +82,13 @@ fn main() {
             /*println!("Path not specified. Program will terminate."); return;*/
             use test::test::*;
             let ruda_path = std::env::var("RUDA_PATH").unwrap();
-            let libs = vec![
+            let libs: Vec<ShLib> = vec![/*
                 ShLib { path: "io".to_string(), owns: stringify::LibOwner::Standard},
                 ShLib { path: "string".to_string(), owns: stringify::LibOwner::Standard},
                 ShLib { path: "fs".to_string(), owns: stringify::LibOwner::Standard},
                 ShLib { path: "algo".to_string(), owns: stringify::LibOwner::Standard},
                 ShLib { path: "core".to_string(), owns: stringify::LibOwner::Standard},
-            ];
+            */];
             let mut libs_read = Vec::new();
             for lib in libs.iter() {
                 libs_read.push(test::test::load_lib(&lib.into_real_path(&"", &ruda_path), 0));

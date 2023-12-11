@@ -1546,6 +1546,19 @@ pub mod dictionary {
                 kind: KindType::None,
             }
         }
+        pub fn null() -> Self {
+            ShallowType {
+                is_fun: None,
+                array_depth: 0,
+                refs: 0,
+                main: vec!["null".to_string()],
+                generics: vec![],
+                line: Line { line: 0, column: 0 },
+                nullable: false,
+                file: None,
+                kind: KindType::Primitive,
+            }
+        }
         pub fn get_ident(&self) -> &str {
             &self.main[self.main.len() - 1]
         }

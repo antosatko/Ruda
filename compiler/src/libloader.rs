@@ -18,7 +18,6 @@ pub fn load(
     let tree = match generate_tree(&tokens, ast, &lines) {
         Ok(tree) => tree,
         Err(err) => {
-            println!("{}", String::from_utf8_lossy(string));
             return Err(format!("Failed to generate tree. {:?} in {}", err, file_name));
         }
     };
@@ -391,10 +390,10 @@ fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -
                 file_name,
             )
         } else {
-            ShallowType::empty()
+            ShallowType::null()
         }
     } else {
-        ShallowType::empty()
+        ShallowType::null()
     };
     let errorable =
         if let Tokens::Operator(Operators::Not) = step_inside_val(node, "errorable").name {

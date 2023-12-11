@@ -6,7 +6,7 @@ import "danda.rd"
 
 
 fun main() {
-    let file = fs.File("test.txt")
-    let content = file.read()
-    io.println(content)
+    let a = [50; 3]
+    a[1] = 100
+    io.println(a[1])
 }

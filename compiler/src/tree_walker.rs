@@ -69,7 +69,6 @@ pub mod tree_walker {
                 }
             }
             None => {
-        println!("{:?}", syntax.keys());
         return None;
             }
         }

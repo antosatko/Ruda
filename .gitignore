@@ -6,3 +6,6 @@ build
 vm/runtime/target
 vm/runtime/Cargo.lock
 .vscode
+presentation/.venv
+presentation/__pycache__
+presentation/media

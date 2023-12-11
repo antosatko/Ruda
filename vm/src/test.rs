@@ -5,7 +5,7 @@ pub mod test {
     use libloading::Library;
     use runtime::runtime_error::ErrTypes;
 
-    const ID: usize = 14;
+    const ID: usize = 15;
     pub fn test_init(id: Option<usize>, context: &mut Context) -> bool {
         let test_id = if let Some(num) = id { num } else { ID };
         println!("Running test {test_id}");
@@ -623,6 +623,63 @@ pub mod test {
                     Branch(5, 7),
                     Add(MEMORY_REG1, GENERAL_REG2, MEMORY_REG1),
                     Goto(3),
+                    End,
+                ];
+                true
+            }
+            15 => {
+                context.memory.stack.data = vec![
+                    Int(0),
+                    Int(1),
+                    Int(2),
+                    Int(30),
+                ];
+                // change entry point to the end of fib fun (32)
+                context.code.data = vec![
+                    Goto(35),
+                    // fib fun
+                    ReadConst(0, MEMORY_REG1),
+                    Read(1, GENERAL_REG2),
+                    Equ(MEMORY_REG1, GENERAL_REG2, GENERAL_REG1),
+                    Branch(5, 7),
+                    ReadConst(0, RETURN_REG),
+                    Return,
+                    ReadConst(1, GENERAL_REG1),
+                    // n is already in REG2 // Read(1, GENERAL_REG2),
+                    Equ(MEMORY_REG1, GENERAL_REG2, GENERAL_REG1),
+                    Branch(10, 12),
+                    ReadConst(1, RETURN_REG),
+                    Return,
+                    ReadConst(1, GENERAL_REG1),
+                    // n is already in REG2 // Read(1, GENERAL_REG2),
+                    Sub(GENERAL_REG2, GENERAL_REG1, GENERAL_REG1),
+                    Freeze,
+                    ReserveStack(1, 0),
+                    Write(1, GENERAL_REG1),
+                    Jump(1), // RETURN_REG now has the value of fib(n - 1)
+                    Unfreeze,
+                    Move(RETURN_REG, GENERAL_REG3), // save fib(n - 1) in GENERAL_REG3
+                    Freeze, // freeze registers to preserve values
+                    ReadConst(2, GENERAL_REG1),
+                    Read(1, GENERAL_REG2), // n
+                    End,
+                    Sub(GENERAL_REG2, GENERAL_REG1, GENERAL_REG1),
+                    ReserveStack(1, 0),
+                    Write(1, GENERAL_REG1),
+                    Jump(1), // RETURN_REG now has the value of fib(n - 2)
+                    Unfreeze, // unfreeze registers
+                    Add(GENERAL_REG3, RETURN_REG, RETURN_REG), // add fib(n - 1) and fib(n - 2) and save in RETURN_REG
+                    Return,
+                    ReadConst(0, MEMORY_REG1),
+                    Return,
+                    ReadConst(1, GENERAL_REG1),
+                    Return,
+                    // main
+                    ReserveStack(10, 0),
+                    ReadConst(3, GENERAL_REG1),
+                    ReserveStack(1, 0),
+                    Write(1, GENERAL_REG1),
+                    Jump(1), // RETURN_REG now has the value of fib(n)
                     End,
                 ];
                 true
