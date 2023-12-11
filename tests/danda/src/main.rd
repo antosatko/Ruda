@@ -4,9 +4,16 @@ import "#string"
 
 import "danda.rd"
 
+struct Danda {
+    a: [int]
+
+    new() {
+        self.a = [1, 2, 3]
+    }
+}
+
 
 fun main() {
-    let a = [50; 3]
-    a[1] = 100
-    io.println(a[1])
+    let d = Danda()
+    io.println(d.a[2]) 
 }

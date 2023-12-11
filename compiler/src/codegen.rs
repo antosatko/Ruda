@@ -9,7 +9,7 @@ use runtime::runtime_types::{
 };
 
 use crate::codeblock_parser::Nodes;
-use crate::expression_parser::{self, FunctionCall, Ref, Root, ValueType, ArrayRule};
+use crate::expression_parser::{self, ArrayRule, FunctionCall, Ref, Root, ValueType};
 use crate::intermediate::dictionary::{
     self, Arg, ConstValue, Function, ShTypeBuilder, ShallowType, TypeComparison,
 };
@@ -373,7 +373,7 @@ fn gen_fun<'a>(
             && !is_constructor
         {
             Err(CodegenError::FunctionDoesNotReturn(this_fun.line.clone()))?;
-        }else if this_fun.return_type.is_none() && !is_constructor {
+        } else if this_fun.return_type.is_none() && !is_constructor {
             let null = 0;
             code.extend(&[Instructions::ReadConst(null, RETURN_REG)]);
             code.push(Instructions::Return);
@@ -1118,13 +1118,11 @@ fn gen_value(
                 todo!();
                 pos
             }
-            expression_parser::Ref::None => {
-                match expected_type {
-                    ExpectedValueType::Pointer => pos,
-                    ExpectedValueType::Value => {
-                        code.extend(&[ReadPtr(GENERAL_REG1)]);
-                        Position::Value(kind.clone())
-                    }
+            expression_parser::Ref::None => match expected_type {
+                ExpectedValueType::Pointer => pos,
+                ExpectedValueType::Value => {
+                    code.extend(&[ReadPtr(GENERAL_REG1)]);
+                    Position::Value(kind.clone())
                 }
             },
         },
@@ -1143,7 +1141,7 @@ fn identify_root(
     code: &mut Code,
     scope_len: &mut usize,
     expected_type: Option<ShallowType>,
-    fun: &InnerPath
+    fun: &InnerPath,
 ) -> Result<Position, CodegenError> {
     use Instructions::*;
     match ident {
@@ -1217,28 +1215,39 @@ fn identify_root(
                     code.push(ReadConst(pos, GENERAL_REG1));
                     return Ok(Position::Value(const_num.1));
                 }
-                expression_parser::Literals::Array(rule) => {
-                    match rule {
-                        ArrayRule::Explicit(arr) => {
-                            todo!()
-                        }
-                        ArrayRule::Fill { value, size } => {
-                            let expected = match expected_type {
-                                Some(ref kind) => {
-                                    if kind.array_depth == 0 {
-                                        Err(CodegenError::CoudNotCastAnArrayToANonArray(
-                                            kind.clone(),
-                                            line.clone(),
-                                        ))?;
-                                    }
-                                    let mut temp = kind.clone();
-                                    temp.array_depth -= 1;
-                                    Some(correct_kind(objects, &temp, fun, &line)?)
+                expression_parser::Literals::Array(rule) => match rule {
+                    ArrayRule::Explicit(arr) => {
+                        let mut kind = match &expected_type {
+                            Some(kind) => {
+                                if kind.array_depth == 0 {
+                                    Err(CodegenError::CoudNotCastAnArrayToANonArray(
+                                        kind.clone(),
+                                        line.clone(),
+                                    ))?;
                                 }
-                                None => None,
-                            };
-                            if let Some(scopes) = scopes {
-                                let value = expression(
+                                let mut temp = kind.clone();
+                                temp.array_depth -= 1;
+                                Some(correct_kind(objects, &temp, fun, line)?)
+                            }
+                            None => None,
+                        };
+                        if let Some(scopes) = scopes {
+                            code.extend(&[AllocateStatic(arr.len())]);
+                            *scope_len += 1;
+                            let obj = create_var_pos(scopes);
+                            let scopes_len = scopes.len();
+                            scopes[scopes_len - 1].variables.insert(
+                                scope_len.to_string(),
+                                Variable {
+                                    kind: Some(ShallowType::empty()),
+                                    pos: obj.clone(),
+                                    value: None,
+                                    line: line.clone(),
+                                },
+                            );
+                            code.write(POINTER_REG, &obj);
+                            for (idx, value) in arr.iter().enumerate() {
+                                let temp_kind = Some(expression(
                                     objects,
                                     value,
                                     scopes,
@@ -1246,49 +1255,115 @@ fn identify_root(
                                     context,
                                     &fun,
                                     scope_len,
-                                    expected.clone(),
-                                )?;
-                                *scope_len += 1;
-                                let value_var = create_var_pos(scopes);
-                                let scopes_len = scopes.len();
-                                scopes[scopes_len - 1].variables.insert(
-                                    scope_len.to_string(),
-                                    Variable {
-                                        kind: Some(value.clone()),
-                                        pos: value_var.clone(),
-                                        value: None,
-                                        line: line.clone(),
-                                    },
-                                );
-                                code.write(GENERAL_REG1, &value_var);
-                                let size = expression(
-                                    objects,
-                                    size,
-                                    scopes,
-                                    code,
-                                    context,
-                                    &fun,
-                                    scope_len,
-                                    Some(
-                                        ShTypeBuilder::new()
-                                            .set_name("uint")
-                                            .set_kind(dictionary::KindType::Primitive)
-                                            .build(),
-                                    ),
-                                )?;
-    
-                                code.read(&value_var, GENERAL_REG2);
-                                code.extend(&[
-                                    Allocate(GENERAL_REG1),
-                                    FillRange(GENERAL_REG2, GENERAL_REG1),
-                                    Move(POINTER_REG, GENERAL_REG1),
-                                ]);
-                                let mut return_kind = value;
-                                return_kind.array_depth += 1;
-                                return Ok(Position::Value(return_kind));
-                            }else {
-                                unreachable!("array not handled properly by the compiler, please report this bug")
+                                    kind.clone(),
+                                )?);
+                                match &kind {
+                                    Some(kind) => {
+                                        match cast(
+                                            objects,
+                                            &mut kind.clone(),
+                                            &temp_kind.clone().unwrap(),
+                                            code,
+                                            context,
+                                            &fun,
+                                            &line,
+                                            GENERAL_REG1,
+                                        ) {
+                                            Some(_) => {
+                                                // do nothing
+                                            }
+                                            None => {
+                                                Err(CodegenError::CouldNotCastTo(
+                                                    kind.clone(),
+                                                    temp_kind.clone().unwrap(),
+                                                    line.clone(),
+                                                ))?;
+                                            }
+                                        }
+                                    }
+                                    None => {
+                                        kind = temp_kind.clone();
+                                    }
+                                }
+                                code.read(&obj, POINTER_REG);
+                                code.extend(&[IndexStatic(idx), WritePtr(GENERAL_REG1)]);
                             }
+                            code.read(&obj, GENERAL_REG1);
+                            let mut return_kind = kind.unwrap().clone();
+                            return_kind.array_depth += 1;
+                            return Ok(Position::Value(return_kind));
+                        }
+
+
+
+                        todo!()
+                    }
+                    ArrayRule::Fill { value, size } => {
+                        let expected = match expected_type {
+                            Some(ref kind) => {
+                                if kind.array_depth == 0 {
+                                    Err(CodegenError::CoudNotCastAnArrayToANonArray(
+                                        kind.clone(),
+                                        line.clone(),
+                                    ))?;
+                                }
+                                let mut temp = kind.clone();
+                                temp.array_depth -= 1;
+                                Some(correct_kind(objects, &temp, fun, &line)?)
+                            }
+                            None => None,
+                        };
+                        if let Some(scopes) = scopes {
+                            let value = expression(
+                                objects,
+                                value,
+                                scopes,
+                                code,
+                                context,
+                                &fun,
+                                scope_len,
+                                expected.clone(),
+                            )?;
+                            *scope_len += 1;
+                            let value_var = create_var_pos(scopes);
+                            let scopes_len = scopes.len();
+                            scopes[scopes_len - 1].variables.insert(
+                                scope_len.to_string(),
+                                Variable {
+                                    kind: Some(value.clone()),
+                                    pos: value_var.clone(),
+                                    value: None,
+                                    line: line.clone(),
+                                },
+                            );
+                            code.write(GENERAL_REG1, &value_var);
+                            let size = expression(
+                                objects,
+                                size,
+                                scopes,
+                                code,
+                                context,
+                                &fun,
+                                scope_len,
+                                Some(
+                                    ShTypeBuilder::new()
+                                        .set_name("uint")
+                                        .set_kind(dictionary::KindType::Primitive)
+                                        .build(),
+                                ),
+                            )?;
+
+                            code.read(&value_var, GENERAL_REG2);
+                            code.extend(&[
+                                Allocate(GENERAL_REG1),
+                                FillRange(GENERAL_REG2, GENERAL_REG1),
+                                Move(POINTER_REG, GENERAL_REG1),
+                            ]);
+                            let mut return_kind = value;
+                            return_kind.array_depth += 1;
+                            return Ok(Position::Value(return_kind));
+                        } else {
+                            unreachable!("array not handled properly by the compiler, please report this bug")
                         }
                     }
                 },
@@ -1361,7 +1436,7 @@ fn traverse_tail(
                         code,
                         scope_len,
                         None,
-                        &fun
+                        &fun,
                     )?;
                     return traverse_tail(
                         objects, tail, context, scopes, code, fun, root, scope_len,
@@ -1378,7 +1453,7 @@ fn traverse_tail(
                         code,
                         scope_len,
                         None,
-                        &fun
+                        &fun,
                     )?;
                     return traverse_tail(
                         objects, tail, context, scopes, code, fun, root, scope_len,
@@ -1559,7 +1634,85 @@ fn traverse_tail(
                 Position::Function(_, kind) => {
                     Err(CodegenError::CannotIndexFunction(node.1.clone()))?
                 }
-                Position::CompoundField(_, _, kind) => todo!(),
+                Position::CompoundField(path, field, ptr) => {
+                    let ident = if let CompoundField::Field(ident) = field {
+                        ident
+                    } else {
+                        Err(CodegenError::CannotIndexNonArray(
+                            pos.clone(),
+                            node.1.clone(),
+                        ))?
+                    };
+                    let field_kind = {
+                        if let Some(structt) = find_struct(
+                            objects,
+                            &path.ident,
+                            &path.file,
+                        ) {
+                            let field = match structt.1.fields.iter().find(|field| &field.0 == ident) {
+                                Some(field) => field,
+                                None => Err(CodegenError::FieldNotInStruct(
+                                    ident.clone(),
+                                    node.1.clone(),
+                                ))?,
+                            };
+                            field.1.clone()
+                        } else {
+                            Err(CodegenError::FieldNotInStruct(
+                                ident.clone(),
+                                node.1.clone(),
+                            ))?
+                        }
+                    };
+                    // first dereference the pointer
+                    code.push(ReadPtr(GENERAL_REG1));
+                    
+                    let mut return_kind = field_kind.clone();
+                    if return_kind.array_depth == 0 {
+                        Err(CodegenError::CannotIndexNonArray(
+                            pos.clone(),
+                            node.1.clone(),
+                        ))?;
+                    }
+                    return_kind.array_depth -= 1;
+
+                    // save the pointer from GENERAL_REG1 to stack
+                    *scope_len += 1;
+                    let obj = create_var_pos(scopes);
+                    let scopes_len = scopes.len();
+                    scopes[scopes_len - 1].variables.insert(
+                        scope_len.to_string(),
+                        Variable {
+                            kind: Some(return_kind.clone()),
+                            pos: obj.clone(),
+                            value: None,
+                            line: node.1.clone(),
+                        },
+                    );
+                    code.write(GENERAL_REG1, &obj);
+
+                    expression(
+                        objects,
+                        idx,
+                        scopes,
+                        code,
+                        context,
+                        &fun,
+                        scope_len,
+                        Some(
+                            ShTypeBuilder::new()
+                                .set_name("uint")
+                                .set_kind(dictionary::KindType::Primitive)
+                                .build(),
+                        ),
+                    )?;
+
+                    // restore the pointer from stack to POINTER_REG
+                    code.read(&obj, POINTER_REG);
+                    code.extend(&[Index(GENERAL_REG1), Move(POINTER_REG, GENERAL_REG1)]);
+                    return Ok(Position::Pointer(return_kind));
+                    
+                },
                 Position::Import(_) => Err(CodegenError::CannotIndexFile(node.1.clone()))?,
                 Position::Variable(var, kind) => {
                     let var = match find_var(scopes, &var) {
@@ -1594,25 +1747,106 @@ fn traverse_tail(
                     )?;
 
                     code.read(&pos_cloned, POINTER_REG);
-                    code.extend(&[
-                        Index(GENERAL_REG1),
-                        Move(POINTER_REG, GENERAL_REG1)
-                    ]);
+                    code.extend(&[Index(GENERAL_REG1), Move(POINTER_REG, GENERAL_REG1)]);
 
                     return Ok(Position::Pointer(return_kind));
                 }
                 Position::Pointer(ptr) => {
-                    panic!("2");
-                    todo!()
+                    let mut return_kind = ptr.clone();
+                    if return_kind.array_depth == 0 {
+                        Err(CodegenError::CannotIndexNonArray(
+                            pos.clone(),
+                            node.1.clone(),
+                        ))?;
+                    }
+                    return_kind.array_depth -= 1;
+
+                    // save the pointer from GENERAL_REG1 to stack
+                    *scope_len += 1;
+                    let obj = create_var_pos(scopes);
+                    let scopes_len = scopes.len();
+                    scopes[scopes_len - 1].variables.insert(
+                        scope_len.to_string(),
+                        Variable {
+                            kind: Some(return_kind.clone()),
+                            pos: obj.clone(),
+                            value: None,
+                            line: node.1.clone(),
+                        },
+                    );
+                    code.write(GENERAL_REG1, &obj);
+
+                    expression(
+                        objects,
+                        idx,
+                        scopes,
+                        code,
+                        context,
+                        &fun,
+                        scope_len,
+                        Some(
+                            ShTypeBuilder::new()
+                                .set_name("uint")
+                                .set_kind(dictionary::KindType::Primitive)
+                                .build(),
+                        ),
+                    )?;
+
+                    // restore the pointer from stack to POINTER_REG
+                    code.read(&obj, POINTER_REG);
+                    code.extend(&[Index(GENERAL_REG1), Move(POINTER_REG, GENERAL_REG1)]);
+                    return Ok(Position::Pointer(return_kind));
                 }
                 Position::Compound(_) => Err(CodegenError::CannotIndexNonArray(
                     pos.clone(),
                     node.1.clone(),
                 ))?,
-                Position::Value(_) => {
-                    panic!("3");
-                    
-                },
+                Position::Value(ptr) => {
+                    let mut return_kind = ptr.clone();
+                    if return_kind.array_depth == 0 {
+                        Err(CodegenError::CannotIndexNonArray(
+                            pos.clone(),
+                            node.1.clone(),
+                        ))?;
+                    }
+                    return_kind.array_depth -= 1;
+
+                    // save the pointer from GENERAL_REG1 to stack
+                    *scope_len += 1;
+                    let obj = create_var_pos(scopes);
+                    let scopes_len = scopes.len();
+                    scopes[scopes_len - 1].variables.insert(
+                        scope_len.to_string(),
+                        Variable {
+                            kind: Some(return_kind.clone()),
+                            pos: obj.clone(),
+                            value: None,
+                            line: node.1.clone(),
+                        },
+                    );
+                    code.write(GENERAL_REG1, &obj);
+
+                    expression(
+                        objects,
+                        idx,
+                        scopes,
+                        code,
+                        context,
+                        &fun,
+                        scope_len,
+                        Some(
+                            ShTypeBuilder::new()
+                                .set_name("uint")
+                                .set_kind(dictionary::KindType::Primitive)
+                                .build(),
+                        ),
+                    )?;
+
+                    // restore the pointer from stack to POINTER_REG
+                    code.read(&obj, POINTER_REG);
+                    code.extend(&[Index(GENERAL_REG1), Move(POINTER_REG, GENERAL_REG1)]);
+                    return Ok(Position::Pointer(return_kind));
+                }
             },
             expression_parser::TailNodes::Call(call_params) => match &pos {
                 Position::Function(fun_kind, kind) => {
