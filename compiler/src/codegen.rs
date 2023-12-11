@@ -1322,9 +1322,9 @@ fn identify_root(
                             let mut return_kind = kind.unwrap().clone();
                             return_kind.array_depth += 1;
                             return Ok(Position::Value(return_kind));
+                        } else {
+                            unreachable!("array not handled properly by the compiler, please report this bug")
                         }
-
-                        todo!()
                     }
                     ArrayRule::Fill { value, size } => {
                         let expected = match expected_type {
@@ -1735,7 +1735,10 @@ fn traverse_tail(
                     // restore the pointer from stack to POINTER_REG
                     code.read(&obj, POINTER_REG);
                     code.extend(&[Index(GENERAL_REG1), Move(POINTER_REG, GENERAL_REG1)]);
-                    return Ok(Position::Pointer(return_kind));
+                    let pos = Position::Pointer(return_kind);
+                    return traverse_tail(
+                        objects, tail, context, scopes, code, fun, pos, scope_len,
+                    );
                 }
                 Position::Import(_) => Err(CodegenError::CannotIndexFile(node.1.clone()))?,
                 Position::Variable(var, kind) => {
@@ -1773,7 +1776,10 @@ fn traverse_tail(
                     code.read(&pos_cloned, POINTER_REG);
                     code.extend(&[Index(GENERAL_REG1), Move(POINTER_REG, GENERAL_REG1)]);
 
-                    return Ok(Position::Pointer(return_kind));
+                    let pos = Position::Pointer(return_kind);
+                    return traverse_tail(
+                        objects, tail, context, scopes, code, fun, pos, scope_len,
+                    );
                 }
                 Position::Pointer(ptr) => {
                     let mut return_kind = ptr.clone();
@@ -1819,7 +1825,10 @@ fn traverse_tail(
                     // restore the pointer from stack to POINTER_REG
                     code.read(&obj, POINTER_REG);
                     code.extend(&[Index(GENERAL_REG1), Move(POINTER_REG, GENERAL_REG1)]);
-                    return Ok(Position::Pointer(return_kind));
+                    let pos = Position::Pointer(return_kind);
+                    return traverse_tail(
+                        objects, tail, context, scopes, code, fun, pos, scope_len,
+                    );
                 }
                 Position::Compound(_) => Err(CodegenError::CannotIndexNonArray(
                     pos.clone(),
@@ -1869,7 +1878,10 @@ fn traverse_tail(
                     // restore the pointer from stack to POINTER_REG
                     code.read(&obj, POINTER_REG);
                     code.extend(&[Index(GENERAL_REG1), Move(POINTER_REG, GENERAL_REG1)]);
-                    return Ok(Position::Pointer(return_kind));
+                    let pos = Position::Pointer(return_kind);
+                    return traverse_tail(
+                        objects, tail, context, scopes, code, fun, pos, scope_len,
+                    );
                 }
             },
             expression_parser::TailNodes::Call(call_params) => match &pos {
@@ -1888,7 +1900,10 @@ fn traverse_tail(
                                 fun,
                             )?;
                             fun_kind.file = Some(fun_path.file.clone());
-                            return Ok(Position::Value(fun_kind));
+                            let pos = Position::Value(fun_kind);
+                            return traverse_tail(
+                                objects, tail, context, scopes, code, fun, pos, scope_len,
+                            );
                         }
                         FunctionKind::Binary(fun_path) => {
                             let mut kind = call_binary(
@@ -1903,7 +1918,10 @@ fn traverse_tail(
                                 &fun,
                             )?;
                             kind.file = Some(fun_path.file.clone());
-                            return Ok(Position::Value(kind));
+                            let pos = Position::Value(kind);
+                            return traverse_tail(
+                                objects, tail, context, scopes, code, fun, pos, scope_len,
+                            );
                         }
                         FunctionKind::Dynamic(fun) => todo!("dynamic function call"),
                     };
@@ -1932,7 +1950,10 @@ fn traverse_tail(
                         fun,
                     )?;
                     kind.file = Some(path.file.clone());
-                    return Ok(Position::Value(kind));
+                    let pos = Position::Value(kind);
+                    return traverse_tail(
+                        objects, tail, context, scopes, code, fun, pos, scope_len,
+                    );
                 }
                 Position::CompoundField(path, field, kind) => {
                     match field {
@@ -1952,7 +1973,10 @@ fn traverse_tail(
                         fun,
                     )?;
                     kind.file = Some(path.file.clone());
-                    return Ok(Position::Value(kind));
+                    let pos = Position::Value(kind);
+                    return traverse_tail(
+                        objects, tail, context, scopes, code, fun, pos, scope_len,
+                    );
                 }
                 _ => Err(CodegenError::CanCallOnlyFunctions(node.1.clone()))?,
             },
