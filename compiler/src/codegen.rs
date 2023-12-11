@@ -417,10 +417,10 @@ fn expression(
     fun: &InnerPath,
     scope_len: &mut usize,
     expected_type: Option<ShallowType>,
+    mut line: Line,
 ) -> Result<ShallowType, CodegenError> {
     use Instructions::*;
     let mut return_kind = ShallowType::empty();
-    let mut line = Line { column: 0, line: 0 };
     let mut expected_type = match expected_type {
         Some(kind) => Some(correct_kind(objects, &kind, fun, &line)?),
         None => None,
@@ -701,8 +701,9 @@ fn expression(
                 Some(right) => right,
                 None => Err(CodegenError::ExressionNotHandledProperly(expr.line.clone()))?,
             };
-            let left_kind =
-                expression(objects, left, scopes, code, context, &fun, scope_len, None)?;
+            let left_kind = expression(
+                objects, left, scopes, code, context, &fun, scope_len, None, line,
+            )?;
             *scope_len += 1;
             let var = create_var_pos(scopes);
             let len = scopes.len();
@@ -725,6 +726,7 @@ fn expression(
                 &fun,
                 scope_len,
                 Some(left_kind.clone()),
+                line,
             )?;
             code.read(&var, GENERAL_REG2);
             code.push(Swap(GENERAL_REG1, GENERAL_REG2));
@@ -1286,6 +1288,7 @@ fn identify_root(
                                     &fun,
                                     scope_len,
                                     kind.clone(),
+                                    *line,
                                 )?);
                                 match &kind {
                                     Some(kind) => {
@@ -1351,6 +1354,7 @@ fn identify_root(
                                 &fun,
                                 scope_len,
                                 expected.clone(),
+                                *line,
                             )?;
                             *scope_len += 1;
                             let value_var = create_var_pos(scopes);
@@ -1379,6 +1383,7 @@ fn identify_root(
                                         .set_kind(dictionary::KindType::Primitive)
                                         .build(),
                                 ),
+                                *line,
                             )?;
 
                             code.read(&value_var, GENERAL_REG2);
@@ -1432,6 +1437,7 @@ fn identify_root(
                 },
                 scope_len,
                 None,
+                *line,
             )?;
             return Ok(Position::Value(kind));
         }
@@ -1730,6 +1736,7 @@ fn traverse_tail(
                                 .set_kind(dictionary::KindType::Primitive)
                                 .build(),
                         ),
+                        node.1,
                     )?;
 
                     // restore the pointer from stack to POINTER_REG
@@ -1771,6 +1778,7 @@ fn traverse_tail(
                                 .set_kind(dictionary::KindType::Primitive)
                                 .build(),
                         ),
+                        node.1,
                     )?;
 
                     code.read(&pos_cloned, POINTER_REG);
@@ -1790,6 +1798,9 @@ fn traverse_tail(
                         ))?;
                     }
                     return_kind.array_depth -= 1;
+
+                    // deref once
+                    code.push(ReadPtr(GENERAL_REG1));
 
                     // save the pointer from GENERAL_REG1 to stack
                     *scope_len += 1;
@@ -1820,6 +1831,7 @@ fn traverse_tail(
                                 .set_kind(dictionary::KindType::Primitive)
                                 .build(),
                         ),
+                        node.1,
                     )?;
 
                     // restore the pointer from stack to POINTER_REG
@@ -1873,6 +1885,7 @@ fn traverse_tail(
                                 .set_kind(dictionary::KindType::Primitive)
                                 .build(),
                         ),
+                        node.1,
                     )?;
 
                     // restore the pointer from stack to POINTER_REG
@@ -2051,6 +2064,7 @@ fn call_binary(
             &this,
             scope_len,
             Some(arg.1.clone().1),
+            arg.1 .3,
         )?;
         args.push(kind);
         temp_code.read(&obj, POINTER_REG);
@@ -2157,6 +2171,7 @@ fn call_fun(
             &fun,
             scope_len,
             Some(arg.1.clone().kind),
+            arg.1.line,
         )?;
         args.push(kind);
         temp_code.read(&obj, POINTER_REG);
@@ -2302,6 +2317,7 @@ fn get_scope(
                             &fun,
                             &mut max_scope_len,
                             kind.clone(),
+                            *line,
                         )?;
                         max_scope_len += 1;
                         let pos = create_var_pos(&other_scopes);
@@ -2403,6 +2419,7 @@ fn get_scope(
                     &fun,
                     &mut max_scope_len,
                     Some(bool_type.clone()),
+                    *line,
                 )?;
                 let (scope, terminator) = open_scope!(body, &mut block_code);
                 if terminator != ScopeTerminator::Return {
@@ -2426,6 +2443,7 @@ fn get_scope(
                         &fun,
                         &mut max_scope_len,
                         Some(bool_type.clone()),
+                        *line,
                     )?;
                     if kind.cmp(&bool_type).is_not_equal() {
                         return Err(CodegenError::ExpectedBool(elif.2.clone()));
@@ -2493,6 +2511,7 @@ fn get_scope(
                     &fun,
                     &mut max_scope_len,
                     Some(bool_type.clone()),
+                    *line,
                 )?;
                 if kind.cmp(&bool_type).is_not_equal() {
                     return Err(CodegenError::ExpectedBool(line.clone()));
@@ -2532,6 +2551,7 @@ fn get_scope(
                             &fun,
                             &mut max_scope_len,
                             fun.get(objects)?.return_type.clone(),
+                            *line,
                         )?;
                         expr_code.push(Move(GENERAL_REG1, RETURN_REG));
                         kind
@@ -2580,6 +2600,7 @@ fn get_scope(
                     &fun,
                     &mut max_scope_len,
                     None,
+                    *line,
                 )?;
             }
             crate::codeblock_parser::Nodes::Block { body, line } => {
@@ -2654,6 +2675,7 @@ fn get_scope(
                                     &fun,
                                     &mut max_scope_len,
                                     var.kind.clone(),
+                                    *line,
                                 )?;
                                 if let Operators::Equal = op {
                                     conclusion_code.write(GENERAL_REG1, &var.pos);
@@ -2705,6 +2727,7 @@ fn get_scope(
                                     &fun,
                                     &mut max_scope_len,
                                     Some(kind.clone()),
+                                    *line,
                                 )?;
                                 if let Operators::Equal = op {
                                     conclusion_code.read(&temp_var, POINTER_REG);
