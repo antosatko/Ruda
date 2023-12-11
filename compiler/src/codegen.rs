@@ -27,7 +27,7 @@ pub fn gen(
 ) -> Result<runtime::runtime_types::Context, CodegenError> {
     let mut vm_context = runtime::runtime_types::Context::new(Vec::new());
     // Initialize some common constants for faster lookup
-    let consts = [
+    let consts: [ConstValue; 9] = [
         ConstValue::Null,
         ConstValue::Bool(true),
         ConstValue::Bool(false),
@@ -1146,6 +1146,36 @@ fn identify_root(
     use Instructions::*;
     match ident {
         Root::Identifier(ident) => {
+            match ident.as_str() {
+                "true" => {
+                    code.push(ReadConst(1, GENERAL_REG1));
+                    return Ok(Position::Value(
+                        ShTypeBuilder::new()
+                            .set_name("bool")
+                            .set_kind(dictionary::KindType::Primitive)
+                            .build(),
+                    ));
+                }
+                "false" => {
+                    code.push(ReadConst(2, GENERAL_REG1));
+                    return Ok(Position::Value(
+                        ShTypeBuilder::new()
+                            .set_name("bool")
+                            .set_kind(dictionary::KindType::Primitive)
+                            .build(),
+                    ));
+                }
+                "null" => {
+                    code.push(ReadConst(0, GENERAL_REG1));
+                    return Ok(Position::Value(
+                        ShTypeBuilder::new()
+                            .set_name("null")
+                            .set_kind(dictionary::KindType::Primitive)
+                            .build(),
+                    ));
+                }
+                _ => (),
+            }
             if let Some(scopes) = scopes {
                 if let Some(var) = find_var(scopes, &ident) {
                     return Ok(Position::Variable(
@@ -1293,8 +1323,6 @@ fn identify_root(
                             return_kind.array_depth += 1;
                             return Ok(Position::Value(return_kind));
                         }
-
-
 
                         todo!()
                     }
@@ -1644,18 +1672,15 @@ fn traverse_tail(
                         ))?
                     };
                     let field_kind = {
-                        if let Some(structt) = find_struct(
-                            objects,
-                            &path.ident,
-                            &path.file,
-                        ) {
-                            let field = match structt.1.fields.iter().find(|field| &field.0 == ident) {
-                                Some(field) => field,
-                                None => Err(CodegenError::FieldNotInStruct(
-                                    ident.clone(),
-                                    node.1.clone(),
-                                ))?,
-                            };
+                        if let Some(structt) = find_struct(objects, &path.ident, &path.file) {
+                            let field =
+                                match structt.1.fields.iter().find(|field| &field.0 == ident) {
+                                    Some(field) => field,
+                                    None => Err(CodegenError::FieldNotInStruct(
+                                        ident.clone(),
+                                        node.1.clone(),
+                                    ))?,
+                                };
                             field.1.clone()
                         } else {
                             Err(CodegenError::FieldNotInStruct(
@@ -1666,7 +1691,7 @@ fn traverse_tail(
                     };
                     // first dereference the pointer
                     code.push(ReadPtr(GENERAL_REG1));
-                    
+
                     let mut return_kind = field_kind.clone();
                     if return_kind.array_depth == 0 {
                         Err(CodegenError::CannotIndexNonArray(
@@ -1711,8 +1736,7 @@ fn traverse_tail(
                     code.read(&obj, POINTER_REG);
                     code.extend(&[Index(GENERAL_REG1), Move(POINTER_REG, GENERAL_REG1)]);
                     return Ok(Position::Pointer(return_kind));
-                    
-                },
+                }
                 Position::Import(_) => Err(CodegenError::CannotIndexFile(node.1.clone()))?,
                 Position::Variable(var, kind) => {
                     let var = match find_var(scopes, &var) {

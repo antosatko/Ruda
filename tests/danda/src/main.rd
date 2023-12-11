@@ -14,6 +14,5 @@ struct Danda {
 
 
 fun main() {
-    let d = Danda()
-    io.println(d.a[2]) 
+    let š = true
 }
