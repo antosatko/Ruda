@@ -4,15 +4,11 @@ import "#string"
 
 import "danda.rd"
 
-struct Danda {
-    a: [int]
+fun d(i: int) {
 
-    new() {
-        self.a = [1, 2, 3]
-    }
 }
 
 
 fun main() {
-    let š = true
+    d([1])
 }

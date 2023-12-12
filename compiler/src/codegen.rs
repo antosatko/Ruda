@@ -2064,7 +2064,7 @@ fn call_binary(
             &this,
             scope_len,
             Some(arg.1.clone().1),
-            arg.1 .3,
+            arg.0.get_line(),
         )?;
         args.push(kind);
         temp_code.read(&obj, POINTER_REG);

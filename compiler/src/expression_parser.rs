@@ -559,6 +559,15 @@ impl ValueType {
             _ => false,
         }
     }
+    pub fn get_line(&self) -> Line {
+        match self {
+            ValueType::Expression(expr) => expr.line,
+            ValueType::Operator(_, line) => line.clone(),
+            ValueType::Value(val) => val.line,
+            ValueType::AnonymousFunction(fun) => fun.line,
+            ValueType::Blank => Line::from((0, 0)),
+        }
+    }
 }
 #[derive(Debug, Clone)]
 pub struct Literal {
