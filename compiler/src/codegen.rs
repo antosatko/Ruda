@@ -1,4 +1,3 @@
-use core::panic;
 use intermediate::dictionary::ImportKinds;
 use std::collections::HashMap;
 use std::vec;
@@ -263,6 +262,8 @@ pub enum CodegenError {
     CannotReference(usize, ShallowType, Line),
     CannotGetKind(Position),
     CannotCallType(ShallowType, Line),
+    CannotCastNull(ShallowType, Line),
+    SwitchWithoutCases(Line),
 }
 
 pub fn stringify(
@@ -388,7 +389,7 @@ fn gen_fun<'a>(
     let mut args_code = Code {
         code: vec![Instructions::ReserveStack(scope_len, 0)],
     };
-    for (idx, arg) in scopes[0].variables.iter().enumerate() {
+    for (idx, _) in scopes[0].variables.iter().enumerate() {
         args_code.extend(&[
             Instructions::Move(ARGS_REG, POINTER_REG),
             Instructions::IndexStatic(idx),
@@ -417,11 +418,11 @@ fn expression(
     fun: &InnerPath,
     scope_len: &mut usize,
     expected_type: Option<ShallowType>,
-    mut line: Line,
+    line: Line,
 ) -> Result<ShallowType, CodegenError> {
     use Instructions::*;
     let mut return_kind = ShallowType::empty();
-    let mut expected_type = match expected_type {
+    let expected_type = match expected_type {
         Some(kind) => Some(correct_kind(objects, &kind, fun, &line)?),
         None => None,
     };
@@ -1369,7 +1370,7 @@ fn identify_root(
                                 },
                             );
                             code.write(GENERAL_REG1, &value_var);
-                            let size = expression(
+                            expression(
                                 objects,
                                 size,
                                 scopes,
@@ -1513,7 +1514,7 @@ fn traverse_tail(
                             )
                             .unwrap()
                             .1;
-                            let field = match structt.get_field(&ident) {
+                            match structt.get_field(&ident) {
                                 Some((field, idx)) => match field {
                                     CompoundField::Field(ident) => {
                                         code.read(&pos_cloned, POINTER_REG);
@@ -1588,7 +1589,7 @@ fn traverse_tail(
                             )
                             .unwrap()
                             .1;
-                            let field = match userdata.get_field(&ident) {
+                            match userdata.get_field(&ident) {
                                 Some((field, idx)) => match field {
                                     CompoundField::Method(ident) => {
                                         code.read(&pos_cloned, GENERAL_REG1);
@@ -1626,10 +1627,24 @@ fn traverse_tail(
                                 ))?,
                             };
                         }
+                        // in case of primitives we have to use internal functions in the core library
+                        dictionary::KindType::Primitive => {
+                            let path = find_primitive_method(objects, &kind, &ident, &node.1)?;
+                            code.push(Move(GENERAL_REG1, RETURN_REG));
+                            return traverse_tail(
+                                objects,
+                                tail,
+                                context,
+                                scopes,
+                                code,
+                                fun,
+                                Position::Function(FunctionKind::Binary(path), kind),
+                                scope_len,
+                            );
+                        }
                         dictionary::KindType::Enum => todo!(),
                         dictionary::KindType::Trait => todo!(),
                         dictionary::KindType::Fun => todo!(),
-                        dictionary::KindType::Primitive => todo!(),
                         dictionary::KindType::Error => todo!(),
                         dictionary::KindType::BinFun => todo!(),
                         dictionary::KindType::SelfRef => todo!(),
@@ -1665,9 +1680,7 @@ fn traverse_tail(
             },
             expression_parser::TailNodes::Index(idx) => match &pos {
                 Position::BinImport(_) => Err(CodegenError::CannotIndexFile(node.1.clone()))?,
-                Position::Function(_, kind) => {
-                    Err(CodegenError::CannotIndexFunction(node.1.clone()))?
-                }
+                Position::Function(_, _) => Err(CodegenError::CannotIndexFunction(node.1.clone()))?,
                 Position::CompoundField(path, field, ptr) => {
                     let ident = if let CompoundField::Field(ident) = field {
                         ident
@@ -1748,7 +1761,7 @@ fn traverse_tail(
                     );
                 }
                 Position::Import(_) => Err(CodegenError::CannotIndexFile(node.1.clone()))?,
-                Position::Variable(var, kind) => {
+                Position::Variable(var, _) => {
                     let var = match find_var(scopes, &var) {
                         Some(var) => var,
                         None => Err(CodegenError::VariableNotFound(var.clone(), node.1.clone()))?,
@@ -1898,7 +1911,7 @@ fn traverse_tail(
                 }
             },
             expression_parser::TailNodes::Call(call_params) => match &pos {
-                Position::Function(fun_kind, kind) => {
+                Position::Function(fun_kind, _) => {
                     match fun_kind {
                         FunctionKind::Fun(fun_path) => {
                             let mut fun_kind = call_fun(
@@ -2000,6 +2013,56 @@ fn traverse_tail(
         }
     }
     Ok(pos)
+}
+
+fn find_primitive_method(
+    objects: &mut Context,
+    kind: &ShallowType,
+    method: &str,
+    line: &Line,
+) -> Result<InnerPath, CodegenError> {
+    let name = match kind.get_ident() {
+        "int" | "uint" | "float" | "bool" | "char" | "string" | "null" => {
+            format!("{}{}", kind.get_ident(), method)
+        }
+        _ => Err(CodegenError::CannotCallType(kind.clone(), line.clone()))?
+    };
+    let path = InnerPath {
+        file: "#core".to_string(),
+        block: None,
+        ident: name,
+        kind: ImportKinds::Dll,
+    };
+    Ok(path)
+}
+
+fn call_primitive_method(
+    objects: &mut Context,
+    kind: &ShallowType,
+    method: &str,
+    context: &mut runtime_types::Context,
+    scopes: &mut Vec<ScopeCached>,
+    code: &mut Code,
+    scope_len: &mut usize,
+    call_params: &FunctionCall,
+    line: &Line,
+    this: &InnerPath,
+) -> Result<ShallowType, CodegenError> {
+    use Instructions::*;
+    let path = find_primitive_method(objects, kind, method, line)?;
+    let mut kind = call_whichever(
+        objects,
+        &path,
+        context,
+        scopes,
+        code,
+        scope_len,
+        call_params,
+        line,
+        this,
+    )?;
+    kind.file = Some(path.file.clone());
+    Ok(kind)
 }
 
 fn call_binary(
@@ -2410,7 +2473,7 @@ fn get_scope(
                 let mut expr_code = Code { code: Vec::new() };
                 let mut block_code = Code { code: Vec::new() };
                 let mut gotos = Vec::new();
-                let kind = expression(
+                expression(
                     objects,
                     cond,
                     other_scopes,
@@ -2434,7 +2497,7 @@ fn get_scope(
                 for elif in elif {
                     let mut expr_code = Code { code: Vec::new() };
                     let mut block_code = Code { code: Vec::new() };
-                    let kind = expression(
+                    expression(
                         objects,
                         &elif.0,
                         other_scopes,
@@ -2445,9 +2508,6 @@ fn get_scope(
                         Some(bool_type.clone()),
                         *line,
                     )?;
-                    if kind.cmp(&bool_type).is_not_equal() {
-                        return Err(CodegenError::ExpectedBool(elif.2.clone()));
-                    }
                     let (scope, terminator) = open_scope!(&elif.1, &mut block_code);
                     if terminator != ScopeTerminator::Return {
                         all_end_with_return = false;
@@ -2609,7 +2669,7 @@ fn get_scope(
                     return Ok(scope);
                 }
             }
-            crate::codeblock_parser::Nodes::Break { line, ident } => {}
+            crate::codeblock_parser::Nodes::Break { line, ident } => {todo!()}
             crate::codeblock_parser::Nodes::Continue { line, ident } => todo!(),
             crate::codeblock_parser::Nodes::Loop { body, line, ident } => {
                 use Instructions::*;
@@ -2633,7 +2693,109 @@ fn get_scope(
                 body,
                 default,
                 line,
-            } => todo!(),
+            } => {
+                todo!("stack offset is not correct, this needs fix");
+                use Instructions::*;
+                let mut expr_code = Code { code: Vec::new() };
+                let mut all_return = true;
+                expression(
+                    objects,
+                    expr,
+                    other_scopes,
+                    &mut expr_code,
+                    context,
+                    &fun,
+                    &mut max_scope_len,
+                    None,
+                    *line,
+                )?;
+                // save expr to stack
+                let pos = create_var_pos(&other_scopes);
+                let cache = last!(other_scopes);
+                cache.variables.insert(
+                    max_scope_len.to_string(),
+                    Variable {
+                        kind: None,
+                        pos: pos.clone(),
+                        value: None,
+                        line: line.clone(),
+                    },
+                );
+                max_scope_len += 1;
+                expr_code.write(GENERAL_REG1, &pos);
+                if body.len() == 0 {
+                    match default {
+                        Some(default) => {
+                            let mut block_code = Code { code: Vec::new() };
+                            let (scope, terminator) = open_scope!(default, &mut block_code);
+                            merge_code(&mut code.code, &expr_code.code, 0);
+                            merge_code(&mut code.code, &block_code.code, 0);
+                            return Ok((max_scope_len, terminator));
+                        }
+                        None => Err(CodegenError::SwitchWithoutCases(line.clone()))?,
+                    }
+                }
+                // after this point we know that there are cases
+                // body
+                let mut cases = Vec::new();
+                for case in body {
+                    let mut expr_code = Code { code: Vec::new() };
+                    let mut block_code = Code { code: Vec::new() };
+                    expression(
+                        objects,
+                        &case.0,
+                        other_scopes,
+                        &mut expr_code,
+                        context,
+                        &fun,
+                        &mut max_scope_len,
+                        None,
+                        *line,
+                    )?;
+                    let (scope, terminator) = open_scope!(&case.1, &mut block_code);
+                    if terminator != ScopeTerminator::Return {
+                        all_return = false;
+                    }
+                    // compare
+                    expr_code.read(&pos, GENERAL_REG2);
+                    expr_code.extend(&[
+                        Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1),
+                        Branch(
+                            expr_code.code.len() + 2, // +2 because of the branch itself
+                            expr_code.code.len() + block_code.code.len() + 3, // +3 because of the branch itself and the goto at the end
+                        ),
+                    ]);
+                    block_code.push(End); // placeholder for goto
+                    cases.push((expr_code, block_code, scope));
+                }
+                let largest_scope = *cases.iter().map(|(_, _, scope)| scope).max().unwrap();
+                let mut total_len = cases.iter().map(|(a, b, _)| a.code.len() + b.code.len()).sum::<usize>() + expr_code.code.len();
+                // default
+                let defualt = if let Some(default) = default {
+                    let mut block_code = Code { code: Vec::new() };
+                    let (scope, terminator) = open_scope!(default, &mut block_code);
+                    if terminator != ScopeTerminator::Return {
+                        all_return = false;
+                    }
+                    total_len += block_code.code.len();
+                    block_code
+                } else {
+                    Code { code: Vec::new() }
+                };
+                // merge
+                let mut buffer = Vec::new();
+                for (expr_code, block_code, scope) in cases.iter_mut() {
+                    block_code.push(Goto(total_len + 1)); // +1 because of the goto itself
+                    merge_code(&mut buffer, &expr_code.code, *scope);
+                    merge_code(&mut buffer, &block_code.code, *scope);
+                }
+                merge_code(&mut buffer, &defualt.code, largest_scope);
+                merge_code(&mut code.code, &buffer, 0);
+                if all_return {
+                    return Ok((max_scope_len, ScopeTerminator::Return));
+                }
+                return Ok((max_scope_len, ScopeTerminator::None));
+            }
             crate::codeblock_parser::Nodes::Set {
                 target,
                 expr,
@@ -2794,12 +2956,11 @@ fn try_get_const_val() -> Option<ConstValue> {
 fn merge_code(
     buffer: &mut Vec<Instructions>,
     new_code: &Vec<Instructions>,
-    scope_len: usize,
+    _scope_len: usize,
 ) -> (usize, usize) {
     let start = buffer.len();
     buffer.reserve(new_code.len());
     let instrs = buffer.len();
-    let end = instrs + new_code.len();
     for instr in new_code {
         use Instructions::*;
         let instr = match instr {
@@ -2904,21 +3065,6 @@ fn new_const(
 struct ScopeCached {
     variables: HashMap<String, Variable>,
 }
-
-impl ScopeCached {
-    pub fn insert_dummy(&mut self, pos: MemoryTypes) {
-        self.variables.insert(
-            self.variables.len().to_string(),
-            Variable {
-                kind: None,
-                pos,
-                value: None,
-                line: Line { line: 0, column: 0 },
-            },
-        );
-    }
-}
-
 #[derive(Debug, Clone)]
 struct Variable {
     kind: Option<ShallowType>,
@@ -2980,17 +3126,6 @@ impl Code {
     }
     pub fn push(&mut self, instr: Instructions) {
         self.code.push(instr)
-    }
-    pub fn extend_start(&mut self, other: &[Instructions]) {
-        let mut code = Vec::new();
-        code.extend(other);
-        code.extend(&self.code);
-        self.code = code;
-    }
-    pub fn push_start(&mut self, instr: Instructions) {
-        let mut code = vec![instr];
-        code.extend(&self.code);
-        self.code = code;
     }
 }
 
@@ -3542,7 +3677,6 @@ fn native_unary_operand(
                 )
                 .is_none()
                 {
-                    panic!("1");
                     return Err(CodegenError::CouldNotCastTo(
                         kind.clone(),
                         ShTypeBuilder::new()
@@ -3594,6 +3728,9 @@ fn cast(
     if to.nullable && from.is_null() {
         return Some(());
     }
+    if to.is_null() && from.nullable {
+        return None;
+    }
     if from.cmp(to).is_equal() {
         return Some(());
     }
@@ -3608,7 +3745,7 @@ fn cast(
         if (from.is_number() || from.is_bool()) && (to.is_number() || to.is_bool()) {
             let const_val = match new_const(context, &to.into_const().expect("Failed to recognize number or bool, this is a bug in the compiler, please report it")) {
                 Ok(pos) => pos,
-                Err(_) => panic!("Failed to process number or bool, this is a bug in the compiler, please report it"),
+                Err(_) => unreachable!("Failed to process number or bool, this is a bug in the compiler, please report it"),
             };
             code.extend(&[
                 ReadConst(const_val, POINTER_REG),

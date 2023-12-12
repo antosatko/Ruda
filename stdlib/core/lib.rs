@@ -90,6 +90,12 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
                     )));
                 }
             }
+            // core::anyhello
+            4 => {
+                let args = get_args!();
+                let n = args[0];
+                println!("Hello, {:?}!", n);
+            }
             _ => unreachable!("Invalid function id"),
         }
         return Ok(runtime_types::Types::Void);
@@ -97,9 +103,13 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
 
 #[no_mangle]
 fn register() -> String {
-    r#"
-
-    "#.to_string()
+    let mut result = r#"
+    "#.to_string();
+    let primitives = ["int", "float", "bool", "null", "char", "uint"];
+    for i in primitives.iter() {
+        result.push_str(&format!("fun {}hello(self=reg.g1): {} > 4\n", i, i));
+    }
+    result
 }
 
 #[no_mangle]
