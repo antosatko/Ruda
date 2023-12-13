@@ -96,6 +96,16 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
                 let n = args[0];
                 println!("Hello, {:?}!", n);
             }
+            // core::arrlen
+            5 => {
+                if let Types::Pointer(u_size, PointerTypes::Object) = m.registers[GENERAL_REG1] {
+                    return Ok(Types::Usize(m.heap.data[u_size].len()));
+                } else {
+                    return Err(runtime_error::ErrTypes::Message(format!(
+                        "Invalid array pointer"
+                    )));
+                }
+            }
             _ => unreachable!("Invalid function id"),
         }
         return Ok(runtime_types::Types::Void);
@@ -104,6 +114,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
 #[no_mangle]
 fn register() -> String {
     let mut result = r#"
+    fun arrlen(self=reg.g1): uint > 5
     "#.to_string();
     let primitives = ["int", "float", "bool", "null", "char", "uint"];
     for i in primitives.iter() {

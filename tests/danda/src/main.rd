@@ -6,7 +6,6 @@ import "danda.rd"
 
 
 fun main() {
-    let a = 1f
-
-    a.hello()
+    let a = [1]
+    io.println(a.len())
 }

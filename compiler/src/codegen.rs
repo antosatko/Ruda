@@ -1505,6 +1505,22 @@ fn traverse_tail(
                     let pos_cloned = var.pos.clone();
                     let kind = var.kind.as_ref().unwrap().clone();
 
+                    // arrays are not types, so they have to be handled differently
+                    if kind.array_depth > 0 {
+                        let path = find_array_method(objects, &ident, &node.1)?;
+                        code.push(Move(GENERAL_REG1, RETURN_REG));
+                        return traverse_tail(
+                            objects,
+                            tail,
+                            context,
+                            scopes,
+                            code,
+                            fun,
+                            Position::Function(FunctionKind::Binary(path), kind),
+                            scope_len,
+                        );
+                    }
+
                     match &kind.kind {
                         dictionary::KindType::Struct => {
                             let structt = find_struct(
@@ -2036,33 +2052,19 @@ fn find_primitive_method(
     Ok(path)
 }
 
-fn call_primitive_method(
+fn find_array_method(
     objects: &mut Context,
-    kind: &ShallowType,
     method: &str,
-    context: &mut runtime_types::Context,
-    scopes: &mut Vec<ScopeCached>,
-    code: &mut Code,
-    scope_len: &mut usize,
-    call_params: &FunctionCall,
     line: &Line,
-    this: &InnerPath,
-) -> Result<ShallowType, CodegenError> {
-    use Instructions::*;
-    let path = find_primitive_method(objects, kind, method, line)?;
-    let mut kind = call_whichever(
-        objects,
-        &path,
-        context,
-        scopes,
-        code,
-        scope_len,
-        call_params,
-        line,
-        this,
-    )?;
-    kind.file = Some(path.file.clone());
-    Ok(kind)
+) -> Result<InnerPath, CodegenError> {
+    let name = format!("arr{}", method);
+    let path = InnerPath {
+        file: "#core".to_string(),
+        block: None,
+        ident: name,
+        kind: ImportKinds::Dll,
+    };
+    Ok(path)
 }
 
 fn call_binary(
