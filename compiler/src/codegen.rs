@@ -299,7 +299,7 @@ fn gen_fun<'a>(
             .find(|struc| struc.identifier == fun.block.clone().unwrap())
             .clone()
             .unwrap();
-        let struct_kind = ShallowType::from_struct(
+        let struct_kind = Kind::from_struct(
             structt.identifier.clone(),
             fun.file.clone(),
             structt.line.clone(),
@@ -346,7 +346,7 @@ fn gen_fun<'a>(
         scopes[1].variables.insert(
             "self".to_string(),
             Variable {
-                kind: Some(ShallowType::from_struct(
+                kind: Some(Kind::from_struct(
                     structt.identifier.clone(),
                     fun.file.clone(),
                     structt.line.clone(),
@@ -933,14 +933,14 @@ fn identify_root(
                 return Ok(Position::Function(fun, kind));
             }
             if let Some((fname, struc)) = find_struct(objects, &ident, &file) {
-                return Ok(Position::Compound(ShallowType::from_struct(
+                return Ok(Position::Compound(Kind::from_struct(
                     struc.identifier.to_string(),
                     fname.to_string(),
                     struc.line,
                 )));
             }
             if let Some((fname, userdata)) = find_userdata(objects, &ident, &file) {
-                return Ok(Position::Compound(ShallowType::from_userdata(
+                return Ok(Position::Compound(Kind::from_userdata(
                     userdata.name.to_string(),
                     fname.to_string(),
                     userdata.line,
@@ -3534,12 +3534,12 @@ fn get_kind(objects: &Context, location: &InnerPath, line: &Line) -> Result<Kind
     if let Some(file) = objects.0.get(&location.file) {
         for fun in file.functions.iter() {
             if fun.identifier.clone().unwrap().as_ref() == location.ident {
-                return Ok(ShallowType::from_fun(fun, location.file.clone()));
+                return Ok(Kind::from_fun(fun, location.file.clone()));
             }
         }
         for structt in file.structs.iter() {
             if structt.identifier == location.ident {
-                return Ok(ShallowType::from_struct(
+                return Ok(Kind::from_struct(
                     structt.identifier.clone(),
                     location.file.clone(),
                     structt.line,
@@ -3548,12 +3548,12 @@ fn get_kind(objects: &Context, location: &InnerPath, line: &Line) -> Result<Kind
         }
         for traitt in file.traits.iter() {
             if traitt.identifier == location.ident {
-                return Ok(ShallowType::from_trait(traitt, location.file.clone()));
+                return Ok(Kind::from_trait(traitt, location.file.clone()));
             }
         }
         for enumm in file.enums.iter() {
             if enumm.identifier == location.ident {
-                return Ok(ShallowType::from_enum(enumm, location.file.clone()));
+                return Ok(Kind::from_enum(enumm, location.file.clone()));
             }
         }
         return Err(CodegenError::KindNotFound(
@@ -3577,7 +3577,7 @@ fn get_kind(objects: &Context, location: &InnerPath, line: &Line) -> Result<Kind
     }
     for user_data in file.user_data.iter() {
         if user_data.name == location.ident {
-            return Ok(ShallowType::from_userdata(
+            return Ok(Kind::from_userdata(
                 user_data.name.clone(),
                 location.file.clone(),
                 user_data.line,
