@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     ast_parser::ast_parser::{Head, HeadParam},
-    intermediate::{self, AnalyzationError::ErrType},
+    intermediate::{self, AnalyzationError::ErrType, Kind, TypeBody},
     lexer::tokenizer::{self, Operators, Tokens},
     tree_walker::tree_walker::{generate_tree,  Line, Node},
 };
@@ -30,7 +30,7 @@ pub fn load(
                     let ident = get_ident(&node);
                     let generics = get_generics_decl(&node, &mut errors);
                     let assign = get_assign(&node);
-                    let mut fields: Vec<(String, ShallowType)> = Vec::new();
+                    let mut fields: Vec<(String, Kind)> = Vec::new();
                     for key in step_inside_arr(node, "keys") {
                         let ident = get_ident(&key);
                         for field in &fields {
@@ -96,7 +96,7 @@ pub fn load(
                         methods.push(Function {
                             name: ident.clone(),
                             args: con.0,
-                            return_type: ShallowType::from_userdata(ident.to_string(), file_name.to_string(), node.line),
+                            return_type: Kind::from_userdata(ident.to_string(), file_name.to_string(), node.line),
                             errorable: con.1,
                             assign: con.3,
                             takes_self: false,
@@ -299,7 +299,7 @@ pub fn load(
                         methods.push(Function {
                             name: ident.clone(),
                             args: con.0,
-                            return_type: ShallowType::from_userdata(ident.to_string(), file_name.to_string(), node.line),
+                            return_type: Kind::from_userdata(ident.to_string(), file_name.to_string(), node.line),
                             errorable: con.1,
                             assign: con.3,
                             takes_self: false,
@@ -331,13 +331,13 @@ pub fn load(
     Ok(dictionary)
 }
 
-fn get_constructor(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> Option<(Vec<(String, ShallowType, MemoryTypes, Line)>, bool, Vec<GenericDecl>, usize)> {
+fn get_constructor(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> Option<(Vec<(String, Kind, MemoryTypes, Line)>, bool, Vec<GenericDecl>, usize)> {
     if let Tokens::Text(txt) = &node.name {
         if txt != "KWConstructor" {
             return None;
         }
     }
-    let mut args: Vec<(String, ShallowType, MemoryTypes, Line)> = Vec::new();
+    let mut args: Vec<(String, Kind, MemoryTypes, Line)> = Vec::new();
     let generics = get_generics_decl(&node, errors);
     let assign = get_assign(&node);
     for arg in step_inside_arr(node, "args") {
@@ -367,7 +367,7 @@ fn get_assign(node: &Node) -> usize {
     panic!("hruzostrasna pohroma");
 }
 fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> Function {
-    let mut args: Vec<(String, ShallowType, MemoryTypes, Line)> = Vec::new();
+    let mut args: Vec<(String, Kind, MemoryTypes, Line)> = Vec::new();
     let mut takes_self = false;
     for arg in step_inside_arr(node, "arguments") {
         if let Tokens::Text(txt) = &arg.name {
@@ -390,10 +390,18 @@ fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -
                 file_name,
             )
         } else {
-            ShallowType::null()
+            Kind {
+                body: TypeBody::Void,
+                line: node.line,
+                file: Some(file_name.to_string()),
+            }
         }
     } else {
-        ShallowType::null()
+        Kind {
+            body: TypeBody::Void,
+            line: node.line,
+            file: Some(file_name.to_string()),
+        }
     };
     let errorable =
         if let Tokens::Operator(Operators::Not) = step_inside_val(node, "errorable").name {
@@ -559,8 +567,8 @@ pub struct Implementation {
 #[derive(Debug)]
 pub struct Function {
     pub name: String,
-    pub args: Vec<(String, ShallowType, MemoryTypes, Line)>,
-    pub return_type: ShallowType,
+    pub args: Vec<(String, Kind, MemoryTypes, Line)>,
+    pub return_type: Kind,
     pub errorable: bool,
     pub assign: usize,
     pub takes_self: bool,
@@ -569,7 +577,7 @@ pub struct Function {
 #[derive(Debug)]
 pub struct Struct {
     pub name: String,
-    pub fields: Vec<(String, ShallowType)>,
+    pub fields: Vec<(String, Kind)>,
     pub assign: usize,
     pub generics: Vec<GenericDecl>,
     pub methods: Vec<Function>,
@@ -587,7 +595,7 @@ pub struct Enum {
 #[derive(Debug)]
 pub struct Type {
     pub name: String,
-    pub kind: ShallowType,
+    pub kind: Kind,
     pub assign: usize,
 }
 

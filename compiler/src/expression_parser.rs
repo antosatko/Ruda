@@ -653,7 +653,7 @@ impl Variable {
 
 #[derive(Debug, Clone)]
 pub struct FunctionCall {
-    pub generic: Vec<ShallowType>,
+    pub generic: Vec<Kind>,
     pub args: Vec<ValueType>,
 }
 #[derive(Debug, Clone)]

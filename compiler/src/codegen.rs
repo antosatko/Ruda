@@ -12,6 +12,7 @@ use crate::expression_parser::{self, ArrayRule, FunctionCall, Ref, Root, ValueTy
 use crate::intermediate::dictionary::{
     self, Arg, ConstValue, Function, ShTypeBuilder, ShallowType, TypeComparison,
 };
+use crate::intermediate::{Kind, TypeBody};
 use crate::lexer::tokenizer::{self, Operators};
 use crate::tree_walker::tree_walker::Line;
 use crate::{intermediate, prep_objects::Context};
@@ -224,7 +225,7 @@ pub enum CodegenError {
     /// (depth, line)
     ReferenceString(usize, Line),
     /// (expected, got, comparison, line)
-    VariableTypeMismatch(ShallowType, ShallowType, TypeComparison, Line),
+    VariableTypeMismatch(Kind, Kind, TypeComparison, Line),
     /// (line)
     NotInitializedNoType(Line),
     /// (line)
@@ -237,19 +238,19 @@ pub enum CodegenError {
     CannotIndexFunction(Line),
     CanCallOnlyFunctions(Line),
     // (expected, got, comparison, line)
-    ArgTypeMismatch(Arg, ShallowType, TypeComparison, Line),
+    ArgTypeMismatch(Arg, Kind, TypeComparison, Line),
     CannotAttachMethodsToFunctions(Line),
     ImportIsNotAValidValue(Line),
     IncorrectArgs(Line),
     ExressionNotHandledProperly(Line),
-    InvalidOperator(ShallowType, ShallowType, Operators, Line),
+    InvalidOperator(Kind, Kind, Operators, Line),
     // (to, from, line)
-    CouldNotCastTo(ShallowType, ShallowType, Line),
+    CouldNotCastTo(Kind, Kind, Line),
     // (line)
     ExpectedNumber(Line),
     // (kind, unary, line)s
-    UnaryNotApplicable(ShallowType, Operators, Line),
-    CoudNotCastAnArrayToANonArray(ShallowType, Line),
+    UnaryNotApplicable(Kind, Operators, Line),
+    CoudNotCastAnArrayToANonArray(Kind, Line),
     FunctionDoesNotReturn(Line),
     /// (expected, got, line)
     IncorrectNumberOfArgs(usize, usize, Line),
@@ -258,11 +259,11 @@ pub enum CodegenError {
     CannotRefDerefNumLiteral(Line),
     CannotIndexNonArray(Position, Line),
     FieldNotInStruct(String, Line),
-    CannotDereference(usize, ShallowType, Line),
-    CannotReference(usize, ShallowType, Line),
+    CannotDereference(usize, Kind, Line),
+    CannotReference(usize, Kind, Line),
     CannotGetKind(Position),
-    CannotCallType(ShallowType, Line),
-    CannotCastNull(ShallowType, Line),
+    CannotCallType(Kind, Line),
+    CannotCastNull(Kind, Line),
     SwitchWithoutCases(Line),
 }
 
@@ -417,282 +418,17 @@ fn expression(
     context: &mut runtime_types::Context,
     fun: &InnerPath,
     scope_len: &mut usize,
-    expected_type: Option<ShallowType>,
+    expected_type: Option<Kind>,
     line: Line,
-) -> Result<ShallowType, CodegenError> {
+) -> Result<Kind, CodegenError> {
     use Instructions::*;
-    let mut return_kind = ShallowType::empty();
+    let mut return_kind = Kind::void();
     let expected_type = match expected_type {
         Some(kind) => Some(correct_kind(objects, &kind, fun, &line)?),
         None => None,
     };
     match expr {
-        /*ValueType::Literal(lit) => {
-            match &lit.value {
-                expression_parser::Literals::Number(tok) => {
-                    if lit.refs != Ref::None {
-                        Err(CodegenError::CannotRefDerefNumLiteral(lit.line.clone()))?;
-                    }
-                    let const_num = match tok.into_const_number() {
-                        Some(num) => num,
-                        None => {
-                            unreachable!("number not handled properly by the compiler, please report this bug");
-                        }
-                    };
-                    let pos = new_const(context, &const_num.0)?;
-                    code.push(ReadConst(pos, GENERAL_REG1));
-                    return_kind = const_num.1;
-                    for un in lit.unary.iter() {
-                        return_kind = native_unary_operand(
-                            objects,
-                            &Some(*un),
-                            &return_kind,
-                            code,
-                            context,
-                            &fun,
-                            &lit.line,
-                            GENERAL_REG1,
-                        )?;
-                    }
-                    if let Some(modi) = &lit.modificatior {
-                        if modi.0 == "new" {
-                            code.extend(&[
-                                AllocateStatic(1),
-                                WritePtr(GENERAL_REG1),
-                                Move(POINTER_REG, GENERAL_REG1),
-                            ]);
-                            return_kind.refs += 1;
-                        }
-                    }
-                }
-                expression_parser::Literals::Array(arr) => {
-                    let pos = {
-                        match arr {
-                            expression_parser::ArrayRule::Fill { value, size } => {
-                                let expected = match expected_type {
-                                    Some(ref kind) => {
-                                        if kind.array_depth == 0 {
-                                            Err(CodegenError::CoudNotCastAnArrayToANonArray(
-                                                kind.clone(),
-                                                lit.line.clone(),
-                                            ))?;
-                                        }
-                                        let mut temp = kind.clone();
-                                        temp.array_depth -= 1;
-                                        Some(correct_kind(objects, &temp, fun, &lit.line)?)
-                                    }
-                                    None => None,
-                                };
-                                let value = expression(
-                                    objects,
-                                    value,
-                                    scopes,
-                                    code,
-                                    context,
-                                    &fun,
-                                    scope_len,
-                                    expected.clone(),
-                                )?;
-                                *scope_len += 1;
-                                let value_var = create_var_pos(scopes);
-                                let scopes_len = scopes.len();
-                                scopes[scopes_len - 1].variables.insert(
-                                    scope_len.to_string(),
-                                    Variable {
-                                        kind: Some(value.clone()),
-                                        pos: value_var.clone(),
-                                        value: None,
-                                        line: lit.line.clone(),
-                                    },
-                                );
-                                code.write(GENERAL_REG1, &value_var);
-
-                                let size = expression(
-                                    objects,
-                                    size,
-                                    scopes,
-                                    code,
-                                    context,
-                                    &fun,
-                                    scope_len,
-                                    Some(
-                                        ShTypeBuilder::new()
-                                            .set_name("uint")
-                                            .set_kind(dictionary::KindType::Primitive)
-                                            .build(),
-                                    ),
-                                )?;
-
-                                code.read(&value_var, GENERAL_REG2);
-                                code.extend(&[
-                                    Allocate(GENERAL_REG1),
-                                    FillRange(GENERAL_REG2, GENERAL_REG1),
-                                    Move(POINTER_REG, GENERAL_REG1),
-                                ]);
-                                return_kind = value;
-                                return_kind.array_depth += 1;
-                                return Ok(return_kind);
-                            }
-                            // logic is pretty much the same as filling args in a function
-                            expression_parser::ArrayRule::Explicit(values) => {
-                                let mut kind = match &expected_type {
-                                    Some(kind) => {
-                                        if kind.array_depth == 0 {
-                                            Err(CodegenError::CoudNotCastAnArrayToANonArray(
-                                                kind.clone(),
-                                                lit.line.clone(),
-                                            ))?;
-                                        }
-                                        let mut temp = kind.clone();
-                                        temp.array_depth -= 1;
-                                        Some(correct_kind(objects, &temp, fun, &lit.line)?)
-                                    }
-                                    None => None,
-                                };
-                                println!("{:?}", kind);
-                                code.extend(&[AllocateStatic(values.len())]);
-                                *scope_len += 1;
-                                let obj = create_var_pos(scopes);
-                                let scopes_len = scopes.len();
-                                scopes[scopes_len - 1].variables.insert(
-                                    scope_len.to_string(),
-                                    Variable {
-                                        kind: Some(ShallowType::empty()),
-                                        pos: obj.clone(),
-                                        value: None,
-                                        line: lit.line.clone(),
-                                    },
-                                );
-                                code.write(POINTER_REG, &obj);
-                                for (idx, value) in values.iter().enumerate() {
-                                    let temp_kind = Some(expression(
-                                        objects,
-                                        value,
-                                        scopes,
-                                        code,
-                                        context,
-                                        &fun,
-                                        scope_len,
-                                        kind.clone(),
-                                    )?);
-                                    match &kind {
-                                        Some(kind) => {
-                                            println!("kind: {:?}", kind);
-                                            println!("temp_kind: {:?}", temp_kind);
-                                            match cast(
-                                                objects,
-                                                &mut kind.clone(),
-                                                &temp_kind.clone().unwrap(),
-                                                code,
-                                                context,
-                                                &fun,
-                                                &lit.line,
-                                                GENERAL_REG1,
-                                            ) {
-                                                Some(_) => {
-                                                    // do nothing
-                                                }
-                                                None => {
-                                                    Err(CodegenError::CouldNotCastTo(
-                                                        kind.clone(),
-                                                        temp_kind.clone().unwrap(),
-                                                        lit.line.clone(),
-                                                    ))?;
-                                                }
-                                            }
-                                        }
-                                        None => {
-                                            kind = temp_kind.clone();
-                                        }
-                                    }
-                                    code.read(&obj, POINTER_REG);
-                                    code.extend(&[IndexStatic(idx), WritePtr(GENERAL_REG1)]);
-                                }
-                                code.read(&obj, GENERAL_REG1);
-                                return_kind = kind.unwrap().clone();
-                                return_kind.array_depth += 1;
-                                println!("{:?}", return_kind);
-                                return Ok(return_kind);
-                            }
-                        }
-                    };
-                }
-                expression_parser::Literals::String(str) => {
-                    let pos = new_const(context, &ConstValue::String(str.clone()))?;
-                    match lit.refs {
-                        expression_parser::Ref::Dereferencing(depth) => {
-                            Err(CodegenError::DerefereString(depth, lit.line.clone()))?
-                        }
-                        expression_parser::Ref::Reference(depth) => {
-                            if depth > 1 {
-                                Err(CodegenError::ReferenceString(depth, lit.line.clone()))?;
-                            }
-                            code.extend(&[ReadConst(pos, GENERAL_REG1)]);
-                            return_kind = ShTypeBuilder::new()
-                                .set_name("string")
-                                .set_kind(dictionary::KindType::Primitive)
-                                .build();
-                        }
-                        expression_parser::Ref::None => {
-                            code.extend(&[
-                                ReadConst(pos, GENERAL_REG1),
-                                Cal(CORE_LIB, 0),
-                                Move(RETURN_REG, GENERAL_REG1),
-                            ]);
-                            return_kind = ShTypeBuilder::new()
-                                .set_name("string")
-                                .set_kind(dictionary::KindType::Primitive)
-                                .build();
-                        }
-                    }
-                }
-                expression_parser::Literals::Char(c) => {
-                    let pos = new_const(context, &ConstValue::Char(*c))?;
-                    code.push(ReadConst(pos, GENERAL_REG1));
-                    return_kind = ShTypeBuilder::new()
-                        .set_name("char")
-                        .set_kind(dictionary::KindType::Primitive)
-                        .build();
-                }
-            }
-        }*/
         ValueType::AnonymousFunction(_) => todo!(),
-        /*ValueType::Parenthesis(expr, tail, unary, modificator) => {
-            let mut kind = expression(objects, expr, scopes, code, context, &fun, scope_len, None)?;
-            traverse_tail(
-                objects,
-                &mut tail.iter(),
-                context,
-                scopes,
-                code,
-                fun,
-                Position::Value(kind.clone()),
-                scope_len,
-            )?;
-            for un in unary.iter() {
-                kind = native_unary_operand(
-                    objects,
-                    &Some(*un),
-                    &kind,
-                    code,
-                    context,
-                    &fun,
-                    &un.1,
-                    GENERAL_REG1,
-                )?;
-            }
-            if let Some(modi) = modificator {
-                if modi.0 == "new" {
-                    code.extend(&[
-                        AllocateStatic(1),
-                        WritePtr(GENERAL_REG1),
-                        Move(POINTER_REG, GENERAL_REG1),
-                    ]);
-                    kind.refs += 1;
-                }
-            }
-            return_kind = kind;
-        }*/
         ValueType::Expression(expr) => {
             let left = match expr.left.as_ref() {
                 Some(left) => left,
@@ -756,26 +492,6 @@ fn expression(
             "operator not handled properly by the compiler at {line}, please report this bug"
         ),
         ValueType::Value(value) => {
-            // check for inner const
-            /*if value.is_true_simple() && value.root.0 == "true" {
-                code.push(ReadConst(1, GENERAL_REG1));
-                return_kind = ShTypeBuilder::new()
-                    .set_name("bool")
-                    .set_kind(dictionary::KindType::Primitive)
-                    .build();
-            } else if value.is_true_simple() && value.root.0 == "false" {
-                code.push(ReadConst(2, GENERAL_REG1));
-                return_kind = ShTypeBuilder::new()
-                    .set_name("bool")
-                    .set_kind(dictionary::KindType::Primitive)
-                    .build();
-            } else if value.is_true_simple() && value.root.0 == "null" {
-                code.push(ReadConst(0, GENERAL_REG1));
-                return_kind = ShTypeBuilder::new()
-                    .set_name("null")
-                    .set_kind(dictionary::KindType::Primitive)
-                    .build();
-            } else {*/
             return_kind = gen_value(
                 objects,
                 value,
@@ -942,7 +658,7 @@ fn find_userdata<'a>(
 enum FunctionKind {
     Fun(InnerPath),
     Binary(InnerPath),
-    Dynamic(ShallowType),
+    Dynamic(Kind),
 }
 
 fn gen_value(
@@ -954,7 +670,7 @@ fn gen_value(
     fun: &InnerPath,
     scope_len: &mut usize,
     expected_type: ExpectedValueType,
-    expected_kind: Option<ShallowType>,
+    expected_kind: Option<Kind>,
 ) -> Result<Position, CodegenError> {
     use Instructions::*;
     let root = identify_root(
@@ -1143,7 +859,7 @@ fn identify_root(
     context: &mut runtime_types::Context,
     code: &mut Code,
     scope_len: &mut usize,
-    expected_type: Option<ShallowType>,
+    expected_type: Option<Kind>,
     fun: &InnerPath,
 ) -> Result<Position, CodegenError> {
     use Instructions::*;
@@ -2033,7 +1749,7 @@ fn traverse_tail(
 
 fn find_primitive_method(
     objects: &mut Context,
-    kind: &ShallowType,
+    kind: &Kind,
     method: &str,
     line: &Line,
 ) -> Result<InnerPath, CodegenError> {
@@ -2041,7 +1757,7 @@ fn find_primitive_method(
         "int" | "uint" | "float" | "bool" | "char" | "string" | "null" => {
             format!("{}{}", kind.get_ident(), method)
         }
-        _ => Err(CodegenError::CannotCallType(kind.clone(), line.clone()))?
+        _ => Err(CodegenError::CannotCallType(kind.clone(), line.clone()))?,
     };
     let path = InnerPath {
         file: "#core".to_string(),
@@ -2077,7 +1793,7 @@ fn call_binary(
     call_params: &FunctionCall,
     line: &Line,
     this: &InnerPath,
-) -> Result<ShallowType, CodegenError> {
+) -> Result<Kind, CodegenError> {
     use Instructions::*;
     let lib_id = objects.1.get(&fun.file).unwrap().id;
     let mut temp_code = Code { code: Vec::new() };
@@ -2181,7 +1897,7 @@ fn call_fun(
     call_params: &FunctionCall,
     line: &Line,
     this: &InnerPath,
-) -> Result<ShallowType, CodegenError> {
+) -> Result<Kind, CodegenError> {
     use Instructions::*;
     let mut temp_code = Code { code: Vec::new() };
     let called_fun = fun.get(objects)?;
@@ -2289,7 +2005,7 @@ fn call_whichever(
     call_params: &FunctionCall,
     line: &Line,
     this: &InnerPath,
-) -> Result<ShallowType, CodegenError> {
+) -> Result<Kind, CodegenError> {
     match fun.kind {
         ImportKinds::Dll => {
             let kind = call_binary(
@@ -2671,7 +2387,9 @@ fn get_scope(
                     return Ok(scope);
                 }
             }
-            crate::codeblock_parser::Nodes::Break { line, ident } => {todo!()}
+            crate::codeblock_parser::Nodes::Break { line, ident } => {
+                todo!()
+            }
             crate::codeblock_parser::Nodes::Continue { line, ident } => todo!(),
             crate::codeblock_parser::Nodes::Loop { body, line, ident } => {
                 use Instructions::*;
@@ -2771,7 +2489,11 @@ fn get_scope(
                     cases.push((expr_code, block_code, scope));
                 }
                 let largest_scope = *cases.iter().map(|(_, _, scope)| scope).max().unwrap();
-                let mut total_len = cases.iter().map(|(a, b, _)| a.code.len() + b.code.len()).sum::<usize>() + expr_code.code.len();
+                let mut total_len = cases
+                    .iter()
+                    .map(|(a, b, _)| a.code.len() + b.code.len())
+                    .sum::<usize>()
+                    + expr_code.code.len();
                 // default
                 let defualt = if let Some(default) = default {
                     let mut block_code = Code { code: Vec::new() };
@@ -3069,7 +2791,7 @@ struct ScopeCached {
 }
 #[derive(Debug, Clone)]
 struct Variable {
-    kind: Option<ShallowType>,
+    kind: Option<Kind>,
     pos: MemoryTypes,
     value: Option<ConstValue>,
     line: Line,
@@ -3151,18 +2873,18 @@ impl CompoundField {
 
 #[derive(Debug, Clone)]
 enum Position {
-    Function(FunctionKind, ShallowType),
-    CompoundField(InnerPath, CompoundField, ShallowType),
+    Function(FunctionKind, Kind),
+    CompoundField(InnerPath, CompoundField, Kind),
     Import(String),
     BinImport(String),
-    Variable(String, ShallowType),
-    Pointer(ShallowType),
-    Compound(ShallowType),
-    Value(ShallowType),
+    Variable(String, Kind),
+    Pointer(Kind),
+    Compound(Kind),
+    Value(Kind),
 }
 
 impl Position {
-    pub fn get_kind(&self) -> Result<ShallowType, CodegenError> {
+    pub fn get_kind(&self) -> Result<Kind, CodegenError> {
         Ok(match self {
             Position::Function(_, kind) => kind.clone(),
             Position::CompoundField(_, _, kind) => kind.clone(),
@@ -3175,7 +2897,7 @@ impl Position {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct InnerPath {
     file: String,
     block: Option<String>,
@@ -3301,13 +3023,13 @@ impl InnerPath {
 fn native_operand(
     objects: &mut Context,
     op: &tokenizer::Operators,
-    left: &ShallowType,
-    right: &ShallowType,
+    left: &Kind,
+    right: &Kind,
     code: &mut Code,
     context: &mut runtime_types::Context,
     fun: &InnerPath,
     line: &Line,
-) -> Option<ShallowType> {
+) -> Option<Kind> {
     use Instructions::*;
     match op {
         Operators::Plus => {
@@ -3650,13 +3372,13 @@ fn native_operand(
 fn native_unary_operand(
     objects: &mut Context,
     op: &Option<(tokenizer::Operators, Line)>,
-    kind: &ShallowType,
+    kind: &Kind,
     code: &mut Code,
     context: &mut runtime_types::Context,
     fun: &InnerPath,
     line: &Line,
     register: usize,
-) -> Result<ShallowType, CodegenError> {
+) -> Result<Kind, CodegenError> {
     use Instructions::*;
     if op.is_none() {
         return Ok(kind.clone());
@@ -3715,8 +3437,8 @@ fn native_unary_operand(
 
 fn cast(
     objects: &mut Context,
-    from: &ShallowType,
-    to: &ShallowType,
+    from: &Kind,
+    to: &Kind,
     code: &mut Code,
     context: &mut runtime_types::Context,
     fun: &InnerPath,
@@ -3770,10 +3492,10 @@ enum ScopeTerminator {
 
 fn correct_kind(
     objects: &Context,
-    kind: &ShallowType,
+    kind: &Kind,
     fun: &InnerPath,
     line: &Line,
-) -> Result<ShallowType, CodegenError> {
+) -> Result<Kind, CodegenError> {
     if kind.array_depth > 0 {
         return Ok(kind.clone());
     }
@@ -3808,11 +3530,7 @@ fn correct_kind(
     Ok(real)
 }
 
-fn get_kind(
-    objects: &Context,
-    location: &InnerPath,
-    line: &Line,
-) -> Result<ShallowType, CodegenError> {
+fn get_kind(objects: &Context, location: &InnerPath, line: &Line) -> Result<Kind, CodegenError> {
     if let Some(file) = objects.0.get(&location.file) {
         for fun in file.functions.iter() {
             if fun.identifier.clone().unwrap().as_ref() == location.ident {

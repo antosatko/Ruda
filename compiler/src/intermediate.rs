@@ -1,18 +1,20 @@
 pub mod dictionary {
     use runtime::runtime_types;
 
+    use super::{
+        AnalyzationError::{self, ErrType},
+        Kind, TypeBody,
+    };
     use crate::{
         codeblock_parser,
         codegen::{self, InnerPath},
-        expression_parser::{self, get_args, ValueType, Root, try_get_literal},
+        expression_parser::{self, get_args, try_get_literal, Root, ValueType},
         lexer::tokenizer::{Operators, Tokens},
         libloader::{self, Const},
         tree_walker::tree_walker::{self, ArgNodeType, Err, Line, Node},
     };
     use core::panic;
-    use std::{collections::HashMap, fs::DirEntry, io::Read};
-
-    use super::AnalyzationError::{self, ErrType};
+    use std::{borrow::BorrowMut, collections::HashMap, fs::DirEntry, io::Read};
 
     pub fn from_ast(
         ast: &HashMap<String, tree_walker::ArgNodeType>,
@@ -102,10 +104,8 @@ pub mod dictionary {
                                 None
                             }
                         }
-                    }
-                    Root::Literal(lit) => {
-                        ConstValue::from_literal(lit, dictionary, errors)
                     },
+                    Root::Literal(lit) => ConstValue::from_literal(lit, dictionary, errors),
                     Root::Parenthesis(val) => analyze_const(val, dictionary, errors),
                 };
                 match val {
@@ -313,13 +313,17 @@ pub mod dictionary {
                                 } else {
                                     vec![]
                                 };
-                                let return_type = Some(
-                                    ShTypeBuilder::new()
-                                        .set_name(&get_ident(node))
-                                        .set_file(file_name.to_string())
-                                        .set_kind(KindType::Struct)
-                                        .build(),
-                                );
+                                let return_type = Some(Kind {
+                                    body: TypeBody::Type {
+                                        main: vec![get_ident(node)],
+                                        generics: Vec::new(),
+                                        refs: 0,
+                                        nullable: false,
+                                        kind: KindType::None,
+                                    },
+                                    line: node.line,
+                                    file: Some(file_name.to_string()),
+                                });
                                 functions.push(Function {
                                     can_yeet: false,
                                     identifier: Some(get_ident(&node)),
@@ -791,7 +795,7 @@ pub mod dictionary {
         }
         refs
     }
-    pub fn get_type(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> ShallowType {
+    pub fn get_type(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> Kind {
         let nullable = if let Some(val) = try_step_inside_val(node, "optional") {
             val.name == Tokens::Optional
         } else {
@@ -801,16 +805,14 @@ pub mod dictionary {
         if main.name == Tokens::Text(String::from("function_head")) {
             let fun = get_fun_siginifier(&main, errors, file_name);
             let refs = count_refs(&node);
-            return ShallowType {
-                is_fun: Some(Box::new(fun)),
-                array_depth: 0,
-                refs,
-                main: vec![],
-                generics: Vec::new(),
+            return Kind {
+                body: TypeBody::Function {
+                    args: fun.args,
+                    return_type: Box::new(fun.return_type),
+                    refs,
+                },
                 line: node.line,
-                nullable,
                 file: Some(file_name.to_string()),
-                kind: KindType::Fun,
             };
         }
         let refs = count_refs(node);
@@ -828,9 +830,20 @@ pub mod dictionary {
             let arr_kind = step_inside_val(&step_inside_val(&node, "arr"), "type");
             if let Tokens::Text(txt) = &arr_kind.name {
                 if txt == "type" {
-                    let mut kind = get_type(&arr_kind, errors, file_name);
-                    kind.array_depth += 1;
-                    return kind;
+                    return Kind {
+                        body: TypeBody::Array {
+                            type_: Box::new(get_type(
+                                step_inside_val(&step_inside_val(&node, "arr"), "type"),
+                                errors,
+                                file_name,
+                            )),
+                            size: 0,
+                            refs,
+                            nullable,
+                        },
+                        line: node.line,
+                        file: Some(file_name.to_string()),
+                    };
                 } else {
                     unreachable!()
                 }
@@ -838,17 +851,17 @@ pub mod dictionary {
                 unreachable!("This is a bug in the compiler, please report it to the developers");
             }
         };
-        ShallowType {
-            is_fun: None,
-            array_depth: 0,
-            refs,
-            main,
-            generics: get_generics_expr(node, errors, file_name),
+        return Kind {
+            body: TypeBody::Type {
+                main,
+                generics: get_generics_expr(node, errors, file_name),
+                refs,
+                nullable,
+                kind: KindType::None,
+            },
             line: node.line,
-            nullable,
             file: Some(file_name.to_string()),
-            kind: KindType::None,
-        }
+        };
     }
     pub fn get_generics_expr(
         node: &Node,
@@ -998,7 +1011,7 @@ pub mod dictionary {
     }
     #[derive(Debug)]
     pub struct TypeDef {
-        pub kind: ShallowType,
+        pub kind: Kind,
         pub identifier: String,
         pub generics: Vec<GenericDecl>,
         pub public: bool,
@@ -1024,11 +1037,20 @@ pub mod dictionary {
         Expression(expression_parser::ValueType),
         CodeBlock(Vec<codeblock_parser::Nodes>),
     }
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, PartialEq)]
     pub struct Arg {
         pub identifier: String,
-        pub kind: ShallowType,
+        pub kind: Kind,
         pub line: Line,
+    }
+    impl Arg {
+        pub fn from_barg(barg: &(String, Kind, libloader::MemoryTypes, Line)) -> Arg {
+            Arg {
+                identifier: barg.0.clone(),
+                kind: barg.1.clone(),
+                line: barg.3,
+            }
+        }
     }
     #[derive(Debug, Clone)]
     pub struct Use {
@@ -1059,7 +1081,7 @@ pub mod dictionary {
         /// location in bytecode, so runtime knows where to jump
         pub location: usize,
         pub instrs_end: usize,
-        pub return_type: Option<ShallowType>,
+        pub return_type: Option<Kind>,
         pub can_yeet: bool,
         pub generics: Vec<GenericDecl>,
         pub public: bool,
@@ -1084,7 +1106,7 @@ pub mod dictionary {
         pub stack_size: Option<usize>,
         /// location in bytecode, so runtime knows where to jump
         pub location: Option<usize>,
-        pub return_type: Option<ShallowType>,
+        pub return_type: Option<Kind>,
         pub generics: Vec<GenericDecl>,
         pub public: bool,
         pub code: Vec<codeblock_parser::Nodes>,
@@ -1105,7 +1127,7 @@ pub mod dictionary {
     pub struct Struct {
         pub generics: Vec<GenericDecl>,
         pub identifier: String,
-        pub fields: Vec<(String, ShallowType)>,
+        pub fields: Vec<(String, Kind)>,
         pub traits: Vec<NestedIdent>,
         pub public: bool,
         pub memory_layout: Vec<(String, usize)>,
@@ -1132,7 +1154,9 @@ pub mod dictionary {
                 if let Some(ident) = &method.identifier {
                     if ident == name {
                         return Some((
-                            crate::codegen::CompoundField::Method(method.identifier.clone().unwrap()),
+                            crate::codegen::CompoundField::Method(
+                                method.identifier.clone().unwrap(),
+                            ),
                             0,
                         ));
                     }
@@ -1140,7 +1164,10 @@ pub mod dictionary {
             }
             for overload in &self.overloads {
                 if &overload.arg.identifier == name {
-                    return Some((crate::codegen::CompoundField::OverloadedOperator(todo!()), 0));
+                    return Some((
+                        crate::codegen::CompoundField::OverloadedOperator(todo!()),
+                        0,
+                    ));
                 }
             }
 
@@ -1156,7 +1183,7 @@ pub mod dictionary {
     }
     #[derive(Debug)]
     pub struct Variable {
-        pub kind: Option<ShallowType>,
+        pub kind: Option<Kind>,
         pub identifier: String,
         /// location on stack
         pub location: usize,
@@ -1235,9 +1262,7 @@ pub mod dictionary {
                         Some(ConstValue::Array(arr))
                     }
                 },
-                expression_parser::Literals::String(str) => {
-                    Some(ConstValue::String(str.clone()))
-                }
+                expression_parser::Literals::String(str) => Some(ConstValue::String(str.clone())),
             }
         }
         pub fn into_number(&self) -> Option<(f64, char)> {
@@ -1433,7 +1458,7 @@ pub mod dictionary {
             Some(res)
         }
     }
-    pub type GenericExpr = Vec<ShallowType>;
+    pub type GenericExpr = Vec<Kind>;
 
     #[derive(Clone)]
     pub struct ShallowType {
@@ -2071,37 +2096,415 @@ pub mod AnalyzationError {
     }
 }
 
+use std::borrow::BorrowMut;
 
-mod type_system_proposal {
-    use crate::{tree_walker::tree_walker::Line, codegen::InnerPath};
+use super::dictionary::*;
+use crate::{codegen::InnerPath, libloader, tree_walker::tree_walker::Line};
+#[derive(Clone, PartialEq)]
+pub struct Kind {
+    pub body: TypeBody,
+    pub line: Line,
+    pub file: Option<String>,
+}
+#[derive(Debug, Clone, PartialEq)]
+pub enum TypeBody {
+    Function {
+        args: Vec<Arg>,
+        return_type: Box<Option<Kind>>,
+        refs: usize,
+    },
+    Type {
+        refs: usize,
+        main: NestedIdent,
+        generics: GenericExpr,
+        nullable: bool,
+        kind: KindType,
+    },
+    Generic {
+        identifier: String,
+        constraints: Vec<InnerPath>,
+    },
+    Array {
+        type_: Box<Kind>,
+        size: usize,
+        refs: usize,
+        nullable: bool,
+    },
+    Void,
+}
 
-    use super::dictionary::*;
+impl std::fmt::Debug for Kind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.body {
+            TypeBody::Function {
+                args,
+                return_type,
+                refs,
+            } => {
+                write!(f, "fun(")?;
+                for (i, arg) in args.iter().enumerate() {
+                    write!(f, "{:?}", arg)?;
+                    if i != args.len() - 1 {
+                        write!(f, ", ")?;
+                    }
+                }
+                write!(f, ") -> ")?;
+                if let Some(kind) = return_type.as_ref() {
+                    write!(f, "{:?}", kind)?;
+                } else {
+                    write!(f, "void")?;
+                }
+                write!(f, " refs: {}", refs)?;
+            }
+            TypeBody::Type {
+                refs,
+                main,
+                generics,
+                nullable,
+                kind,
+            } => {
+                for _ in 0..*refs {
+                    write!(f, "&")?;
+                }
+                write!(f, "{:?}", main)?;
+                if !generics.is_empty() {
+                    write!(f, "<")?;
+                    for (i, gen) in generics.iter().enumerate() {
+                        write!(f, "{:?}", gen)?;
+                        if i != generics.len() - 1 {
+                            write!(f, ", ")?;
+                        }
+                    }
+                    write!(f, ">")?;
+                }
+                if *nullable {
+                    write!(f, "?")?;
+                }
+            }
+            TypeBody::Generic {
+                identifier,
+                constraints,
+            } => {
+                write!(f, "{}", identifier)?;
+                if !constraints.is_empty() {
+                    write!(f, ": ")?;
+                    for (i, constraint) in constraints.iter().enumerate() {
+                        write!(f, "{:?}", constraint)?;
+                        if i != constraints.len() - 1 {
+                            write!(f, ", ")?;
+                        }
+                    }
+                }
+            }
+            TypeBody::Array {
+                type_,
+                size,
+                refs,
+                nullable,
+            } => {
+                write!(f, "[{:?}; {}]", type_, size)?;
+                if *nullable {
+                    write!(f, "?")?;
+                }
+                write!(f, " refs: {}", refs)?;
+            }
+            TypeBody::Void => {
+                write!(f, "void")?;
+            }
+        }
+        Ok(())
+    }
+}
 
-    pub struct Kind {
-        pub body: TypeBody,
-        pub line: Line,
+impl Kind {
+    pub fn new(body: TypeBody, line: Line, file: Option<String>) -> Self {
+        Kind { body, line, file }
     }
 
-    pub enum TypeBody {
-        Function{
-            args: Vec<Arg>,
-            return_type: Option<Box<Kind>>,
-        },
-        Type{
-            refs: usize,
-            main: NestedIdent,
-            generics: GenericExpr,
-            nullable: bool,
-            file: Option<String>,
-            kind: KindType,
-        },
-        Generic{
-            identifier: String,
-            constraints: Vec<InnerPath>,
-        },
-        Array {
-            type_: Box<Kind>,
-            size: usize,
-        },
+    pub fn from_struct(ident: String, file: String, line: Line) -> Self {
+        Kind {
+            body: TypeBody::Type {
+                refs: 0,
+                main: vec![ident],
+                generics: Vec::new(),
+                nullable: false,
+                kind: KindType::Struct,
+            },
+            line,
+            file: Some(file),
+        }
+    }
+
+    pub fn from_userdata(ident: String, file: String, line: Line) -> Self {
+        Kind {
+            body: TypeBody::Type {
+                refs: 0,
+                main: vec![ident],
+                generics: Vec::new(),
+                nullable: false,
+                kind: KindType::UserData,
+            },
+            line,
+            file: Some(file),
+        }
+    }
+
+    pub fn from_enum(enum_: &Enum, file: String) -> Self {
+        Kind {
+            body: TypeBody::Type {
+                refs: 0,
+                main: vec![enum_.identifier.clone()],
+                generics: Vec::new(),
+                nullable: false,
+                kind: KindType::Enum,
+            },
+            line: enum_.line,
+            file: Some(file),
+        }
+    }
+
+    pub fn from_trait(trait_: &Trait, file: String) -> Self {
+        Kind {
+            body: TypeBody::Type {
+                refs: 0,
+                main: vec![trait_.identifier.clone()],
+                generics: Vec::new(),
+                nullable: false,
+                kind: KindType::Trait,
+            },
+            line: trait_.line,
+            file: Some(file),
+        }
+    }
+
+    pub fn from_fun(fun: &Function, file: String) -> Self {
+        let main = vec![fun.identifier.as_ref().unwrap().clone()];
+        Kind {
+            body: TypeBody::Function {
+                args: fun.args.clone(),
+                return_type: Box::new(fun.return_type.clone()),
+                refs: 0,
+            },
+            line: fun.line,
+            file: Some(file),
+        }
+    }
+
+    pub fn bfrom_fun(fun: &libloader::Function, file: String, line: Line) -> Self {
+        let main = vec![fun.name.clone()];
+        Kind {
+            body: TypeBody::Function {
+                args: fun.args.iter().map(|arg| Arg::from_barg(arg)).collect(),
+                return_type: Box::new(Some(fun.return_type.clone())),
+                refs: 0,
+            },
+            line,
+            file: Some(file),
+        }
+    }
+
+    pub fn from_generic(
+        ident: String,
+        constraints: Vec<InnerPath>,
+        line: Line,
+        file: Option<String>,
+    ) -> Self {
+        Kind {
+            body: TypeBody::Generic {
+                identifier: ident,
+                constraints,
+            },
+            line,
+            file,
+        }
+    }
+
+    pub fn from_array(
+        type_: Kind,
+        size: usize,
+        refs: usize,
+        nullable: bool,
+        line: Line,
+        file: Option<String>,
+    ) -> Self {
+        Kind {
+            body: TypeBody::Array {
+                type_: Box::new(type_),
+                size,
+                refs,
+                nullable,
+            },
+            line,
+            file,
+        }
+    }
+
+    pub fn from_type(type_: ShallowType, line: Line, file: Option<String>) -> Self {
+        Kind {
+            body: TypeBody::Type {
+                refs: type_.refs,
+                main: type_.main,
+                generics: type_.generics,
+                nullable: type_.nullable,
+                kind: type_.kind,
+            },
+            line,
+            file,
+        }
+    }
+
+    pub fn void() -> Self {
+        Kind {
+            body: TypeBody::Void,
+            line: Line { line: 0, column: 0 },
+            file: None,
+        }
+    }
+
+    pub fn is_fun(&self) -> bool {
+        match &self.body {
+            TypeBody::Function { .. } => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_type(&self) -> bool {
+        match &self.body {
+            TypeBody::Type { .. } => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_generic(&self) -> bool {
+        match &self.body {
+            TypeBody::Generic { .. } => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_array(&self) -> bool {
+        match &self.body {
+            TypeBody::Array { .. } => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_void(&self) -> bool {
+        match &self.body {
+            TypeBody::Void => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_null(&self) -> bool {
+        match &self.body {
+            TypeBody::Type { main, refs, .. } => main.last().unwrap() == "null" && *refs == 0,
+            _ => false,
+        }
+    }
+
+    pub fn get_type_kind(&self) -> Option<KindType> {
+        match &self.body {
+            TypeBody::Type { kind, .. } => Some(*kind),
+            _ => None,
+        }
+    }
+
+    pub fn cmp(&self, other: &Self) -> TypeComparison {
+        if self.body != other.body {
+            return TypeComparison::NotEqual;
+        }
+        match self.body {
+            TypeBody::Function {
+                args,
+                return_type,
+                refs,
+            } => {
+                todo!()
+            }
+            TypeBody::Type {
+                refs,
+                main,
+                generics,
+                nullable,
+                kind,
+            } => {
+                if let TypeBody::Type {
+                    refs: refs2,
+                    main: main2,
+                    generics: generics2,
+                    nullable: nullable2,
+                    kind: kind2,
+                } = &other.body
+                {
+                    if self.is_null() && other.is_null() {
+                        return TypeComparison::Equal;
+                    }
+                    if nullable && other.is_null() {
+                        return TypeComparison::Equal;
+                    }
+                    if !nullable && *nullable2 {
+                        return TypeComparison::NotNullable;
+                    }
+                    if refs != *refs2 {
+                        return TypeComparison::ReferenceDiff(refs as i32 - *refs2 as i32);
+                    }
+                    if main.last() != main2.last() {
+                        return TypeComparison::NotEqual;
+                    }
+                    // probably not needed
+                    /*if generics.len() != generics2.len() {
+                        return TypeComparison::NotEqual;
+                    }*/
+                    /*for (i, gen) in generics.iter().enumerate() {
+                        if gen != &generics2[i] {
+                            return TypeComparison::NotEqual;
+                        }
+                    }*/
+                    TypeComparison::Equal
+                } else {
+                    TypeComparison::NotEqual
+                }
+            }
+            TypeBody::Array {
+                type_,
+                size,
+                refs,
+                nullable,
+            } => {
+                if let TypeBody::Array {
+                    type_: type_2,
+                    size: size_2,
+                    refs: refs_2,
+                    nullable: nullable_2,
+                } = &other.body
+                {
+                    if self.is_null() && other.is_null() {
+                        return TypeComparison::Equal;
+                    }
+                    if nullable && other.is_null() {
+                        return TypeComparison::Equal;
+                    }
+                    if !nullable && *nullable_2 {
+                        return TypeComparison::NotNullable;
+                    }
+                    if refs != *refs_2 {
+                        return TypeComparison::ReferenceDiff(refs as i32 - *refs_2 as i32);
+                    }
+                    // since array size is not known at compile time, we cant compare it
+                    /*if size != *size_2 {
+                        return TypeComparison::ArrayDiff(size, *size_2);
+                    }*/
+                    type_.cmp(type_2)
+                } else {
+                    TypeComparison::NotEqual
+                }
+            }
+            TypeBody::Void => TypeComparison::Equal,
+            TypeBody::Generic {
+                identifier,
+                constraints,
+            } => todo!(),
+        }
     }
 }

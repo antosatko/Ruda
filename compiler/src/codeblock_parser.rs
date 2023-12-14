@@ -1,8 +1,9 @@
 use core::panic;
 
 use crate::expression_parser::*;
+use crate::intermediate::Kind;
 use crate::intermediate::dictionary::{
-    get_ident, get_type, step_inside_arr, step_inside_val, ShallowType, get_loop_ident, get_break_ident,
+    get_ident, get_type, step_inside_arr, step_inside_val, get_loop_ident, get_break_ident,
 };
 use crate::intermediate::AnalyzationError::ErrType;
 use crate::lexer::tokenizer::*;
@@ -275,7 +276,7 @@ pub enum Nodes {
     Let {
         ident: String,
         expr: Option<ValueType>,
-        kind: Option<ShallowType>,
+        kind: Option<Kind>,
         line: Line,
     },
     If {
