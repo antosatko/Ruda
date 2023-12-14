@@ -1433,7 +1433,7 @@ pub mod dictionary {
             Some(res)
         }
     }
-    type GenericExpr = Vec<ShallowType>;
+    pub type GenericExpr = Vec<ShallowType>;
 
     #[derive(Clone)]
     pub struct ShallowType {
@@ -2068,5 +2068,40 @@ pub mod AnalyzationError {
                 }
             }
         }
+    }
+}
+
+
+mod type_system_proposal {
+    use crate::{tree_walker::tree_walker::Line, codegen::InnerPath};
+
+    use super::dictionary::*;
+
+    pub struct Kind {
+        pub body: TypeBody,
+        pub line: Line,
+    }
+
+    pub enum TypeBody {
+        Function{
+            args: Vec<Arg>,
+            return_type: Option<Box<Kind>>,
+        },
+        Type{
+            refs: usize,
+            main: NestedIdent,
+            generics: GenericExpr,
+            nullable: bool,
+            file: Option<String>,
+            kind: KindType,
+        },
+        Generic{
+            identifier: String,
+            constraints: Vec<InnerPath>,
+        },
+        Array {
+            type_: Box<Kind>,
+            size: usize,
+        },
     }
 }
