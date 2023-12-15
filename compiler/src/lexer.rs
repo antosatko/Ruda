@@ -2,7 +2,7 @@ pub mod tokenizer {
     use crate::{lexing_preprocessor::{
         lexing_preprocessor::refactor,
         parse_err::{self},
-    }, intermediate::dictionary::{ConstValue, ShallowType}};
+    }, intermediate::{dictionary::{ConstValue, ShallowType}, Kind}, tree_walker::tree_walker::Line};
     const RESERVED_CHARS: &str = " +-*/=%;:,.({<[]>})&|!?\"'\\";
     pub fn tokenize(
         file: &[u8],
@@ -200,33 +200,33 @@ pub mod tokenizer {
         AngleBracket(bool),
     }
     impl Tokens {
-        pub fn into_const_number(&self) -> Option<(ConstValue, ShallowType)> {
+        pub fn into_const_number(&self, line: Line) -> Option<(ConstValue, Kind)> {
             match self {
                 Tokens::Number(num, t) => {
                     match t {
                         'i' => {
                             let val = ConstValue::Int(*num as i64);
-                            let kind = val.gen_type()?;
+                            let kind = val.gen_type(line)?;
                             Some((val, kind))
                         },
                         'f' => {
                             let val = ConstValue::Float(*num);
-                            let kind = val.gen_type()?;
+                            let kind = val.gen_type(line)?;
                             Some((val, kind))
                         }
                         'u' => {
                             let val = ConstValue::Usize(*num as usize);
-                            let kind = val.gen_type()?;
+                            let kind = val.gen_type(line)?;
                             Some((val, kind))
                         }
                         'c' => {
                             let val = ConstValue::Char(*num as u8 as char);
-                            let kind = val.gen_type()?;
+                            let kind = val.gen_type(line)?;
                             Some((val, kind))
                         }
                         'n' => {
                             let val = ConstValue::Number(*num);
-                            let kind = val.gen_type()?;
+                            let kind = val.gen_type(line)?;
                             Some((val, kind))
                         }
                         _ => None,

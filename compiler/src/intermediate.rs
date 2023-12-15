@@ -1347,113 +1347,119 @@ pub mod dictionary {
                 _ => runtime_types::Types::Null,
             }
         }
-        pub fn gen_type(&self) -> Option<ShallowType> {
+        pub fn gen_type(&self, line: Line) -> Option<Kind> {
             let res = match self {
-                ConstValue::Number(_) => ShallowType {
-                    is_fun: None,
-                    array_depth: 0,
-                    refs: 0,
-                    main: vec![String::from("int")],
-                    generics: Vec::new(),
-                    line: Line { line: 0, column: 0 },
-                    nullable: false,
-                    file: None,
-                    kind: KindType::Primitive,
-                },
-                ConstValue::Int(_) => ShallowType {
-                    is_fun: None,
-                    array_depth: 0,
-                    refs: 0,
-                    main: vec![String::from("int")],
-                    generics: Vec::new(),
-                    line: Line { line: 0, column: 0 },
-                    nullable: false,
-                    file: None,
-                    kind: KindType::Primitive,
-                },
-                ConstValue::Float(_) => ShallowType {
-                    is_fun: None,
-                    array_depth: 0,
-                    refs: 0,
-                    main: vec![String::from("float")],
-                    generics: Vec::new(),
-                    line: Line { line: 0, column: 0 },
-                    nullable: false,
-                    file: None,
-                    kind: KindType::Primitive,
-                },
-                ConstValue::Char(_) => ShallowType {
-                    is_fun: None,
-                    array_depth: 0,
-                    refs: 0,
-                    main: vec![String::from("char")],
-                    generics: Vec::new(),
-                    line: Line { line: 0, column: 0 },
-                    nullable: false,
-                    file: None,
-                    kind: KindType::Primitive,
-                },
-                ConstValue::Bool(_) => ShallowType {
-                    is_fun: None,
-                    array_depth: 0,
-                    refs: 0,
-                    main: vec![String::from("bool")],
-                    generics: Vec::new(),
-                    line: Line { line: 0, column: 0 },
-                    nullable: false,
-                    file: None,
-                    kind: KindType::Primitive,
-                },
-                ConstValue::Usize(_) => ShallowType {
-                    is_fun: None,
-                    array_depth: 0,
-                    refs: 0,
-                    main: vec![String::from("uint")],
-                    generics: Vec::new(),
-                    line: Line { line: 0, column: 0 },
-                    nullable: false,
-                    file: None,
-                    kind: KindType::Primitive,
-                },
-                ConstValue::String(_) => ShallowType {
-                    is_fun: None,
-                    array_depth: 0,
-                    refs: 0,
-                    main: vec![String::from("string")],
-                    generics: Vec::new(),
-                    line: Line { line: 0, column: 0 },
-                    nullable: false,
-                    file: None,
-                    kind: KindType::Primitive,
-                },
-                ConstValue::Null => ShallowType {
-                    is_fun: None,
-                    array_depth: 0,
-                    refs: 0,
-                    main: vec![String::from("null")],
-                    generics: Vec::new(),
-                    line: Line { line: 0, column: 0 },
-                    nullable: false,
-                    file: None,
-                    kind: KindType::Primitive,
-                },
-                ConstValue::Function(_) => todo!(),
-                ConstValue::Array(arr) => {
-                    let mut res = ShallowType {
-                        is_fun: None,
-                        array_depth: 0,
-                        refs: 0,
-                        main: vec![],
+                ConstValue::Number(_) => Kind {
+                    body: TypeBody::Type {
+                        main: vec![String::from("float")],
                         generics: Vec::new(),
-                        line: Line { line: 0, column: 0 },
+                        refs: 0,
                         nullable: false,
-                        file: None,
                         kind: KindType::Primitive,
+                    },
+                    line,
+                    file: None,
+                },
+                ConstValue::Int(_) => Kind {
+                    body: TypeBody::Type {
+                        main: vec![String::from("int")],
+                        generics: Vec::new(),
+                        refs: 0,
+                        nullable: false,
+                        kind: KindType::Primitive,
+                    },
+                    line,
+                    file: None,
+                },
+                ConstValue::Float(_) => Kind {
+                    body: TypeBody::Type {
+                        main: vec![String::from("float")],
+                        generics: Vec::new(),
+                        refs: 0,
+                        nullable: false,
+                        kind: KindType::Primitive,
+                    },
+                    line,
+                    file: None,
+                },
+                ConstValue::Char(_) => Kind {
+                    body: TypeBody::Type {
+                        main: vec![String::from("char")],
+                        generics: Vec::new(),
+                        refs: 0,
+                        nullable: false,
+                        kind: KindType::Primitive,
+                    },
+                    line,
+                    file: None,
+                },
+                ConstValue::Bool(_) => Kind {
+                    body: TypeBody::Type {
+                        main: vec![String::from("bool")],
+                        generics: Vec::new(),
+                        refs: 0,
+                        nullable: false,
+                        kind: KindType::Primitive,
+                    },
+                    line,
+                    file: None,
+                },
+                ConstValue::Usize(_) => Kind {
+                    body: TypeBody::Type {
+                        main: vec![String::from("uint")],
+                        generics: Vec::new(),
+                        refs: 0,
+                        nullable: false,
+                        kind: KindType::Primitive,
+                    },
+                    line,
+                    file: None,
+                },
+                ConstValue::String(_) => Kind {
+                    body: TypeBody::Type {
+                        main: vec![String::from("string")],
+                        generics: Vec::new(),
+                        refs: 0,
+                        nullable: false,
+                        kind: KindType::Primitive,
+                    },
+                    line,
+                    file: None,
+                },
+                ConstValue::Null => Kind {
+                    body: TypeBody::Type {
+                        main: vec![String::from("null")],
+                        generics: Vec::new(),
+                        refs: 0,
+                        nullable: false,
+                        kind: KindType::Primitive,
+                    },
+                    line,
+                    file: None,
+                },
+                ConstValue::Function(fun) => {
+                    let mut res = Kind {
+                        body: TypeBody::Function {
+                            args: fun.args.clone(),
+                            return_type: Box::new(fun.return_type.clone()),
+                            refs: 0,
+                        },
+                        line,
+                        file: None,
                     };
-                    res.array_depth = 1;
                     res
                 }
-                ConstValue::Undefined => ShallowType::empty(),
+                ConstValue::Array(arr) => Kind {
+                    body: TypeBody::Array {
+                        type_: Box::new(Kind::void()),
+                        size: arr.len(),
+                        refs: 0,
+                        nullable: false,
+                    },
+                    line,
+                    file: None,
+                },
+                ConstValue::Undefined => Kind::void(),
             };
             Some(res)
         }
@@ -2414,7 +2420,7 @@ impl Kind {
         if self.body != other.body {
             return TypeComparison::NotEqual;
         }
-        match self.body {
+        match &self.body {
             TypeBody::Function {
                 args,
                 return_type,
@@ -2440,14 +2446,14 @@ impl Kind {
                     if self.is_null() && other.is_null() {
                         return TypeComparison::Equal;
                     }
-                    if nullable && other.is_null() {
+                    if *nullable && other.is_null() {
                         return TypeComparison::Equal;
                     }
                     if !nullable && *nullable2 {
                         return TypeComparison::NotNullable;
                     }
-                    if refs != *refs2 {
-                        return TypeComparison::ReferenceDiff(refs as i32 - *refs2 as i32);
+                    if *refs != *refs2 {
+                        return TypeComparison::ReferenceDiff(*refs as i32 - *refs2 as i32);
                     }
                     if main.last() != main2.last() {
                         return TypeComparison::NotEqual;
@@ -2482,14 +2488,14 @@ impl Kind {
                     if self.is_null() && other.is_null() {
                         return TypeComparison::Equal;
                     }
-                    if nullable && other.is_null() {
+                    if *nullable && other.is_null() {
                         return TypeComparison::Equal;
                     }
                     if !nullable && *nullable_2 {
                         return TypeComparison::NotNullable;
                     }
-                    if refs != *refs_2 {
-                        return TypeComparison::ReferenceDiff(refs as i32 - *refs_2 as i32);
+                    if *refs != *refs_2 {
+                        return TypeComparison::ReferenceDiff(*refs as i32 - *refs_2 as i32);
                     }
                     // since array size is not known at compile time, we cant compare it
                     /*if size != *size_2 {
@@ -2505,6 +2511,173 @@ impl Kind {
                 identifier,
                 constraints,
             } => todo!(),
+        }
+    }
+
+    pub fn get_refs(&self) -> usize {
+        match &self.body {
+            TypeBody::Function { refs, .. } => *refs,
+            TypeBody::Type { refs, .. } => *refs,
+            TypeBody::Array { refs, .. } => *refs,
+            _ => 0,
+        }
+    }
+
+    pub fn refs_mut(&mut self) -> &mut usize {
+        match &mut self.body {
+            TypeBody::Function { refs, .. } => refs,
+            TypeBody::Type { refs, .. } => refs,
+            TypeBody::Array { refs, .. } => refs,
+            _ => unreachable!("cannot get refs of non type"),
+        }
+    }
+
+    pub fn get_nullable(&self) -> bool {
+        match &self.body {
+            TypeBody::Function { .. } => false,
+            TypeBody::Type { nullable, .. } => *nullable,
+            TypeBody::Array { nullable, .. } => *nullable,
+            _ => false,
+        }
+    }
+
+    pub fn nullable_mut(&mut self) -> &mut bool {
+        match &mut self.body {
+            TypeBody::Type { nullable, .. } => nullable,
+            TypeBody::Array { nullable, .. } => nullable,
+            _ => unreachable!("cannot get nullable of non type"),
+        }
+    }
+
+    pub fn kind_mut(&mut self) -> &mut KindType {
+        match &mut self.body {
+            TypeBody::Type { kind, .. } => kind,
+            _ => panic!("cannot get kind of non type"),
+        }
+    }
+
+    pub fn is_number(&self) -> bool {
+        match &self.body {
+            TypeBody::Type { main, refs, .. } => {
+                if main.len() != 1 || *refs != 0 {
+                    return false;
+                }
+                let name = &main[0];
+                if name == "int"
+                    || name == "float"
+                    || name == "char"
+                    || name == "uint"
+                    || name == "bool"
+                    || name == "null"
+                    || name == "string"
+                {
+                    return true && name.len() == 1;
+                }
+                false
+            }
+            _ => false,
+        }
+    }
+
+    pub fn is_string(&self) -> bool {
+        match &self.body {
+            TypeBody::Type { main, refs, .. } => {
+                if main.len() != 1 || *refs != 0 {
+                    return false;
+                }
+                let name = &main[0];
+                if name == "string" {
+                    return true && name.len() == 1;
+                }
+                false
+            }
+            _ => false,
+        }
+    }
+
+    pub fn is_bool(&self) -> bool {
+        match &self.body {
+            TypeBody::Type { main, refs, .. } => {
+                if main.len() != 1 || *refs != 0 {
+                    return false;
+                }
+                let name = &main[0];
+                if name == "bool" {
+                    return true && name.len() == 1;
+                }
+                false
+            }
+            _ => false,
+        }
+    }
+
+    pub fn is_primitive(&self) -> bool {
+        match &self.body {
+            TypeBody::Type { main, .. } => {
+                let name = &main[0];
+                if name == "int"
+                    || name == "float"
+                    || name == "char"
+                    || name == "uint"
+                    || name == "bool"
+                    || name == "null"
+                    || name == "string"
+                {
+                    return true && name.len() == 1;
+                }
+                false
+            }
+            _ => false,
+        }
+    }
+
+    pub fn is_primitive_simple(&self) -> bool {
+        match &self.body {
+            TypeBody::Type { main, refs, .. } => {
+                if main.len() != 1 || *refs != 0 {
+                    return false;
+                }
+                let name = &main[0];
+                if name == "int"
+                    || name == "float"
+                    || name == "char"
+                    || name == "uint"
+                    || name == "bool"
+                    || name == "null"
+                    || name == "string"
+                {
+                    return true && name.len() == 1;
+                }
+                false
+            }
+            _ => false,
+        }
+    }
+
+    pub fn into_const(&self) -> Option<ConstValue> {
+        match &self.body {
+            TypeBody::Type {
+                main,
+                refs,
+                nullable,
+                ..
+            } => {
+                if main.len() != 1 || *refs != 0 {
+                    return None;
+                }
+                let name = &main[0];
+                let res = match name.as_str() {
+                    "int" => ConstValue::Int(0),
+                    "float" => ConstValue::Float(0.0),
+                    "char" => ConstValue::Char(' '),
+                    "uint" => ConstValue::Usize(0),
+                    "bool" => ConstValue::Bool(false),
+                    "null" => ConstValue::Null,
+                    _ => ConstValue::Undefined,
+                };
+                Some(res)
+            }
+            _ => None,
         }
     }
 }

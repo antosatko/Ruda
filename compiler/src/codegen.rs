@@ -522,35 +522,25 @@ fn expression(
     }
     if let Some(expected_type) = expected_type {
         let cmp = expected_type.cmp(&return_kind);
-        if cmp.is_not_equal() {
-            if expected_type.refs != return_kind.refs {
-                Err(CodegenError::VariableTypeMismatch(
-                    expected_type.clone(),
-                    return_kind.clone(),
-                    cmp,
-                    line.clone(),
-                ))?;
+        match cast(
+            objects,
+            &mut return_kind,
+            &expected_type,
+            code,
+            context,
+            &fun,
+            &line,
+            GENERAL_REG1,
+        ) {
+            Some(_) => {
+                return_kind = expected_type;
             }
-            match cast(
-                objects,
-                &mut return_kind,
-                &expected_type,
-                code,
-                context,
-                &fun,
-                &line,
-                GENERAL_REG1,
-            ) {
-                Some(_) => {
-                    return_kind = expected_type;
-                }
-                None => {
-                    return Err(CodegenError::CouldNotCastTo(
-                        expected_type,
-                        return_kind,
-                        line.clone(),
-                    ));
-                }
+            None => {
+                return Err(CodegenError::CouldNotCastTo(
+                    expected_type,
+                    return_kind,
+                    line.clone(),
+                ));
             }
         }
     }
@@ -713,7 +703,7 @@ fn gen_value(
                 .clone();
             match value.refs {
                 expression_parser::Ref::Dereferencing(depth) => {
-                    if depth > kind.refs {
+                    if depth > kind.get_refs() {
                         Err(CodegenError::CannotDereference(
                             depth,
                             kind.clone(),
@@ -729,7 +719,7 @@ fn gen_value(
                     }
                     code.push(Move(POINTER_REG, GENERAL_REG1));
                     let mut kind = kind.clone();
-                    kind.refs -= depth;
+                    *kind.refs_mut() -= depth;
                     Position::Pointer(kind)
                 }
                 expression_parser::Ref::Reference(depth) => {
@@ -765,7 +755,7 @@ fn gen_value(
             let pos_cloned = var.pos.clone();
             match value.refs {
                 expression_parser::Ref::Dereferencing(depth) => {
-                    if depth > kind.refs {
+                    if depth > kind.get_refs() {
                         Err(CodegenError::CannotDereference(
                             depth,
                             kind.clone(),
@@ -782,7 +772,7 @@ fn gen_value(
                     }
                     code.push(Move(POINTER_REG, GENERAL_REG1));
                     let mut kind = var.kind.as_ref().unwrap().clone();
-                    kind.refs -= depth;
+                    *kind.refs_mut() -= depth;
                     Position::Pointer(kind)
                 }
                 expression_parser::Ref::Reference(depth) => {
@@ -795,7 +785,7 @@ fn gen_value(
                     }
                     code.ptr(&pos_cloned, GENERAL_REG1);
                     let mut kind = var.kind.as_ref().unwrap().clone();
-                    kind.refs += 1;
+                    *kind.refs_mut() += 1;
                     Position::Pointer(kind)
                 }
                 expression_parser::Ref::None => {
@@ -806,7 +796,7 @@ fn gen_value(
         }
         Position::Pointer(kind) => match value.refs {
             expression_parser::Ref::Dereferencing(depth) => {
-                if depth > kind.refs {
+                if depth > kind.get_refs() {
                     Err(CodegenError::CannotDereference(
                         depth,
                         kind.clone(),
@@ -823,7 +813,7 @@ fn gen_value(
                 }
                 code.push(Move(GENERAL_REG1, GENERAL_REG1));
                 let mut kind = kind.clone();
-                kind.refs -= depth;
+                *kind.refs_mut() -= depth;
                 Position::Pointer(kind)
             }
             expression_parser::Ref::Reference(depth) => {
@@ -868,30 +858,45 @@ fn identify_root(
             match ident.as_str() {
                 "true" => {
                     code.push(ReadConst(1, GENERAL_REG1));
-                    return Ok(Position::Value(
-                        ShTypeBuilder::new()
-                            .set_name("bool")
-                            .set_kind(dictionary::KindType::Primitive)
-                            .build(),
-                    ));
+                    return Ok(Position::Value(Kind {
+                        body: TypeBody::Type {
+                            refs: 0,
+                            main: vec!["bool".to_string()],
+                            generics: vec![],
+                            nullable: false,
+                            kind: dictionary::KindType::Primitive,
+                        },
+                        line: line.clone(),
+                        file: Some(file.to_string()),
+                    }));
                 }
                 "false" => {
                     code.push(ReadConst(2, GENERAL_REG1));
-                    return Ok(Position::Value(
-                        ShTypeBuilder::new()
-                            .set_name("bool")
-                            .set_kind(dictionary::KindType::Primitive)
-                            .build(),
-                    ));
+                    return Ok(Position::Value(Kind {
+                        body: TypeBody::Type {
+                            refs: 0,
+                            main: vec!["bool".to_string()],
+                            generics: vec![],
+                            nullable: false,
+                            kind: dictionary::KindType::Primitive,
+                        },
+                        line: line.clone(),
+                        file: Some(file.to_string()),
+                    }));
                 }
                 "null" => {
                     code.push(ReadConst(0, GENERAL_REG1));
-                    return Ok(Position::Value(
-                        ShTypeBuilder::new()
-                            .set_name("null")
-                            .set_kind(dictionary::KindType::Primitive)
-                            .build(),
-                    ));
+                    return Ok(Position::Value(Kind {
+                        body: TypeBody::Type {
+                            refs: 0,
+                            main: vec!["null".to_string()],
+                            generics: vec![],
+                            nullable: false,
+                            kind: dictionary::KindType::Primitive,
+                        },
+                        line: line.clone(),
+                        file: Some(file.to_string()),
+                    }));
                 }
                 _ => (),
             }
@@ -917,12 +922,17 @@ fn identify_root(
                 let kind = match &fun {
                     FunctionKind::Fun(fun) => {
                         let fun = fun.get(objects)?;
-                        fun.return_type.clone().unwrap_or(
-                            ShTypeBuilder::new()
-                                .set_name("null")
-                                .set_kind(dictionary::KindType::Primitive)
-                                .build(),
-                        )
+                        fun.return_type.clone().unwrap_or(Kind {
+                            body: TypeBody::Type {
+                                refs: 0,
+                                main: vec!["null".to_string()],
+                                generics: vec![],
+                                nullable: false,
+                                kind: dictionary::KindType::Primitive,
+                            },
+                            line: line.clone(),
+                            file: Some(file.to_string()),
+                        })
                     }
                     FunctionKind::Binary(fun) => {
                         let fun = fun.get_bin(objects)?;
@@ -954,7 +964,7 @@ fn identify_root(
         Root::Literal(lit) => {
             match lit {
                 expression_parser::Literals::Number(n) => {
-                    let const_num = match n.into_const_number() {
+                    let const_num = match n.into_const_number(line.clone()) {
                         Some(num) => num,
                         None => {
                             unreachable!("number not handled properly by the compiler, please report this bug");
@@ -967,17 +977,18 @@ fn identify_root(
                 expression_parser::Literals::Array(rule) => match rule {
                     ArrayRule::Explicit(arr) => {
                         let mut kind = match &expected_type {
-                            Some(kind) => {
-                                if kind.array_depth == 0 {
-                                    Err(CodegenError::CoudNotCastAnArrayToANonArray(
-                                        kind.clone(),
-                                        line.clone(),
-                                    ))?;
-                                }
-                                let mut temp = kind.clone();
-                                temp.array_depth -= 1;
-                                Some(correct_kind(objects, &temp, fun, line)?)
-                            }
+                            Some(kind) => match &kind.body {
+                                TypeBody::Array {
+                                    type_,
+                                    size,
+                                    refs,
+                                    nullable,
+                                } => Some(correct_kind(objects, &type_, fun, line)?),
+                                _ => Err(CodegenError::CoudNotCastAnArrayToANonArray(
+                                    kind.clone(),
+                                    line.clone(),
+                                ))?,
+                            },
                             None => None,
                         };
                         if let Some(scopes) = scopes {
@@ -988,7 +999,7 @@ fn identify_root(
                             scopes[scopes_len - 1].variables.insert(
                                 scope_len.to_string(),
                                 Variable {
-                                    kind: Some(ShallowType::empty()),
+                                    kind: Some(Kind::void()),
                                     pos: obj.clone(),
                                     value: None,
                                     line: line.clone(),
@@ -1039,8 +1050,16 @@ fn identify_root(
                                 code.extend(&[IndexStatic(idx), WritePtr(GENERAL_REG1)]);
                             }
                             code.read(&obj, GENERAL_REG1);
-                            let mut return_kind = kind.unwrap().clone();
-                            return_kind.array_depth += 1;
+                            let mut return_kind = Kind {
+                                body: TypeBody::Array {
+                                    type_: Box::new(kind.clone().unwrap()),
+                                    size: arr.len(),
+                                    refs: 0,
+                                    nullable: false,
+                                },
+                                line: line.clone(),
+                                file: Some(file.to_string()),
+                            };
                             return Ok(Position::Value(return_kind));
                         } else {
                             unreachable!("array not handled properly by the compiler, please report this bug")
@@ -1048,17 +1067,18 @@ fn identify_root(
                     }
                     ArrayRule::Fill { value, size } => {
                         let expected = match expected_type {
-                            Some(ref kind) => {
-                                if kind.array_depth == 0 {
-                                    Err(CodegenError::CoudNotCastAnArrayToANonArray(
-                                        kind.clone(),
-                                        line.clone(),
-                                    ))?;
-                                }
-                                let mut temp = kind.clone();
-                                temp.array_depth -= 1;
-                                Some(correct_kind(objects, &temp, fun, &line)?)
-                            }
+                            Some(ref kind) => match &kind.body {
+                                TypeBody::Array {
+                                    type_,
+                                    size,
+                                    refs,
+                                    nullable,
+                                } => Some(correct_kind(objects, &type_, fun, line)?),
+                                _ => Err(CodegenError::CoudNotCastAnArrayToANonArray(
+                                    kind.clone(),
+                                    line.clone(),
+                                ))?,
+                            },
                             None => None,
                         };
                         if let Some(scopes) = scopes {
@@ -1094,12 +1114,17 @@ fn identify_root(
                                 context,
                                 &fun,
                                 scope_len,
-                                Some(
-                                    ShTypeBuilder::new()
-                                        .set_name("uint")
-                                        .set_kind(dictionary::KindType::Primitive)
-                                        .build(),
-                                ),
+                                Some(Kind {
+                                    body: TypeBody::Type {
+                                        refs: 0,
+                                        main: vec!["uint".to_string()],
+                                        generics: vec![],
+                                        nullable: false,
+                                        kind: dictionary::KindType::Primitive,
+                                    },
+                                    line: line.clone(),
+                                    file: Some(file.to_string()),
+                                }),
                                 *line,
                             )?;
 
@@ -1109,8 +1134,16 @@ fn identify_root(
                                 FillRange(GENERAL_REG2, GENERAL_REG1),
                                 Move(POINTER_REG, GENERAL_REG1),
                             ]);
-                            let mut return_kind = value;
-                            return_kind.array_depth += 1;
+                            let mut return_kind = Kind {
+                                body: TypeBody::Array {
+                                    type_: Box::new(value.clone()),
+                                    size: 0,
+                                    refs: 0,
+                                    nullable: false,
+                                },
+                                line: line.clone(),
+                                file: Some(file.to_string()),
+                            };
                             return Ok(Position::Value(return_kind));
                         } else {
                             unreachable!("array not handled properly by the compiler, please report this bug")
@@ -1120,22 +1153,32 @@ fn identify_root(
                 expression_parser::Literals::String(str) => {
                     let pos = new_const(context, &ConstValue::String(str.clone()))?;
                     code.push(ReadConst(pos, GENERAL_REG1));
-                    return Ok(Position::Value(
-                        ShTypeBuilder::new()
-                            .set_name("string")
-                            .set_kind(dictionary::KindType::Primitive)
-                            .build(),
-                    ));
+                    return Ok(Position::Value(Kind {
+                        body: TypeBody::Type {
+                            refs: 0,
+                            main: vec!["string".to_string()],
+                            generics: vec![],
+                            nullable: false,
+                            kind: dictionary::KindType::Primitive,
+                        },
+                        line: line.clone(),
+                        file: Some(file.to_string()),
+                    }));
                 }
                 expression_parser::Literals::Char(c) => {
                     let pos = new_const(context, &ConstValue::Char(*c))?;
                     code.push(ReadConst(pos, GENERAL_REG1));
-                    return Ok(Position::Value(
-                        ShTypeBuilder::new()
-                            .set_name("char")
-                            .set_kind(dictionary::KindType::Primitive)
-                            .build(),
-                    ));
+                    return Ok(Position::Value(Kind {
+                        body: TypeBody::Type {
+                            refs: 0,
+                            main: vec!["char".to_string()],
+                            generics: vec![],
+                            nullable: false,
+                            kind: dictionary::KindType::Primitive,
+                        },
+                        line: line.clone(),
+                        file: Some(file.to_string()),
+                    }));
                 }
             }
         }
@@ -1172,7 +1215,7 @@ fn traverse_tail(
     scope_len: &mut usize,
 ) -> Result<Position, CodegenError> {
     use Instructions::*;
-    let mut return_kind = ShallowType::empty();
+    let mut return_kind = Kind::void();
     match tail.next() {
         Some(node) => match &node.0 {
             expression_parser::TailNodes::Nested(ident) => match &pos {
@@ -1221,8 +1264,189 @@ fn traverse_tail(
                     let pos_cloned = var.pos.clone();
                     let kind = var.kind.as_ref().unwrap().clone();
 
-                    // arrays are not types, so they have to be handled differently
-                    if kind.array_depth > 0 {
+                    match &kind.body {
+                        TypeBody::Array {
+                            type_,
+                            size,
+                            refs,
+                            nullable,
+                        } => {
+                            let path = find_array_method(objects, &ident, &node.1)?;
+                            code.read(&pos_cloned, POINTER_REG);
+                            code.extend(&[IndexStatic(0), Move(POINTER_REG, GENERAL_REG1)]);
+                            return traverse_tail(
+                                objects,
+                                tail,
+                                context,
+                                scopes,
+                                code,
+                                fun,
+                                Position::Function(FunctionKind::Binary(path), *type_.clone()),
+                                scope_len,
+                            );
+                        }
+                        TypeBody::Type {
+                            refs,
+                            main,
+                            generics,
+                            nullable,
+                            kind: kind_kind,
+                        } => {
+                            let _kind_main = match &_kind.body {
+                                TypeBody::Type { refs, main, generics, nullable, kind: kind_kind } => main,
+                                _ => unreachable!("kind not handled properly by the compiler, please report this bug"),
+                            };
+                            match kind_kind {
+                                dictionary::KindType::Struct => {
+                                    let structt = find_struct(
+                                        objects,
+                                        &_kind_main.first().unwrap(),
+                                        &kind.file.as_ref().unwrap(),
+                                    )
+                                    .unwrap()
+                                    .1;
+                                    match structt.get_field(&ident) {
+                                        Some((field, idx)) => match field {
+                                            CompoundField::Field(ident) => {
+                                                code.read(&pos_cloned, POINTER_REG);
+                                                code.extend(&[
+                                                    IndexStatic(idx + 1),
+                                                    Move(POINTER_REG, GENERAL_REG1),
+                                                ]);
+                                                return_kind = structt.fields[idx].1.clone();
+                                                *return_kind.refs_mut() += 1;
+                                                let pos = traverse_tail(
+                                                    objects,
+                                                    tail,
+                                                    context,
+                                                    scopes,
+                                                    code,
+                                                    fun,
+                                                    Position::CompoundField(
+                                                        InnerPath {
+                                                            file: kind.file.clone().unwrap(),
+                                                            block: Some(
+                                                                structt.identifier.to_string(),
+                                                            ),
+                                                            ident: main.first().unwrap().clone(),
+                                                            kind: ImportKinds::Rd,
+                                                        },
+                                                        CompoundField::Field(ident.clone()),
+                                                        kind,
+                                                    ),
+                                                    scope_len,
+                                                );
+                                                return pos;
+                                            }
+                                            CompoundField::Method(ident) => {
+                                                code.read(&pos_cloned, GENERAL_REG1);
+                                                return traverse_tail(
+                                                    objects,
+                                                    tail,
+                                                    context,
+                                                    scopes,
+                                                    code,
+                                                    fun,
+                                                    Position::CompoundField(
+                                                        InnerPath {
+                                                            file: kind.file.clone().unwrap(),
+                                                            block: Some(
+                                                                main.last()
+                                                                    .as_ref()
+                                                                    .unwrap()
+                                                                    .to_string(),
+                                                            ),
+                                                            ident: ident.clone(),
+                                                            kind: ImportKinds::Rd,
+                                                        },
+                                                        CompoundField::Method(ident.clone()),
+                                                        kind,
+                                                    ),
+                                                    scope_len,
+                                                );
+                                            }
+                                            _ => todo!(),
+                                        },
+                                        None => Err(CodegenError::FieldNotInStruct(
+                                            ident.clone(),
+                                            node.1.clone(),
+                                        ))?,
+                                    };
+                                }
+                                dictionary::KindType::UserData => {
+                                    let userdata = find_userdata(
+                                        objects,
+                                        &_kind_main.first().unwrap(),
+                                        &kind.file.as_ref().unwrap(),
+                                    )
+                                    .unwrap()
+                                    .1;
+                                    match userdata.get_field(&ident) {
+                                        Some((field, idx)) => match field {
+                                            CompoundField::Method(ident) => {
+                                                code.read(&pos_cloned, GENERAL_REG1);
+                                                return traverse_tail(
+                                                    objects,
+                                                    tail,
+                                                    context,
+                                                    scopes,
+                                                    code,
+                                                    fun,
+                                                    Position::CompoundField(
+                                                        InnerPath {
+                                                            file: kind.file.clone().unwrap(),
+                                                            block: Some(
+                                                                main.last()
+                                                                    .as_ref()
+                                                                    .unwrap()
+                                                                    .to_string(),
+                                                            ),
+                                                            ident: ident.clone(),
+                                                            kind: ImportKinds::Dll,
+                                                        },
+                                                        CompoundField::Method(ident.clone()),
+                                                        kind,
+                                                    ),
+                                                    scope_len,
+                                                );
+                                            }
+                                            _ => todo!(),
+                                        },
+                                        None => Err(CodegenError::FieldNotInStruct(
+                                            ident.clone(),
+                                            node.1.clone(),
+                                        ))?,
+                                    };
+                                }
+                                // in case of primitives we have to use internal functions in the core library
+                                dictionary::KindType::Primitive => {
+                                    let path =
+                                        find_primitive_method(objects, &kind, &ident, &node.1)?;
+                                    code.push(Move(GENERAL_REG1, RETURN_REG));
+                                    return traverse_tail(
+                                        objects,
+                                        tail,
+                                        context,
+                                        scopes,
+                                        code,
+                                        fun,
+                                        Position::Function(FunctionKind::Binary(path), kind),
+                                        scope_len,
+                                    );
+                                }
+                                dictionary::KindType::Enum => todo!(),
+                                dictionary::KindType::Trait => todo!(),
+                                dictionary::KindType::Fun => todo!(),
+                                dictionary::KindType::Error => todo!(),
+                                dictionary::KindType::BinFun => todo!(),
+                                dictionary::KindType::SelfRef => todo!(),
+                                dictionary::KindType::None => todo!(),
+                            }
+                        }
+                        _ => todo!(),
+                    }
+
+                    /*if kind.array_depth > 0 {
                         let path = find_array_method(objects, &ident, &node.1)?;
                         code.push(Move(GENERAL_REG1, RETURN_REG));
                         return traverse_tail(
@@ -1235,153 +1459,7 @@ fn traverse_tail(
                             Position::Function(FunctionKind::Binary(path), kind),
                             scope_len,
                         );
-                    }
-
-                    match &kind.kind {
-                        dictionary::KindType::Struct => {
-                            let structt = find_struct(
-                                objects,
-                                &_kind.main.first().unwrap(),
-                                &kind.file.as_ref().unwrap(),
-                            )
-                            .unwrap()
-                            .1;
-                            match structt.get_field(&ident) {
-                                Some((field, idx)) => match field {
-                                    CompoundField::Field(ident) => {
-                                        code.read(&pos_cloned, POINTER_REG);
-                                        code.extend(&[
-                                            IndexStatic(idx + 1),
-                                            Move(POINTER_REG, GENERAL_REG1),
-                                        ]);
-                                        return_kind = structt.fields[idx].1.clone();
-                                        return_kind.refs += 1;
-                                        let pos = traverse_tail(
-                                            objects,
-                                            tail,
-                                            context,
-                                            scopes,
-                                            code,
-                                            fun,
-                                            Position::CompoundField(
-                                                InnerPath {
-                                                    file: kind.file.clone().unwrap(),
-                                                    block: Some(structt.identifier.to_string()),
-                                                    ident: kind.main.first().unwrap().clone(),
-                                                    kind: ImportKinds::Rd,
-                                                },
-                                                CompoundField::Field(ident.clone()),
-                                                kind,
-                                            ),
-                                            scope_len,
-                                        );
-                                        return pos;
-                                    }
-                                    CompoundField::Method(ident) => {
-                                        code.read(&pos_cloned, GENERAL_REG1);
-                                        return traverse_tail(
-                                            objects,
-                                            tail,
-                                            context,
-                                            scopes,
-                                            code,
-                                            fun,
-                                            Position::CompoundField(
-                                                InnerPath {
-                                                    file: kind.file.clone().unwrap(),
-                                                    block: Some(
-                                                        kind.main
-                                                            .last()
-                                                            .as_ref()
-                                                            .unwrap()
-                                                            .to_string(),
-                                                    ),
-                                                    ident: ident.clone(),
-                                                    kind: ImportKinds::Rd,
-                                                },
-                                                CompoundField::Method(ident.clone()),
-                                                kind,
-                                            ),
-                                            scope_len,
-                                        );
-                                    }
-                                    _ => todo!(),
-                                },
-                                None => Err(CodegenError::FieldNotInStruct(
-                                    ident.clone(),
-                                    node.1.clone(),
-                                ))?,
-                            };
-                        }
-                        dictionary::KindType::UserData => {
-                            let userdata = find_userdata(
-                                objects,
-                                &_kind.main.first().unwrap(),
-                                &kind.file.as_ref().unwrap(),
-                            )
-                            .unwrap()
-                            .1;
-                            match userdata.get_field(&ident) {
-                                Some((field, idx)) => match field {
-                                    CompoundField::Method(ident) => {
-                                        code.read(&pos_cloned, GENERAL_REG1);
-                                        return traverse_tail(
-                                            objects,
-                                            tail,
-                                            context,
-                                            scopes,
-                                            code,
-                                            fun,
-                                            Position::CompoundField(
-                                                InnerPath {
-                                                    file: kind.file.clone().unwrap(),
-                                                    block: Some(
-                                                        kind.main
-                                                            .last()
-                                                            .as_ref()
-                                                            .unwrap()
-                                                            .to_string(),
-                                                    ),
-                                                    ident: ident.clone(),
-                                                    kind: ImportKinds::Dll,
-                                                },
-                                                CompoundField::Method(ident.clone()),
-                                                kind,
-                                            ),
-                                            scope_len,
-                                        );
-                                    }
-                                    _ => todo!(),
-                                },
-                                None => Err(CodegenError::FieldNotInStruct(
-                                    ident.clone(),
-                                    node.1.clone(),
-                                ))?,
-                            };
-                        }
-                        // in case of primitives we have to use internal functions in the core library
-                        dictionary::KindType::Primitive => {
-                            let path = find_primitive_method(objects, &kind, &ident, &node.1)?;
-                            code.push(Move(GENERAL_REG1, RETURN_REG));
-                            return traverse_tail(
-                                objects,
-                                tail,
-                                context,
-                                scopes,
-                                code,
-                                fun,
-                                Position::Function(FunctionKind::Binary(path), kind),
-                                scope_len,
-                            );
-                        }
-                        dictionary::KindType::Enum => todo!(),
-                        dictionary::KindType::Trait => todo!(),
-                        dictionary::KindType::Fun => todo!(),
-                        dictionary::KindType::Error => todo!(),
-                        dictionary::KindType::BinFun => todo!(),
-                        dictionary::KindType::SelfRef => todo!(),
-                        dictionary::KindType::None => todo!(),
-                    }
+                    }*/
                 }
                 Position::CompoundField(path, field, kind) => {
                     let structt = find_struct(objects, &path.ident, &path.file);
@@ -1393,9 +1471,21 @@ fn traverse_tail(
                     todo!()
                 }
                 Position::Compound(kind) => {
+                    let kind_main = match &kind.body {
+                        TypeBody::Type {
+                            refs,
+                            main,
+                            generics,
+                            nullable,
+                            kind: kind_kind,
+                        } => main,
+                        _ => unreachable!(
+                            "kind not handled properly by the compiler, please report this bug"
+                        ),
+                    };
                     if let Some((name, structt)) = find_struct(
                         objects,
-                        &kind.main.first().unwrap(),
+                        &kind_main.first().unwrap(),
                         &kind.file.as_ref().unwrap(),
                     ) {
                         let field = match structt.fields.iter().find(|field| &field.0 == ident) {
@@ -1443,14 +1533,18 @@ fn traverse_tail(
                     // first dereference the pointer
                     code.push(ReadPtr(GENERAL_REG1));
 
-                    let mut return_kind = field_kind.clone();
-                    if return_kind.array_depth == 0 {
-                        Err(CodegenError::CannotIndexNonArray(
+                    let mut return_kind = match field_kind.body {
+                        TypeBody::Array {
+                            type_,
+                            size,
+                            refs,
+                            nullable,
+                        } => *type_.clone(),
+                        _ => Err(CodegenError::CannotIndexNonArray(
                             pos.clone(),
                             node.1.clone(),
-                        ))?;
-                    }
-                    return_kind.array_depth -= 1;
+                        ))?,
+                    };
 
                     // save the pointer from GENERAL_REG1 to stack
                     *scope_len += 1;
@@ -1475,12 +1569,17 @@ fn traverse_tail(
                         context,
                         &fun,
                         scope_len,
-                        Some(
-                            ShTypeBuilder::new()
-                                .set_name("uint")
-                                .set_kind(dictionary::KindType::Primitive)
-                                .build(),
-                        ),
+                        Some(Kind {
+                            body: TypeBody::Type {
+                                refs: 0,
+                                main: vec!["uint".to_string()],
+                                generics: vec![],
+                                nullable: false,
+                                kind: dictionary::KindType::Primitive,
+                            },
+                            line: node.1.clone(),
+                            file: Some(fun.file.clone()),
+                        }),
                         node.1,
                     )?;
 
@@ -1500,14 +1599,18 @@ fn traverse_tail(
                     };
                     let pos_cloned = var.pos.clone();
 
-                    return_kind = var.kind.as_ref().unwrap().clone();
-                    if return_kind.array_depth == 0 {
-                        Err(CodegenError::CannotIndexNonArray(
+                    return_kind = match &var.kind.as_ref().unwrap().body {
+                        TypeBody::Array {
+                            type_,
+                            size,
+                            refs,
+                            nullable,
+                        } => *type_.clone(),
+                        _ => Err(CodegenError::CannotIndexNonArray(
                             pos.clone(),
-                            var.line.clone(),
-                        ))?;
-                    }
-                    return_kind.array_depth -= 1;
+                            node.1.clone(),
+                        ))?,
+                    };
 
                     expression(
                         objects,
@@ -1517,12 +1620,17 @@ fn traverse_tail(
                         context,
                         &fun,
                         scope_len,
-                        Some(
-                            ShTypeBuilder::new()
-                                .set_name("uint")
-                                .set_kind(dictionary::KindType::Primitive)
-                                .build(),
-                        ),
+                        Some(Kind {
+                            body: TypeBody::Type {
+                                refs: 0,
+                                main: vec!["uint".to_string()],
+                                generics: vec![],
+                                nullable: false,
+                                kind: dictionary::KindType::Primitive,
+                            },
+                            line: node.1.clone(),
+                            file: Some(fun.file.clone()),
+                        }),
                         node.1,
                     )?;
 
@@ -1535,14 +1643,18 @@ fn traverse_tail(
                     );
                 }
                 Position::Pointer(ptr) => {
-                    let mut return_kind = ptr.clone();
-                    if return_kind.array_depth == 0 {
-                        Err(CodegenError::CannotIndexNonArray(
+                    let mut return_kind = match &ptr.body {
+                        TypeBody::Array {
+                            type_,
+                            size,
+                            refs,
+                            nullable,
+                        } => *type_.clone(),
+                        _ => Err(CodegenError::CannotIndexNonArray(
                             pos.clone(),
                             node.1.clone(),
-                        ))?;
-                    }
-                    return_kind.array_depth -= 1;
+                        ))?,
+                    };
 
                     // deref once
                     code.push(ReadPtr(GENERAL_REG1));
@@ -1570,12 +1682,17 @@ fn traverse_tail(
                         context,
                         &fun,
                         scope_len,
-                        Some(
-                            ShTypeBuilder::new()
-                                .set_name("uint")
-                                .set_kind(dictionary::KindType::Primitive)
-                                .build(),
-                        ),
+                        Some(Kind {
+                            body: TypeBody::Type {
+                                refs: 0,
+                                main: vec!["uint".to_string()],
+                                generics: vec![],
+                                nullable: false,
+                                kind: dictionary::KindType::Primitive,
+                            },
+                            line: node.1.clone(),
+                            file: Some(fun.file.clone()),
+                        }),
                         node.1,
                     )?;
 
@@ -1592,14 +1709,18 @@ fn traverse_tail(
                     node.1.clone(),
                 ))?,
                 Position::Value(ptr) => {
-                    let mut return_kind = ptr.clone();
-                    if return_kind.array_depth == 0 {
-                        Err(CodegenError::CannotIndexNonArray(
+                    let mut return_kind = match &ptr.body {
+                        TypeBody::Array {
+                            type_,
+                            size,
+                            refs,
+                            nullable,
+                        } => *type_.clone(),
+                        _ => Err(CodegenError::CannotIndexNonArray(
                             pos.clone(),
                             node.1.clone(),
-                        ))?;
-                    }
-                    return_kind.array_depth -= 1;
+                        ))?,
+                    };
 
                     // save the pointer from GENERAL_REG1 to stack
                     *scope_len += 1;
@@ -1624,12 +1745,17 @@ fn traverse_tail(
                         context,
                         &fun,
                         scope_len,
-                        Some(
-                            ShTypeBuilder::new()
-                                .set_name("uint")
-                                .set_kind(dictionary::KindType::Primitive)
-                                .build(),
-                        ),
+                        Some(Kind {
+                            body: TypeBody::Type {
+                                refs: 0,
+                                main: vec!["uint".to_string()],
+                                generics: vec![],
+                                nullable: false,
+                                kind: dictionary::KindType::Primitive,
+                            },
+                            line: node.1.clone(),
+                            file: Some(fun.file.clone()),
+                        }),
                         node.1,
                     )?;
 
@@ -1685,8 +1811,19 @@ fn traverse_tail(
                     };
                 }
                 Position::Compound(kind) => {
-                    let constructor = kind.get_ident();
-                    let import_kind = match kind.kind.to_import_kind() {
+                    let (constructor, kind_kind) = match &kind.body {
+                        TypeBody::Type {
+                            refs,
+                            main,
+                            generics,
+                            nullable,
+                            kind: kind_kind,
+                        } => (main.last().unwrap(), kind_kind),
+                        _ => unreachable!(
+                            "kind not handled properly by the compiler, please report this bug"
+                        ),
+                    };
+                    let import_kind = match kind_kind.to_import_kind() {
                         Some(kind) => kind,
                         None => Err(CodegenError::CannotCallType(kind.clone(), node.1.clone()))?,
                     };
@@ -1753,19 +1890,30 @@ fn find_primitive_method(
     method: &str,
     line: &Line,
 ) -> Result<InnerPath, CodegenError> {
-    let name = match kind.get_ident() {
-        "int" | "uint" | "float" | "bool" | "char" | "string" | "null" => {
-            format!("{}{}", kind.get_ident(), method)
+    match &kind.body {
+        TypeBody::Type {
+            refs,
+            main,
+            generics,
+            nullable,
+            kind: kind_kind,
+        } => {
+            let name = match kind_kind {
+                dictionary::KindType::Primitive => {
+                    format!("{}{}", main.first().unwrap(), method)
+                }
+                _ => Err(CodegenError::CannotCallType(kind.clone(), line.clone()))?,
+            };
+            let path = InnerPath {
+                file: "#core".to_string(),
+                block: None,
+                ident: name,
+                kind: ImportKinds::Dll,
+            };
+            Ok(path)
         }
         _ => Err(CodegenError::CannotCallType(kind.clone(), line.clone()))?,
-    };
-    let path = InnerPath {
-        file: "#core".to_string(),
-        block: None,
-        ident: name,
-        kind: ImportKinds::Dll,
-    };
-    Ok(path)
+    }
 }
 
 fn find_array_method(
@@ -1806,7 +1954,7 @@ fn call_binary(
     scopes[scopes_len - 1].variables.insert(
         scope_len.to_string(),
         Variable {
-            kind: Some(ShallowType::empty()),
+            kind: Some(Kind::void()),
             pos: obj.clone(),
             value: None,
             line: line.clone(),
@@ -1907,7 +2055,7 @@ fn call_fun(
     scopes[scopes_len - 1].variables.insert(
         scope_len.to_string(),
         Variable {
-            kind: Some(ShallowType::empty()),
+            kind: Some(Kind::void()),
             pos: obj.clone(),
             value: None,
             line: line.clone(),
@@ -1987,12 +2135,17 @@ fn call_fun(
         Move(RETURN_REG, GENERAL_REG1),
     ]);
     merge_code(&mut code.code, &temp_code.code, *scope_len);
-    Ok(called_fun.return_type.clone().unwrap_or(
-        ShTypeBuilder::new()
-            .set_name("null")
-            .set_kind(dictionary::KindType::Primitive)
-            .build(),
-    ))
+    Ok(called_fun.return_type.clone().unwrap_or(Kind {
+        body: TypeBody::Type {
+            refs: 0,
+            main: vec!["null".to_string()],
+            generics: vec![],
+            nullable: false,
+            kind: dictionary::KindType::Primitive,
+        },
+        line: line.clone(),
+        file: Some(fun.file.clone()),
+    }))
 }
 
 fn call_whichever(
@@ -2067,10 +2220,17 @@ fn get_scope(
         }};
     }
 
-    let bool_type = ShTypeBuilder::new()
-        .set_name("bool")
-        .set_kind(dictionary::KindType::Primitive)
-        .build();
+    let bool_type = Kind {
+        body: TypeBody::Type {
+            refs: 0,
+            main: vec!["bool".to_string()],
+            generics: vec![],
+            nullable: false,
+            kind: dictionary::KindType::Primitive,
+        },
+        line: Line { line: 0, column: 0 },
+        file: Some(fun.file.clone()),
+    };
 
     for node in block {
         match node {
@@ -2117,7 +2277,7 @@ fn get_scope(
                     }
                     None => {
                         if let Some(kind) = kind {
-                            if !kind.nullable {
+                            if !kind.get_nullable() {
                                 Err(CodegenError::TypeNotNullable(line.clone()))?;
                             }
                         } else {
@@ -2140,10 +2300,17 @@ fn get_scope(
                         code.extend(&[ReadConst(null, GENERAL_REG1)]);
                         code.write(GENERAL_REG1, &pos);
                         (
-                            ShTypeBuilder::new()
-                                .set_name("null")
-                                .set_kind(dictionary::KindType::Primitive)
-                                .build(),
+                            Kind {
+                                body: TypeBody::Type {
+                                    refs: 0,
+                                    main: vec!["null".to_string()],
+                                    generics: vec![],
+                                    nullable: true,
+                                    kind: dictionary::KindType::Primitive,
+                                },
+                                line: line.clone(),
+                                file: Some(fun.file.clone()),
+                            },
                             pos,
                         )
                     }
@@ -2336,10 +2503,17 @@ fn get_scope(
                     }
                     None => {
                         expr_code.push(ReadConst(0, RETURN_REG));
-                        ShTypeBuilder::new()
-                            .set_name("null")
-                            .set_kind(dictionary::KindType::Primitive)
-                            .build()
+                        Kind {
+                            body: TypeBody::Type {
+                                refs: 0,
+                                main: vec!["null".to_string()],
+                                generics: vec![],
+                                nullable: true,
+                                kind: dictionary::KindType::Primitive,
+                            },
+                            line: line.clone(),
+                            file: Some(fun.file.clone()),
+                        }
                     }
                 };
                 let this_fun = fun.get(objects)?;
@@ -2355,10 +2529,17 @@ fn get_scope(
                     }
                 } else if !kind.is_null() {
                     return Err(CodegenError::VariableTypeMismatch(
-                        ShTypeBuilder::new()
-                            .set_name("null")
-                            .set_kind(dictionary::KindType::Primitive)
-                            .build(),
+                        Kind {
+                            body: TypeBody::Type {
+                                refs: 0,
+                                main: vec!["null".to_string()],
+                                generics: vec![],
+                                nullable: true,
+                                kind: dictionary::KindType::Primitive,
+                            },
+                            line: line.clone(),
+                            file: Some(fun.file.clone()),
+                        },
                         kind,
                         TypeComparison::NotEqual,
                         line.clone(),
@@ -3043,19 +3224,33 @@ fn native_operand(
             } else if left.is_string() && right.is_string() {
                 code.extend(&[Cal(CORE_LIB, 2), Move(RETURN_REG, GENERAL_REG1)]);
                 return Some(
-                    ShTypeBuilder::new()
-                        .set_name("string")
-                        .set_kind(dictionary::KindType::Primitive)
-                        .build(),
+                    Kind {
+                        body: TypeBody::Type {
+                            refs: 0,
+                            main: vec!["string".to_string()],
+                            generics: vec![],
+                            nullable: false,
+                            kind: dictionary::KindType::Primitive,
+                        },
+                        line: line.clone(),
+                        file: Some(fun.file.clone()),
+                    }
                 );
             } else if left.is_string() && right.is_primitive_simple() {
                 cast(
                     objects,
                     right,
-                    &ShTypeBuilder::new()
-                        .set_name("string")
-                        .set_kind(dictionary::KindType::Primitive)
-                        .build(),
+                    &Kind {
+                        body: TypeBody::Type {
+                            refs: 0,
+                            main: vec!["string".to_string()],
+                            generics: vec![],
+                            nullable: false,
+                            kind: dictionary::KindType::Primitive,
+                        },
+                        line: line.clone(),
+                        file: Some(fun.file.clone()),
+                    },
                     code,
                     context,
                     fun,
@@ -3063,16 +3258,33 @@ fn native_operand(
                     GENERAL_REG2,
                 )?;
                 code.extend(&[Cal(CORE_LIB, 2), Move(RETURN_REG, GENERAL_REG1)]);
-                return Some(ShTypeBuilder::new().set_name("string").build());
+                return Some(Kind {
+                    body: TypeBody::Type {
+                        refs: 0,
+                        main: vec!["string".to_string()],
+                        generics: vec![],
+                        nullable: false,
+                        kind: dictionary::KindType::Primitive,
+                    },
+                    line: line.clone(),
+                    file: Some(fun.file.clone()),
+                });
             } else if left.is_primitive_simple() && right.is_string() {
                 code.push(Swap(GENERAL_REG1, GENERAL_REG2));
                 cast(
                     objects,
                     left,
-                    &ShTypeBuilder::new()
-                        .set_name("string")
-                        .set_kind(dictionary::KindType::Primitive)
-                        .build(),
+                    &Kind {
+                        body: TypeBody::Type {
+                            refs: 0,
+                            main: vec!["string".to_string()],
+                            generics: vec![],
+                            nullable: false,
+                            kind: dictionary::KindType::Primitive,
+                        },
+                        line: line.clone(),
+                        file: Some(fun.file.clone()),
+                    },
                     code,
                     context,
                     fun,
@@ -3085,10 +3297,17 @@ fn native_operand(
                     Move(RETURN_REG, GENERAL_REG1),
                 ]);
                 return Some(
-                    ShTypeBuilder::new()
-                        .set_name("string")
-                        .set_kind(dictionary::KindType::Primitive)
-                        .build(),
+                    Kind {
+                        body: TypeBody::Type {
+                            refs: 0,
+                            main: vec!["string".to_string()],
+                            generics: vec![],
+                            nullable: false,
+                            kind: dictionary::KindType::Primitive,
+                        },
+                        line: line.clone(),
+                        file: Some(fun.file.clone()),
+                    }
                 );
             } else {
                 None?
@@ -3133,10 +3352,17 @@ fn native_operand(
             {
                 code.extend(&[Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(
-                    ShTypeBuilder::new()
-                        .set_name("bool")
-                        .set_kind(dictionary::KindType::Primitive)
-                        .build(),
+                    Kind {
+                        body: TypeBody::Type {
+                            refs: 0,
+                            main: vec!["bool".to_string()],
+                            generics: vec![],
+                            nullable: false,
+                            kind: dictionary::KindType::Primitive,
+                        },
+                        line: line.clone(),
+                        file: Some(fun.file.clone()),
+                    }
                 );
             } else {
                 None?
@@ -3178,10 +3404,17 @@ fn native_operand(
             if left.is_string() && right.is_string() {
                 code.extend(&[Cal(CORE_LIB, 3), Move(RETURN_REG, GENERAL_REG1)]);
                 return Some(
-                    ShTypeBuilder::new()
-                        .set_name("bool")
-                        .set_kind(dictionary::KindType::Primitive)
-                        .build(),
+                    Kind {
+                        body: TypeBody::Type {
+                            refs: 0,
+                            main: vec!["bool".to_string()],
+                            generics: vec![],
+                            nullable: false,
+                            kind: dictionary::KindType::Primitive,
+                        },
+                        line: line.clone(),
+                        file: Some(fun.file.clone()),
+                    }
                 );
             }
             if left.is_primitive_simple()
@@ -3190,10 +3423,17 @@ fn native_operand(
             {
                 code.extend(&[Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(
-                    ShTypeBuilder::new()
-                        .set_name("bool")
-                        .set_kind(dictionary::KindType::Primitive)
-                        .build(),
+                    Kind {
+                        body: TypeBody::Type {
+                            refs: 0,
+                            main: vec!["bool".to_string()],
+                            generics: vec![],
+                            nullable: false,
+                            kind: dictionary::KindType::Primitive,
+                        },
+                        line: line.clone(),
+                        file: Some(fun.file.clone()),
+                    }
                 );
             } else {
                 None?
@@ -3203,10 +3443,17 @@ fn native_operand(
             if left.is_null() && right.is_null() {
                 code.extend(&[Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(
-                    ShTypeBuilder::new()
-                        .set_name("bool")
-                        .set_kind(dictionary::KindType::Primitive)
-                        .build(),
+                    Kind {
+                        body: TypeBody::Type {
+                            refs: 0,
+                            main: vec!["bool".to_string()],
+                            generics: vec![],
+                            nullable: false,
+                            kind: dictionary::KindType::Primitive,
+                        },
+                        line: line.clone(),
+                        file: Some(fun.file.clone()),
+                    }
                 );
             }
             if left.is_string() && right.is_string() {
@@ -3216,10 +3463,17 @@ fn native_operand(
                     Not(GENERAL_REG1, GENERAL_REG1),
                 ]);
                 return Some(
-                    ShTypeBuilder::new()
-                        .set_name("bool")
-                        .set_kind(dictionary::KindType::Primitive)
-                        .build(),
+                    Kind {
+                        body: TypeBody::Type {
+                            refs: 0,
+                            main: vec!["bool".to_string()],
+                            generics: vec![],
+                            nullable: false,
+                            kind: dictionary::KindType::Primitive,
+                        },
+                        line: line.clone(),
+                        file: Some(fun.file.clone()),
+                    }
                 );
             }
             if left.is_primitive_simple()
@@ -3231,10 +3485,17 @@ fn native_operand(
                     Not(GENERAL_REG1, GENERAL_REG1),
                 ]);
                 return Some(
-                    ShTypeBuilder::new()
-                        .set_name("bool")
-                        .set_kind(dictionary::KindType::Primitive)
-                        .build(),
+                    Kind {
+                        body: TypeBody::Type {
+                            refs: 0,
+                            main: vec!["bool".to_string()],
+                            generics: vec![],
+                            nullable: false,
+                            kind: dictionary::KindType::Primitive,
+                        },
+                        line: line.clone(),
+                        file: Some(fun.file.clone()),
+                    }
                 );
             } else {
                 None?
@@ -3247,10 +3508,17 @@ fn native_operand(
             {
                 code.extend(&[And(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(
-                    ShTypeBuilder::new()
-                        .set_name("bool")
-                        .set_kind(dictionary::KindType::Primitive)
-                        .build(),
+                    Kind {
+                        body: TypeBody::Type {
+                            refs: 0,
+                            main: vec!["bool".to_string()],
+                            generics: vec![],
+                            nullable: false,
+                            kind: dictionary::KindType::Primitive,
+                        },
+                        line: line.clone(),
+                        file: Some(fun.file.clone()),
+                    }
                 );
             } else {
                 None?
@@ -3263,10 +3531,17 @@ fn native_operand(
             {
                 code.extend(&[Or(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(
-                    ShTypeBuilder::new()
-                        .set_name("bool")
-                        .set_kind(dictionary::KindType::Primitive)
-                        .build(),
+                    Kind {
+                        body: TypeBody::Type {
+                            refs: 0,
+                            main: vec!["bool".to_string()],
+                            generics: vec![],
+                            nullable: false,
+                            kind: dictionary::KindType::Primitive,
+                        },
+                        line: line.clone(),
+                        file: Some(fun.file.clone()),
+                    }
                 );
             } else {
                 None?
@@ -3279,10 +3554,17 @@ fn native_operand(
             {
                 code.extend(&[And(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(
-                    ShTypeBuilder::new()
-                        .set_name("bool")
-                        .set_kind(dictionary::KindType::Primitive)
-                        .build(),
+                    Kind {
+                        body: TypeBody::Type {
+                            refs: 0,
+                            main: vec!["bool".to_string()],
+                            generics: vec![],
+                            nullable: false,
+                            kind: dictionary::KindType::Primitive,
+                        },
+                        line: line.clone(),
+                        file: Some(fun.file.clone()),
+                    }
                 );
             } else {
                 None?
@@ -3295,10 +3577,17 @@ fn native_operand(
             {
                 code.extend(&[Or(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(
-                    ShTypeBuilder::new()
-                        .set_name("bool")
-                        .set_kind(dictionary::KindType::Primitive)
-                        .build(),
+                    Kind {
+                        body: TypeBody::Type {
+                            refs: 0,
+                            main: vec!["bool".to_string()],
+                            generics: vec![],
+                            nullable: false,
+                            kind: dictionary::KindType::Primitive,
+                        },
+                        line: line.clone(),
+                        file: Some(fun.file.clone()),
+                    }
                 );
             } else {
                 None?
@@ -3309,10 +3598,17 @@ fn native_operand(
                 if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
                     code.extend(&[Less(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                     return Some(
-                        ShTypeBuilder::new()
-                            .set_name("bool")
-                            .set_kind(dictionary::KindType::Primitive)
-                            .build(),
+                        Kind {
+                            body: TypeBody::Type {
+                                refs: 0,
+                                main: vec!["bool".to_string()],
+                                generics: vec![],
+                                nullable: false,
+                                kind: dictionary::KindType::Primitive,
+                            },
+                            line: line.clone(),
+                            file: Some(fun.file.clone()),
+                        }
                     );
                 } else {
                     None?
@@ -3322,10 +3618,17 @@ fn native_operand(
                 if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
                     code.extend(&[Grt(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                     return Some(
-                        ShTypeBuilder::new()
-                            .set_name("bool")
-                            .set_kind(dictionary::KindType::Primitive)
-                            .build(),
+                        Kind {
+                            body: TypeBody::Type {
+                                refs: 0,
+                                main: vec!["bool".to_string()],
+                                generics: vec![],
+                                nullable: false,
+                                kind: dictionary::KindType::Primitive,
+                            },
+                            line: line.clone(),
+                            file: Some(fun.file.clone()),
+                        }
                     );
                 } else {
                     None?
@@ -3339,10 +3642,17 @@ fn native_operand(
                     Not(GENERAL_REG1, GENERAL_REG1),
                 ]);
                 return Some(
-                    ShTypeBuilder::new()
-                        .set_name("bool")
-                        .set_kind(dictionary::KindType::Primitive)
-                        .build(),
+                    Kind {
+                        body: TypeBody::Type {
+                            refs: 0,
+                            main: vec!["bool".to_string()],
+                            generics: vec![],
+                            nullable: false,
+                            kind: dictionary::KindType::Primitive,
+                        },
+                        line: line.clone(),
+                        file: Some(fun.file.clone()),
+                    }
                 );
             } else {
                 None?
@@ -3355,10 +3665,17 @@ fn native_operand(
                     Not(GENERAL_REG1, GENERAL_REG1),
                 ]);
                 return Some(
-                    ShTypeBuilder::new()
-                        .set_name("bool")
-                        .set_kind(dictionary::KindType::Primitive)
-                        .build(),
+                    Kind {
+                        body: TypeBody::Type {
+                            refs: 0,
+                            main: vec!["bool".to_string()],
+                            generics: vec![],
+                            nullable: false,
+                            kind: dictionary::KindType::Primitive,
+                        },
+                        line: line.clone(),
+                        file: Some(fun.file.clone()),
+                    }
                 );
             } else {
                 None?
@@ -3389,10 +3706,17 @@ fn native_unary_operand(
                 if cast(
                     objects,
                     kind,
-                    &ShTypeBuilder::new()
-                        .set_name("bool")
-                        .set_kind(dictionary::KindType::Primitive)
-                        .build(),
+                    &Kind {
+                        body: TypeBody::Type {
+                            refs: 0,
+                            main: vec!["bool".to_string()],
+                            generics: vec![],
+                            nullable: false,
+                            kind: dictionary::KindType::Primitive,
+                        },
+                        line: line.clone(),
+                        file: Some(fun.file.clone()),
+                    },
                     code,
                     context,
                     fun,
@@ -3403,18 +3727,34 @@ fn native_unary_operand(
                 {
                     return Err(CodegenError::CouldNotCastTo(
                         kind.clone(),
-                        ShTypeBuilder::new()
-                            .set_name("bool")
-                            .set_kind(dictionary::KindType::Primitive)
-                            .build(),
+                        
+                    Kind {
+                        body: TypeBody::Type {
+                            refs: 0,
+                            main: vec!["bool".to_string()],
+                            generics: vec![],
+                            nullable: false,
+                            kind: dictionary::KindType::Primitive,
+                        },
+                        line: line.clone(),
+                        file: Some(fun.file.clone()),
+                    },
                         line.clone(),
                     ));
                 }
                 code.extend(&[Not(register, register)]);
-                return Ok(ShTypeBuilder::new()
-                    .set_name("bool")
-                    .set_kind(dictionary::KindType::Primitive)
-                    .build());
+                return Ok(
+                    Kind {
+                        body: TypeBody::Type {
+                            refs: 0,
+                            main: vec!["bool".to_string()],
+                            generics: vec![],
+                            nullable: false,
+                            kind: dictionary::KindType::Primitive,
+                        },
+                        line: line.clone(),
+                        file: Some(fun.file.clone()),
+                    });
             } else {
                 Err(CodegenError::ExpectedBool(line.clone()))?
             }
@@ -3446,13 +3786,13 @@ fn cast(
     register: usize,
 ) -> Option<()> {
     use Instructions::*;
-    if to.array_depth > 0 && to.array_depth == from.array_depth {
+    if /*to.array_depth > 0 && to.array_depth == from.array_depth*/ to.is_array() && from.is_array() {
         return Some(());
     }
-    if to.nullable && from.is_null() {
+    if to.get_nullable() && from.is_null() {
         return Some(());
     }
-    if to.is_null() && from.nullable {
+    if to.is_null() && from.get_nullable() {
         return None;
     }
     if from.cmp(to).is_equal() {
@@ -3492,42 +3832,46 @@ enum ScopeTerminator {
 
 fn correct_kind(
     objects: &Context,
-    kind: &Kind,
+    _kind: &Kind,
     fun: &InnerPath,
     line: &Line,
 ) -> Result<Kind, CodegenError> {
-    if kind.array_depth > 0 {
-        return Ok(kind.clone());
-    }
-    if kind.is_primitive() {
-        let mut kind = kind.clone();
-        kind.kind = dictionary::KindType::Primitive;
+    if _kind.is_primitive() {
+        let mut kind = _kind.clone();
+        *kind.kind_mut() = dictionary::KindType::Primitive;
         return Ok(kind);
     }
-    let mut file = fun.clone();
-    file.file = kind.file.clone().unwrap_or(file.file);
-    for i in 0..kind.main.len() - 1 {
-        let import = match find_import(objects, &kind.main[i], &file.file) {
-            Some(import) => import,
-            None => Err(CodegenError::ImportNotFound(
-                kind.main[i].clone(),
-                line.clone(),
-            ))?,
-        };
-        file = InnerPath {
-            file: import.0.to_string(),
-            block: None,
-            ident: "".to_string(),
-            kind: import.1,
-        };
+    match &_kind.body {
+        TypeBody::Type { refs, main, generics, nullable, kind } => {
+            let mut file = fun.clone();
+            file.file = _kind.file.clone().unwrap_or(file.file);
+            for i in 0..main.len() - 1 {
+                let import = match find_import(objects, &main[i], &file.file) {
+                    Some(import) => import,
+                    None => Err(CodegenError::ImportNotFound(
+                        main[i].clone(),
+                        line.clone(),
+                    ))?,
+                };
+                file = InnerPath {
+                    file: import.0.to_string(),
+                    block: None,
+                    ident: "".to_string(),
+                    kind: import.1,
+                };
+            }
+            file.ident = main.last().unwrap().clone();
+            let mut real = get_kind(objects, &file, line)?;
+            *real.refs_mut() = *refs;
+            *real.nullable_mut() = *nullable;
+            real.line = line.clone();
+            Ok(real)
+
+        }
+        _ => {
+            Ok(_kind.clone())
+        }
     }
-    file.ident = kind.main.last().unwrap().clone();
-    let mut real = get_kind(objects, &file, line)?;
-    real.refs = kind.refs;
-    real.nullable = kind.nullable;
-    real.array_depth = kind.array_depth;
-    real.line = line.clone();
-    Ok(real)
 }
 
 fn get_kind(objects: &Context, location: &InnerPath, line: &Line) -> Result<Kind, CodegenError> {
@@ -3572,7 +3916,7 @@ fn get_kind(objects: &Context, location: &InnerPath, line: &Line) -> Result<Kind
     };
     for fun in file.functions.iter() {
         if fun.name == location.ident {
-            return Ok(ShallowType::bfrom_fun(fun, location.file.clone()));
+            return Ok(Kind::bfrom_fun(fun, location.file.clone(), line.clone()));
         }
     }
     for user_data in file.user_data.iter() {
