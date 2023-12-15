@@ -2417,9 +2417,6 @@ impl Kind {
     }
 
     pub fn cmp(&self, other: &Self) -> TypeComparison {
-        if self.body != other.body {
-            return TypeComparison::NotEqual;
-        }
         match &self.body {
             TypeBody::Function {
                 args,
@@ -2448,9 +2445,6 @@ impl Kind {
                     }
                     if *nullable && other.is_null() {
                         return TypeComparison::Equal;
-                    }
-                    if !nullable && *nullable2 {
-                        return TypeComparison::NotNullable;
                     }
                     if *refs != *refs2 {
                         return TypeComparison::ReferenceDiff(*refs as i32 - *refs2 as i32);
@@ -2506,7 +2500,10 @@ impl Kind {
                     TypeComparison::NotEqual
                 }
             }
-            TypeBody::Void => TypeComparison::Equal,
+            TypeBody::Void => match &other.body {
+                TypeBody::Void => TypeComparison::Equal,
+                _ => TypeComparison::NotEqual,
+            }
             TypeBody::Generic {
                 identifier,
                 constraints,
@@ -2567,11 +2564,8 @@ impl Kind {
                     || name == "float"
                     || name == "char"
                     || name == "uint"
-                    || name == "bool"
-                    || name == "null"
-                    || name == "string"
                 {
-                    return true && name.len() == 1;
+                    return true;
                 }
                 false
             }
@@ -2587,7 +2581,7 @@ impl Kind {
                 }
                 let name = &main[0];
                 if name == "string" {
-                    return true && name.len() == 1;
+                    return true;
                 }
                 false
             }
@@ -2603,7 +2597,7 @@ impl Kind {
                 }
                 let name = &main[0];
                 if name == "bool" {
-                    return true && name.len() == 1;
+                    return true;
                 }
                 false
             }
@@ -2623,7 +2617,7 @@ impl Kind {
                     || name == "null"
                     || name == "string"
                 {
-                    return true && name.len() == 1;
+                    return true;
                 }
                 false
             }
@@ -2646,7 +2640,7 @@ impl Kind {
                     || name == "null"
                     || name == "string"
                 {
-                    return true && name.len() == 1;
+                    return true;
                 }
                 false
             }

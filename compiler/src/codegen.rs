@@ -1272,8 +1272,7 @@ fn traverse_tail(
                             nullable,
                         } => {
                             let path = find_array_method(objects, &ident, &node.1)?;
-                            code.read(&pos_cloned, POINTER_REG);
-                            code.extend(&[IndexStatic(0), Move(POINTER_REG, GENERAL_REG1)]);
+                            code.read(&pos_cloned, RETURN_REG);
                             return traverse_tail(
                                 objects,
                                 tail,
@@ -1470,8 +1469,8 @@ fn traverse_tail(
                 Position::Pointer(ptr) => {
                     todo!()
                 }
-                Position::Compound(kind) => {
-                    let kind_main = match &kind.body {
+                Position::Compound(_kind) => {
+                    let kind_main = match &_kind.body {
                         TypeBody::Type {
                             refs,
                             main,
@@ -1486,7 +1485,7 @@ fn traverse_tail(
                     if let Some((name, structt)) = find_struct(
                         objects,
                         &kind_main.first().unwrap(),
-                        &kind.file.as_ref().unwrap(),
+                        &_kind.file.as_ref().unwrap(),
                     ) {
                         let field = match structt.fields.iter().find(|field| &field.0 == ident) {
                             Some(field) => field,
@@ -1498,7 +1497,186 @@ fn traverse_tail(
                     }
                     todo!()
                 }
-                Position::Value(_) => todo!(),
+                Position::Value(kind) => {
+                    let kind = correct_kind(objects, kind, fun, &node.1)?;
+                    match &kind.body {
+                        TypeBody::Array {
+                            type_,
+                            size,
+                            refs,
+                            nullable,
+                        } => {
+                            let path = find_array_method(objects, &ident, &node.1)?;
+                            code.extend(&[IndexStatic(0), Move(POINTER_REG, GENERAL_REG1)]);
+                            return traverse_tail(
+                                objects,
+                                tail,
+                                context,
+                                scopes,
+                                code,
+                                fun,
+                                Position::Function(FunctionKind::Binary(path), *type_.clone()),
+                                scope_len,
+                            );
+                        }
+                        TypeBody::Type {
+                            refs,
+                            main,
+                            generics,
+                            nullable,
+                            kind: kind_kind,
+                        } => {
+                            let _kind_main = match &kind.body {
+                                TypeBody::Type { refs, main, generics, nullable, kind: kind_kind } => main,
+                                _ => unreachable!("kind not handled properly by the compiler, please report this bug"),
+                            };
+                            match kind_kind {
+                                dictionary::KindType::Struct => {
+                                    let structt = find_struct(
+                                        objects,
+                                        &_kind_main.first().unwrap(),
+                                        &kind.file.as_ref().unwrap(),
+                                    )
+                                    .unwrap()
+                                    .1;
+                                    match structt.get_field(&ident) {
+                                        Some((field, idx)) => match field {
+                                            CompoundField::Field(ident) => {
+                                                code.extend(&[
+                                                    IndexStatic(idx + 1),
+                                                    Move(POINTER_REG, GENERAL_REG1),
+                                                ]);
+                                                return_kind = structt.fields[idx].1.clone();
+                                                *return_kind.refs_mut() += 1;
+                                                let pos = traverse_tail(
+                                                    objects,
+                                                    tail,
+                                                    context,
+                                                    scopes,
+                                                    code,
+                                                    fun,
+                                                    Position::CompoundField(
+                                                        InnerPath {
+                                                            file: kind.file.clone().unwrap(),
+                                                            block: Some(
+                                                                structt.identifier.to_string(),
+                                                            ),
+                                                            ident: main.first().unwrap().clone(),
+                                                            kind: ImportKinds::Rd,
+                                                        },
+                                                        CompoundField::Field(ident.clone()),
+                                                        kind,
+                                                    ),
+                                                    scope_len,
+                                                );
+                                                return pos;
+                                            }
+                                            CompoundField::Method(ident) => {
+                                                return traverse_tail(
+                                                    objects,
+                                                    tail,
+                                                    context,
+                                                    scopes,
+                                                    code,
+                                                    fun,
+                                                    Position::CompoundField(
+                                                        InnerPath {
+                                                            file: kind.file.clone().unwrap(),
+                                                            block: Some(
+                                                                main.last()
+                                                                    .as_ref()
+                                                                    .unwrap()
+                                                                    .to_string(),
+                                                            ),
+                                                            ident: ident.clone(),
+                                                            kind: ImportKinds::Rd,
+                                                        },
+                                                        CompoundField::Method(ident.clone()),
+                                                        kind,
+                                                    ),
+                                                    scope_len,
+                                                );
+                                            }
+                                            _ => todo!(),
+                                        },
+                                        None => Err(CodegenError::FieldNotInStruct(
+                                            ident.clone(),
+                                            node.1.clone(),
+                                        ))?,
+                                    };
+                                }
+                                dictionary::KindType::UserData => {
+                                    let userdata = find_userdata(
+                                        objects,
+                                        &_kind_main.first().unwrap(),
+                                        &kind.file.as_ref().unwrap(),
+                                    )
+                                    .unwrap()
+                                    .1;
+                                    match userdata.get_field(&ident) {
+                                        Some((field, idx)) => match field {
+                                            CompoundField::Method(ident) => {
+                                                return traverse_tail(
+                                                    objects,
+                                                    tail,
+                                                    context,
+                                                    scopes,
+                                                    code,
+                                                    fun,
+                                                    Position::CompoundField(
+                                                        InnerPath {
+                                                            file: kind.file.clone().unwrap(),
+                                                            block: Some(
+                                                                main.last()
+                                                                    .as_ref()
+                                                                    .unwrap()
+                                                                    .to_string(),
+                                                            ),
+                                                            ident: ident.clone(),
+                                                            kind: ImportKinds::Dll,
+                                                        },
+                                                        CompoundField::Method(ident.clone()),
+                                                        kind,
+                                                    ),
+                                                    scope_len,
+                                                );
+                                            }
+                                            _ => todo!(),
+                                        },
+                                        None => Err(CodegenError::FieldNotInStruct(
+                                            ident.clone(),
+                                            node.1.clone(),
+                                        ))?,
+                                    };
+                                }
+                                // in case of primitives we have to use internal functions in the core library
+                                dictionary::KindType::Primitive => {
+                                    let path =
+                                        find_primitive_method(objects, &kind, &ident, &node.1)?;
+                                    code.push(Move(GENERAL_REG1, RETURN_REG));
+                                    return traverse_tail(
+                                        objects,
+                                        tail,
+                                        context,
+                                        scopes,
+                                        code,
+                                        fun,
+                                        Position::Function(FunctionKind::Binary(path), kind),
+                                        scope_len,
+                                    );
+                                }
+                                dictionary::KindType::Enum => todo!(),
+                                dictionary::KindType::Trait => todo!(),
+                                dictionary::KindType::Fun => todo!(),
+                                dictionary::KindType::Error => todo!(),
+                                dictionary::KindType::BinFun => todo!(),
+                                dictionary::KindType::SelfRef => todo!(),
+                                dictionary::KindType::None => todo!(),
+                            }
+                        }
+                        _ => todo!(),
+                    }
+                }
             },
             expression_parser::TailNodes::Index(idx) => match &pos {
                 Position::BinImport(_) => Err(CodegenError::CannotIndexFile(node.1.clone()))?,
@@ -2305,7 +2483,7 @@ fn get_scope(
                                     refs: 0,
                                     main: vec!["null".to_string()],
                                     generics: vec![],
-                                    nullable: true,
+                                    nullable: false,
                                     kind: dictionary::KindType::Primitive,
                                 },
                                 line: line.clone(),
@@ -2508,7 +2686,7 @@ fn get_scope(
                                 refs: 0,
                                 main: vec!["null".to_string()],
                                 generics: vec![],
-                                nullable: true,
+                                nullable: false,
                                 kind: dictionary::KindType::Primitive,
                             },
                             line: line.clone(),
@@ -2534,7 +2712,7 @@ fn get_scope(
                                 refs: 0,
                                 main: vec!["null".to_string()],
                                 generics: vec![],
-                                nullable: true,
+                                nullable: false,
                                 kind: dictionary::KindType::Primitive,
                             },
                             line: line.clone(),
@@ -3223,19 +3401,17 @@ fn native_operand(
                 return Some(right.clone());
             } else if left.is_string() && right.is_string() {
                 code.extend(&[Cal(CORE_LIB, 2), Move(RETURN_REG, GENERAL_REG1)]);
-                return Some(
-                    Kind {
-                        body: TypeBody::Type {
-                            refs: 0,
-                            main: vec!["string".to_string()],
-                            generics: vec![],
-                            nullable: false,
-                            kind: dictionary::KindType::Primitive,
-                        },
-                        line: line.clone(),
-                        file: Some(fun.file.clone()),
-                    }
-                );
+                return Some(Kind {
+                    body: TypeBody::Type {
+                        refs: 0,
+                        main: vec!["string".to_string()],
+                        generics: vec![],
+                        nullable: false,
+                        kind: dictionary::KindType::Primitive,
+                    },
+                    line: line.clone(),
+                    file: Some(fun.file.clone()),
+                });
             } else if left.is_string() && right.is_primitive_simple() {
                 cast(
                     objects,
@@ -3296,19 +3472,17 @@ fn native_operand(
                     Cal(CORE_LIB, 2),
                     Move(RETURN_REG, GENERAL_REG1),
                 ]);
-                return Some(
-                    Kind {
-                        body: TypeBody::Type {
-                            refs: 0,
-                            main: vec!["string".to_string()],
-                            generics: vec![],
-                            nullable: false,
-                            kind: dictionary::KindType::Primitive,
-                        },
-                        line: line.clone(),
-                        file: Some(fun.file.clone()),
-                    }
-                );
+                return Some(Kind {
+                    body: TypeBody::Type {
+                        refs: 0,
+                        main: vec!["string".to_string()],
+                        generics: vec![],
+                        nullable: false,
+                        kind: dictionary::KindType::Primitive,
+                    },
+                    line: line.clone(),
+                    file: Some(fun.file.clone()),
+                });
             } else {
                 None?
             }
@@ -3351,19 +3525,17 @@ fn native_operand(
                 && left.cmp(right).is_equal()
             {
                 code.extend(&[Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
-                return Some(
-                    Kind {
-                        body: TypeBody::Type {
-                            refs: 0,
-                            main: vec!["bool".to_string()],
-                            generics: vec![],
-                            nullable: false,
-                            kind: dictionary::KindType::Primitive,
-                        },
-                        line: line.clone(),
-                        file: Some(fun.file.clone()),
-                    }
-                );
+                return Some(Kind {
+                    body: TypeBody::Type {
+                        refs: 0,
+                        main: vec!["bool".to_string()],
+                        generics: vec![],
+                        nullable: false,
+                        kind: dictionary::KindType::Primitive,
+                    },
+                    line: line.clone(),
+                    file: Some(fun.file.clone()),
+                });
             } else {
                 None?
             }
@@ -3403,38 +3575,34 @@ fn native_operand(
         Operators::DoubleEq => {
             if left.is_string() && right.is_string() {
                 code.extend(&[Cal(CORE_LIB, 3), Move(RETURN_REG, GENERAL_REG1)]);
-                return Some(
-                    Kind {
-                        body: TypeBody::Type {
-                            refs: 0,
-                            main: vec!["bool".to_string()],
-                            generics: vec![],
-                            nullable: false,
-                            kind: dictionary::KindType::Primitive,
-                        },
-                        line: line.clone(),
-                        file: Some(fun.file.clone()),
-                    }
-                );
+                return Some(Kind {
+                    body: TypeBody::Type {
+                        refs: 0,
+                        main: vec!["bool".to_string()],
+                        generics: vec![],
+                        nullable: false,
+                        kind: dictionary::KindType::Primitive,
+                    },
+                    line: line.clone(),
+                    file: Some(fun.file.clone()),
+                });
             }
             if left.is_primitive_simple()
                 && right.is_primitive_simple()
                 && left.cmp(right).is_equal()
             {
                 code.extend(&[Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
-                return Some(
-                    Kind {
-                        body: TypeBody::Type {
-                            refs: 0,
-                            main: vec!["bool".to_string()],
-                            generics: vec![],
-                            nullable: false,
-                            kind: dictionary::KindType::Primitive,
-                        },
-                        line: line.clone(),
-                        file: Some(fun.file.clone()),
-                    }
-                );
+                return Some(Kind {
+                    body: TypeBody::Type {
+                        refs: 0,
+                        main: vec!["bool".to_string()],
+                        generics: vec![],
+                        nullable: false,
+                        kind: dictionary::KindType::Primitive,
+                    },
+                    line: line.clone(),
+                    file: Some(fun.file.clone()),
+                });
             } else {
                 None?
             }
@@ -3442,19 +3610,17 @@ fn native_operand(
         Operators::NotEqual => {
             if left.is_null() && right.is_null() {
                 code.extend(&[Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
-                return Some(
-                    Kind {
-                        body: TypeBody::Type {
-                            refs: 0,
-                            main: vec!["bool".to_string()],
-                            generics: vec![],
-                            nullable: false,
-                            kind: dictionary::KindType::Primitive,
-                        },
-                        line: line.clone(),
-                        file: Some(fun.file.clone()),
-                    }
-                );
+                return Some(Kind {
+                    body: TypeBody::Type {
+                        refs: 0,
+                        main: vec!["bool".to_string()],
+                        generics: vec![],
+                        nullable: false,
+                        kind: dictionary::KindType::Primitive,
+                    },
+                    line: line.clone(),
+                    file: Some(fun.file.clone()),
+                });
             }
             if left.is_string() && right.is_string() {
                 code.extend(&[
@@ -3462,19 +3628,17 @@ fn native_operand(
                     Move(RETURN_REG, GENERAL_REG1),
                     Not(GENERAL_REG1, GENERAL_REG1),
                 ]);
-                return Some(
-                    Kind {
-                        body: TypeBody::Type {
-                            refs: 0,
-                            main: vec!["bool".to_string()],
-                            generics: vec![],
-                            nullable: false,
-                            kind: dictionary::KindType::Primitive,
-                        },
-                        line: line.clone(),
-                        file: Some(fun.file.clone()),
-                    }
-                );
+                return Some(Kind {
+                    body: TypeBody::Type {
+                        refs: 0,
+                        main: vec!["bool".to_string()],
+                        generics: vec![],
+                        nullable: false,
+                        kind: dictionary::KindType::Primitive,
+                    },
+                    line: line.clone(),
+                    file: Some(fun.file.clone()),
+                });
             }
             if left.is_primitive_simple()
                 && right.is_primitive_simple()
@@ -3484,19 +3648,17 @@ fn native_operand(
                     Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1),
                     Not(GENERAL_REG1, GENERAL_REG1),
                 ]);
-                return Some(
-                    Kind {
-                        body: TypeBody::Type {
-                            refs: 0,
-                            main: vec!["bool".to_string()],
-                            generics: vec![],
-                            nullable: false,
-                            kind: dictionary::KindType::Primitive,
-                        },
-                        line: line.clone(),
-                        file: Some(fun.file.clone()),
-                    }
-                );
+                return Some(Kind {
+                    body: TypeBody::Type {
+                        refs: 0,
+                        main: vec!["bool".to_string()],
+                        generics: vec![],
+                        nullable: false,
+                        kind: dictionary::KindType::Primitive,
+                    },
+                    line: line.clone(),
+                    file: Some(fun.file.clone()),
+                });
             } else {
                 None?
             }
@@ -3507,19 +3669,17 @@ fn native_operand(
                 && left.cmp(right).is_equal()
             {
                 code.extend(&[And(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
-                return Some(
-                    Kind {
-                        body: TypeBody::Type {
-                            refs: 0,
-                            main: vec!["bool".to_string()],
-                            generics: vec![],
-                            nullable: false,
-                            kind: dictionary::KindType::Primitive,
-                        },
-                        line: line.clone(),
-                        file: Some(fun.file.clone()),
-                    }
-                );
+                return Some(Kind {
+                    body: TypeBody::Type {
+                        refs: 0,
+                        main: vec!["bool".to_string()],
+                        generics: vec![],
+                        nullable: false,
+                        kind: dictionary::KindType::Primitive,
+                    },
+                    line: line.clone(),
+                    file: Some(fun.file.clone()),
+                });
             } else {
                 None?
             }
@@ -3530,19 +3690,17 @@ fn native_operand(
                 && left.cmp(right).is_equal()
             {
                 code.extend(&[Or(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
-                return Some(
-                    Kind {
-                        body: TypeBody::Type {
-                            refs: 0,
-                            main: vec!["bool".to_string()],
-                            generics: vec![],
-                            nullable: false,
-                            kind: dictionary::KindType::Primitive,
-                        },
-                        line: line.clone(),
-                        file: Some(fun.file.clone()),
-                    }
-                );
+                return Some(Kind {
+                    body: TypeBody::Type {
+                        refs: 0,
+                        main: vec!["bool".to_string()],
+                        generics: vec![],
+                        nullable: false,
+                        kind: dictionary::KindType::Primitive,
+                    },
+                    line: line.clone(),
+                    file: Some(fun.file.clone()),
+                });
             } else {
                 None?
             }
@@ -3553,19 +3711,17 @@ fn native_operand(
                 && left.cmp(right).is_equal()
             {
                 code.extend(&[And(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
-                return Some(
-                    Kind {
-                        body: TypeBody::Type {
-                            refs: 0,
-                            main: vec!["bool".to_string()],
-                            generics: vec![],
-                            nullable: false,
-                            kind: dictionary::KindType::Primitive,
-                        },
-                        line: line.clone(),
-                        file: Some(fun.file.clone()),
-                    }
-                );
+                return Some(Kind {
+                    body: TypeBody::Type {
+                        refs: 0,
+                        main: vec!["bool".to_string()],
+                        generics: vec![],
+                        nullable: false,
+                        kind: dictionary::KindType::Primitive,
+                    },
+                    line: line.clone(),
+                    file: Some(fun.file.clone()),
+                });
             } else {
                 None?
             }
@@ -3576,8 +3732,26 @@ fn native_operand(
                 && left.cmp(right).is_equal()
             {
                 code.extend(&[Or(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
-                return Some(
-                    Kind {
+                return Some(Kind {
+                    body: TypeBody::Type {
+                        refs: 0,
+                        main: vec!["bool".to_string()],
+                        generics: vec![],
+                        nullable: false,
+                        kind: dictionary::KindType::Primitive,
+                    },
+                    line: line.clone(),
+                    file: Some(fun.file.clone()),
+                });
+            } else {
+                None?
+            }
+        }
+        Operators::AngleBracket(side) => match side {
+            false => {
+                if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+                    code.extend(&[Less(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
+                    return Some(Kind {
                         body: TypeBody::Type {
                             refs: 0,
                             main: vec!["bool".to_string()],
@@ -3587,29 +3761,7 @@ fn native_operand(
                         },
                         line: line.clone(),
                         file: Some(fun.file.clone()),
-                    }
-                );
-            } else {
-                None?
-            }
-        }
-        Operators::AngleBracket(side) => match side {
-            false => {
-                if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
-                    code.extend(&[Less(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
-                    return Some(
-                        Kind {
-                            body: TypeBody::Type {
-                                refs: 0,
-                                main: vec!["bool".to_string()],
-                                generics: vec![],
-                                nullable: false,
-                                kind: dictionary::KindType::Primitive,
-                            },
-                            line: line.clone(),
-                            file: Some(fun.file.clone()),
-                        }
-                    );
+                    });
                 } else {
                     None?
                 }
@@ -3617,19 +3769,17 @@ fn native_operand(
             true => {
                 if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
                     code.extend(&[Grt(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
-                    return Some(
-                        Kind {
-                            body: TypeBody::Type {
-                                refs: 0,
-                                main: vec!["bool".to_string()],
-                                generics: vec![],
-                                nullable: false,
-                                kind: dictionary::KindType::Primitive,
-                            },
-                            line: line.clone(),
-                            file: Some(fun.file.clone()),
-                        }
-                    );
+                    return Some(Kind {
+                        body: TypeBody::Type {
+                            refs: 0,
+                            main: vec!["bool".to_string()],
+                            generics: vec![],
+                            nullable: false,
+                            kind: dictionary::KindType::Primitive,
+                        },
+                        line: line.clone(),
+                        file: Some(fun.file.clone()),
+                    });
                 } else {
                     None?
                 }
@@ -3641,19 +3791,17 @@ fn native_operand(
                     Grt(GENERAL_REG2, GENERAL_REG1, GENERAL_REG1),
                     Not(GENERAL_REG1, GENERAL_REG1),
                 ]);
-                return Some(
-                    Kind {
-                        body: TypeBody::Type {
-                            refs: 0,
-                            main: vec!["bool".to_string()],
-                            generics: vec![],
-                            nullable: false,
-                            kind: dictionary::KindType::Primitive,
-                        },
-                        line: line.clone(),
-                        file: Some(fun.file.clone()),
-                    }
-                );
+                return Some(Kind {
+                    body: TypeBody::Type {
+                        refs: 0,
+                        main: vec!["bool".to_string()],
+                        generics: vec![],
+                        nullable: false,
+                        kind: dictionary::KindType::Primitive,
+                    },
+                    line: line.clone(),
+                    file: Some(fun.file.clone()),
+                });
             } else {
                 None?
             }
@@ -3664,19 +3812,17 @@ fn native_operand(
                     Less(GENERAL_REG2, GENERAL_REG1, GENERAL_REG1),
                     Not(GENERAL_REG1, GENERAL_REG1),
                 ]);
-                return Some(
-                    Kind {
-                        body: TypeBody::Type {
-                            refs: 0,
-                            main: vec!["bool".to_string()],
-                            generics: vec![],
-                            nullable: false,
-                            kind: dictionary::KindType::Primitive,
-                        },
-                        line: line.clone(),
-                        file: Some(fun.file.clone()),
-                    }
-                );
+                return Some(Kind {
+                    body: TypeBody::Type {
+                        refs: 0,
+                        main: vec!["bool".to_string()],
+                        generics: vec![],
+                        nullable: false,
+                        kind: dictionary::KindType::Primitive,
+                    },
+                    line: line.clone(),
+                    file: Some(fun.file.clone()),
+                });
             } else {
                 None?
             }
@@ -3727,34 +3873,32 @@ fn native_unary_operand(
                 {
                     return Err(CodegenError::CouldNotCastTo(
                         kind.clone(),
-                        
-                    Kind {
-                        body: TypeBody::Type {
-                            refs: 0,
-                            main: vec!["bool".to_string()],
-                            generics: vec![],
-                            nullable: false,
-                            kind: dictionary::KindType::Primitive,
+                        Kind {
+                            body: TypeBody::Type {
+                                refs: 0,
+                                main: vec!["bool".to_string()],
+                                generics: vec![],
+                                nullable: false,
+                                kind: dictionary::KindType::Primitive,
+                            },
+                            line: line.clone(),
+                            file: Some(fun.file.clone()),
                         },
-                        line: line.clone(),
-                        file: Some(fun.file.clone()),
-                    },
                         line.clone(),
                     ));
                 }
                 code.extend(&[Not(register, register)]);
-                return Ok(
-                    Kind {
-                        body: TypeBody::Type {
-                            refs: 0,
-                            main: vec!["bool".to_string()],
-                            generics: vec![],
-                            nullable: false,
-                            kind: dictionary::KindType::Primitive,
-                        },
-                        line: line.clone(),
-                        file: Some(fun.file.clone()),
-                    });
+                return Ok(Kind {
+                    body: TypeBody::Type {
+                        refs: 0,
+                        main: vec!["bool".to_string()],
+                        generics: vec![],
+                        nullable: false,
+                        kind: dictionary::KindType::Primitive,
+                    },
+                    line: line.clone(),
+                    file: Some(fun.file.clone()),
+                });
             } else {
                 Err(CodegenError::ExpectedBool(line.clone()))?
             }
@@ -3786,7 +3930,9 @@ fn cast(
     register: usize,
 ) -> Option<()> {
     use Instructions::*;
-    if /*to.array_depth > 0 && to.array_depth == from.array_depth*/ to.is_array() && from.is_array() {
+    if
+    /*to.array_depth > 0 && to.array_depth == from.array_depth*/
+    to.is_array() && from.is_array() {
         return Some(());
     }
     if to.get_nullable() && from.is_null() {
@@ -3842,16 +3988,19 @@ fn correct_kind(
         return Ok(kind);
     }
     match &_kind.body {
-        TypeBody::Type { refs, main, generics, nullable, kind } => {
+        TypeBody::Type {
+            refs,
+            main,
+            generics,
+            nullable,
+            kind,
+        } => {
             let mut file = fun.clone();
             file.file = _kind.file.clone().unwrap_or(file.file);
             for i in 0..main.len() - 1 {
                 let import = match find_import(objects, &main[i], &file.file) {
                     Some(import) => import,
-                    None => Err(CodegenError::ImportNotFound(
-                        main[i].clone(),
-                        line.clone(),
-                    ))?,
+                    None => Err(CodegenError::ImportNotFound(main[i].clone(), line.clone()))?,
                 };
                 file = InnerPath {
                     file: import.0.to_string(),
@@ -3866,11 +4015,8 @@ fn correct_kind(
             *real.nullable_mut() = *nullable;
             real.line = line.clone();
             Ok(real)
-
         }
-        _ => {
-            Ok(_kind.clone())
-        }
+        _ => Ok(_kind.clone()),
     }
 }
 
@@ -3900,7 +4046,7 @@ fn get_kind(objects: &Context, location: &InnerPath, line: &Line) -> Result<Kind
                 return Ok(Kind::from_enum(enumm, location.file.clone()));
             }
         }
-        return Err(CodegenError::KindNotFound(
+    return Err(CodegenError::KindNotFound(
             location.ident.clone(),
             line.clone(),
         ));
@@ -3908,7 +4054,7 @@ fn get_kind(objects: &Context, location: &InnerPath, line: &Line) -> Result<Kind
     let file = match objects.1.get(&location.file) {
         Some(f) => f,
         None => {
-            return Err(CodegenError::KindNotFound(
+    return Err(CodegenError::KindNotFound(
                 location.ident.clone(),
                 line.clone(),
             ));
