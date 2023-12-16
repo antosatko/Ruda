@@ -984,10 +984,7 @@ fn identify_root(
                                     refs,
                                     nullable,
                                 } => Some(correct_kind(objects, &type_, fun, line)?),
-                                _ => Err(CodegenError::CoudNotCastAnArrayToANonArray(
-                                    kind.clone(),
-                                    line.clone(),
-                                ))?,
+                                _ => None
                             },
                             None => None,
                         };
@@ -1074,10 +1071,7 @@ fn identify_root(
                                     refs,
                                     nullable,
                                 } => Some(correct_kind(objects, &type_, fun, line)?),
-                                _ => Err(CodegenError::CoudNotCastAnArrayToANonArray(
-                                    kind.clone(),
-                                    line.clone(),
-                                ))?,
+                                _ => None
                             },
                             None => None,
                         };
@@ -1507,7 +1501,7 @@ fn traverse_tail(
                             nullable,
                         } => {
                             let path = find_array_method(objects, &ident, &node.1)?;
-                            code.extend(&[IndexStatic(0), Move(POINTER_REG, GENERAL_REG1)]);
+                            code.push(Move(GENERAL_REG1, RETURN_REG));
                             return traverse_tail(
                                 objects,
                                 tail,
