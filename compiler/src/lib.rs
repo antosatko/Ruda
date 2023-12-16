@@ -317,7 +317,6 @@ pub fn build_std_lib(ast: &mut (HashMap<String, Head>, Vec<HeadParam>)) -> Resul
                 break;
             }
         }
-        println!("Loading stdlib: {}", path);
         let lib = libload(path, ast, &name)?;
         binaries.push((lib, filename));
     }

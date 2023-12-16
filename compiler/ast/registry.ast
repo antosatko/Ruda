@@ -17,7 +17,7 @@ KWUserdata identifier assign generics [methods [traits constructor
 	assign set="assign"
 	{
 	KWConstructor ? set="constructor" back="0"
-	KWFun ? set="methods" back="0" debug="true"
+	KWFun ? set="methods" back="0"
 	KWOverload ? set="methods" back="1"
 	KWImpl ? set="traits" back="0"
 	};
@@ -204,7 +204,7 @@ KWFun identifier [arguments type errorable assign generic
 	generic_decl ? set="generic"
 	(
 	self_arg ? set="arguments"
-	arg ? set="arguments" debug="true"
+	arg ? set="arguments"
 	, ? back="1"
 	)
 	! ? set="errorable"
@@ -325,7 +325,7 @@ RESERVED
 
 ident identifier
 	RESERVED ? err="identifier name is reserved"
-	"'text" set="identifier" debug="true";
+	"'text" set="identifier";
 
 assign num
 	>

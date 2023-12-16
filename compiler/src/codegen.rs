@@ -8,9 +8,9 @@ use runtime::runtime_types::{
 };
 
 use crate::codeblock_parser::Nodes;
-use crate::expression_parser::{self, ArrayRule, FunctionCall, Ref, Root, ValueType};
+use crate::expression_parser::{self, ArrayRule, FunctionCall, Root, ValueType};
 use crate::intermediate::dictionary::{
-    self, Arg, ConstValue, Function, ShTypeBuilder, ShallowType, TypeComparison,
+    self, Arg, ConstValue, Function, TypeComparison,
 };
 use crate::intermediate::{Kind, TypeBody};
 use crate::lexer::tokenizer::{self, Operators};
@@ -23,7 +23,7 @@ const CORE_LIB: usize = 4;
 
 pub fn gen(
     objects: &mut Context,
-    main: &str,
+    _main: &str,
 ) -> Result<runtime::runtime_types::Context, CodegenError> {
     let mut vm_context = runtime::runtime_types::Context::new(Vec::new());
     // Initialize some common constants for faster lookup
@@ -521,7 +521,6 @@ fn expression(
         ValueType::Blank => {}
     }
     if let Some(expected_type) = expected_type {
-        let cmp = expected_type.cmp(&return_kind);
         match cast(
             objects,
             &mut return_kind,
@@ -645,7 +644,7 @@ fn find_userdata<'a>(
 }
 
 #[derive(Debug, Clone)]
-enum FunctionKind {
+pub enum FunctionKind {
     Fun(InnerPath),
     Binary(InnerPath),
     Dynamic(Kind),
@@ -687,7 +686,7 @@ fn gen_value(
     )?;
     let kind = match &pos {
         Position::CompoundField(path, field, kind) => {
-            let ident = match field {
+            let _ident = match field {
                 CompoundField::Field(ident) => ident,
                 _ => todo!(),
             };
@@ -984,9 +983,7 @@ fn identify_root(
                             Some(kind) => match &kind.body {
                                 TypeBody::Array {
                                     type_,
-                                    size,
-                                    refs,
-                                    nullable,
+                                    ..
                                 } => Some(correct_kind(objects, &type_, fun, line)?),
                                 _ => None
                             },
@@ -1051,7 +1048,7 @@ fn identify_root(
                                 code.extend(&[IndexStatic(idx), WritePtr(GENERAL_REG1)]);
                             }
                             code.read(&obj, GENERAL_REG1);
-                            let mut return_kind = Kind {
+                            let return_kind = Kind {
                                 body: TypeBody::Array {
                                     type_: Box::new(kind.clone().unwrap_or(Kind::void())),
                                     size: arr.len(),
@@ -1071,9 +1068,7 @@ fn identify_root(
                             Some(ref kind) => match &kind.body {
                                 TypeBody::Array {
                                     type_,
-                                    size,
-                                    refs,
-                                    nullable,
+                                    ..
                                 } => Some(correct_kind(objects, &type_, fun, line)?),
                                 _ => None
                             },
@@ -1132,7 +1127,7 @@ fn identify_root(
                                 FillRange(GENERAL_REG2, GENERAL_REG1),
                                 Move(POINTER_REG, GENERAL_REG1),
                             ]);
-                            let mut return_kind = Kind {
+                            let return_kind = Kind {
                                 body: TypeBody::Array {
                                     type_: Box::new(value.clone()),
                                     size: 0,
@@ -1265,9 +1260,7 @@ fn traverse_tail(
                     match &kind.body {
                         TypeBody::Array {
                             type_,
-                            size,
-                            refs,
-                            nullable,
+                            ..
                         } => {
                             let path = find_array_method(objects, &ident, &node.1)?;
                             code.read(&pos_cloned, RETURN_REG);
@@ -1283,14 +1276,12 @@ fn traverse_tail(
                             );
                         }
                         TypeBody::Type {
-                            refs,
                             main,
-                            generics,
-                            nullable,
                             kind: kind_kind,
+                            ..
                         } => {
                             let _kind_main = match &_kind.body {
-                                TypeBody::Type { refs, main, generics, nullable, kind: kind_kind } => main,
+                                TypeBody::Type { main, .. } => main,
                                 _ => unreachable!("kind not handled properly by the compiler, please report this bug"),
                             };
                             match kind_kind {
@@ -1379,7 +1370,7 @@ fn traverse_tail(
                                     .unwrap()
                                     .1;
                                     match userdata.get_field(&ident) {
-                                        Some((field, idx)) => match field {
+                                        Some((field, _)) => match field {
                                             CompoundField::Method(ident) => {
                                                 code.read(&pos_cloned, GENERAL_REG1);
                                                 return traverse_tail(
@@ -1461,7 +1452,7 @@ fn traverse_tail(
                 Position::CompoundField(path, field, kind) => {
                     let structt = find_struct(objects, &path.ident, &path.file);
                 }
-                Position::Function(_, kind) => {
+                Position::Function(_, _) => {
                     Err(CodegenError::CannotAttachMethodsToFunctions(node.1.clone()))?
                 }
                 Position::Pointer(ptr) => {
@@ -1470,17 +1461,14 @@ fn traverse_tail(
                 Position::Compound(_kind) => {
                     let kind_main = match &_kind.body {
                         TypeBody::Type {
-                            refs,
                             main,
-                            generics,
-                            nullable,
-                            kind: kind_kind,
+                            ..
                         } => main,
                         _ => unreachable!(
                             "kind not handled properly by the compiler, please report this bug"
                         ),
                     };
-                    if let Some((name, structt)) = find_struct(
+                    if let Some((_, structt)) = find_struct(
                         objects,
                         &kind_main.first().unwrap(),
                         &_kind.file.as_ref().unwrap(),
@@ -1500,9 +1488,7 @@ fn traverse_tail(
                     match &kind.body {
                         TypeBody::Array {
                             type_,
-                            size,
-                            refs,
-                            nullable,
+                            ..
                         } => {
                             let path = find_array_method(objects, &ident, &node.1)?;
                             code.push(Move(GENERAL_REG1, RETURN_REG));
@@ -1518,14 +1504,12 @@ fn traverse_tail(
                             );
                         }
                         TypeBody::Type {
-                            refs,
                             main,
-                            generics,
-                            nullable,
                             kind: kind_kind,
+                            ..
                         } => {
                             let _kind_main = match &kind.body {
-                                TypeBody::Type { refs, main, generics, nullable, kind: kind_kind } => main,
+                                TypeBody::Type { main, .. } => main,
                                 _ => unreachable!("kind not handled properly by the compiler, please report this bug"),
                             };
                             match kind_kind {
@@ -1612,7 +1596,7 @@ fn traverse_tail(
                                     .unwrap()
                                     .1;
                                     match userdata.get_field(&ident) {
-                                        Some((field, idx)) => match field {
+                                        Some((field, _)) => match field {
                                             CompoundField::Method(ident) => {
                                                 return traverse_tail(
                                                     objects,
@@ -1679,7 +1663,7 @@ fn traverse_tail(
             expression_parser::TailNodes::Index(idx) => match &pos {
                 Position::BinImport(_) => Err(CodegenError::CannotIndexFile(node.1.clone()))?,
                 Position::Function(_, _) => Err(CodegenError::CannotIndexFunction(node.1.clone()))?,
-                Position::CompoundField(path, field, ptr) => {
+                Position::CompoundField(path, field, _) => {
                     let ident = if let CompoundField::Field(ident) = field {
                         ident
                     } else {
@@ -1709,12 +1693,10 @@ fn traverse_tail(
                     // first dereference the pointer
                     code.push(ReadPtr(GENERAL_REG1));
 
-                    let mut return_kind = match field_kind.body {
+                    let return_kind = match field_kind.body {
                         TypeBody::Array {
                             type_,
-                            size,
-                            refs,
-                            nullable,
+                            ..
                         } => *type_.clone(),
                         _ => Err(CodegenError::CannotIndexNonArray(
                             pos.clone(),
@@ -1778,9 +1760,7 @@ fn traverse_tail(
                     return_kind = match &var.kind.as_ref().unwrap().body {
                         TypeBody::Array {
                             type_,
-                            size,
-                            refs,
-                            nullable,
+                            ..
                         } => *type_.clone(),
                         _ => Err(CodegenError::CannotIndexNonArray(
                             pos.clone(),
@@ -1819,12 +1799,10 @@ fn traverse_tail(
                     );
                 }
                 Position::Pointer(ptr) => {
-                    let mut return_kind = match &ptr.body {
+                    let return_kind = match &ptr.body {
                         TypeBody::Array {
                             type_,
-                            size,
-                            refs,
-                            nullable,
+                            ..
                         } => *type_.clone(),
                         _ => Err(CodegenError::CannotIndexNonArray(
                             pos.clone(),
@@ -1885,12 +1863,10 @@ fn traverse_tail(
                     node.1.clone(),
                 ))?,
                 Position::Value(ptr) => {
-                    let mut return_kind = match &ptr.body {
+                    let return_kind = match &ptr.body {
                         TypeBody::Array {
                             type_,
-                            size,
-                            refs,
-                            nullable,
+                            ..
                         } => *type_.clone(),
                         _ => Err(CodegenError::CannotIndexNonArray(
                             pos.clone(),
@@ -1989,11 +1965,9 @@ fn traverse_tail(
                 Position::Compound(kind) => {
                     let (constructor, kind_kind) = match &kind.body {
                         TypeBody::Type {
-                            refs,
                             main,
-                            generics,
-                            nullable,
                             kind: kind_kind,
+                            ..
                         } => (main.last().unwrap(), kind_kind),
                         _ => unreachable!(
                             "kind not handled properly by the compiler, please report this bug"
@@ -2026,7 +2000,7 @@ fn traverse_tail(
                         objects, tail, context, scopes, code, fun, pos, scope_len,
                     );
                 }
-                Position::CompoundField(path, field, kind) => {
+                Position::CompoundField(path, field, _) => {
                     match field {
                         CompoundField::Method(ident) => ident,
                         _ => todo!(),
@@ -2061,18 +2035,16 @@ fn traverse_tail(
 }
 
 fn find_primitive_method(
-    objects: &mut Context,
+    _objects: &mut Context,
     kind: &Kind,
     method: &str,
     line: &Line,
 ) -> Result<InnerPath, CodegenError> {
     match &kind.body {
         TypeBody::Type {
-            refs,
             main,
-            generics,
-            nullable,
             kind: kind_kind,
+            ..
         } => {
             let name = match kind_kind {
                 dictionary::KindType::Primitive => {
@@ -2093,9 +2065,9 @@ fn find_primitive_method(
 }
 
 fn find_array_method(
-    objects: &mut Context,
+    _objects: &mut Context,
     method: &str,
-    line: &Line,
+    _line: &Line,
 ) -> Result<InnerPath, CodegenError> {
     let name = format!("arr{}", method);
     let path = InnerPath {
@@ -2220,7 +2192,7 @@ fn call_fun(
     scope_len: &mut usize,
     call_params: &FunctionCall,
     line: &Line,
-    this: &InnerPath,
+    _this: &InnerPath,
 ) -> Result<Kind, CodegenError> {
     use Instructions::*;
     let mut temp_code = Code { code: Vec::new() };
@@ -2618,7 +2590,7 @@ fn get_scope(
                 cond,
                 body,
                 line,
-                ident,
+                ..
             } => {
                 use Instructions::*;
                 let mut expr_code = Code { code: Vec::new() };
@@ -2748,7 +2720,7 @@ fn get_scope(
                 todo!()
             }
             crate::codeblock_parser::Nodes::Continue { line, ident } => todo!(),
-            crate::codeblock_parser::Nodes::Loop { body, line, ident } => {
+            crate::codeblock_parser::Nodes::Loop { body, ident, .. } => {
                 use Instructions::*;
                 let mut temp_code = Code { code: Vec::new() };
                 let scope = open_scope!(body, &mut temp_code);
@@ -2804,7 +2776,7 @@ fn get_scope(
                     match default {
                         Some(default) => {
                             let mut block_code = Code { code: Vec::new() };
-                            let (scope, terminator) = open_scope!(default, &mut block_code);
+                            let (_, terminator) = open_scope!(default, &mut block_code);
                             merge_code(&mut code.code, &expr_code.code, 0);
                             merge_code(&mut code.code, &block_code.code, 0);
                             return Ok((max_scope_len, terminator));
@@ -2854,7 +2826,7 @@ fn get_scope(
                 // default
                 let defualt = if let Some(default) = default {
                     let mut block_code = Code { code: Vec::new() };
-                    let (scope, terminator) = open_scope!(default, &mut block_code);
+                    let (_, terminator) = open_scope!(default, &mut block_code);
                     if terminator != ScopeTerminator::Return {
                         all_return = false;
                     }
@@ -3229,7 +3201,7 @@ impl CompoundField {
 }
 
 #[derive(Debug, Clone)]
-enum Position {
+pub enum Position {
     Function(FunctionKind, Kind),
     CompoundField(InnerPath, CompoundField, Kind),
     Import(String),
@@ -3918,13 +3890,13 @@ fn native_unary_operand(
 }
 
 fn cast(
-    objects: &mut Context,
+    _objects: &mut Context,
     from: &Kind,
     to: &Kind,
     code: &mut Code,
     context: &mut runtime_types::Context,
-    fun: &InnerPath,
-    line: &Line,
+    _fun: &InnerPath,
+    _line: &Line,
     register: usize,
 ) -> Option<()> {
     use Instructions::*;
@@ -3989,9 +3961,8 @@ fn correct_kind(
         TypeBody::Type {
             refs,
             main,
-            generics,
             nullable,
-            kind,
+            ..
         } => {
             let mut file = fun.clone();
             file.file = _kind.file.clone().unwrap_or(file.file);

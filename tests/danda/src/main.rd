@@ -4,13 +4,13 @@ import "#string"
 
 import "danda.rd"
 
-
-fun a<T>(arg: int): int {
+/*
+fun a<T>(arg: T): T {
     return arg
-}
+}*/
 
 
 fun main() {
-    let b = [1, 2, 3, 4, 5]
-    io.println([].len().hello())
+    let file = fs.File("test.txt")
+    io.println(file.read())
 }

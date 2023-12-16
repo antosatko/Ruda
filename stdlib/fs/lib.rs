@@ -341,7 +341,6 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
 fn register() -> String {
     r#"
     userdata File > 0i {
-
         new(file=reg.ptr: string) > 3i
 
         fun read(self=reg.ptr): string > 5i
@@ -355,7 +354,6 @@ fn register() -> String {
     fun fileAppend(fileName=reg.ptr: string, data=reg.G1: string)! > 2i
     fun fileOpen(fileName=reg.ptr: string)!: File > 3i
     fun fileExists(fileName=reg.ptr: string): bool > 8i
-
     "#
     .to_string()
 }
