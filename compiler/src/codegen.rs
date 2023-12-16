@@ -976,6 +976,10 @@ fn identify_root(
                 }
                 expression_parser::Literals::Array(rule) => match rule {
                     ArrayRule::Explicit(arr) => {
+                        let arr = match arr[0] {
+                            ValueType::Blank => vec![],
+                            _ => arr.clone(),
+                        };
                         let mut kind = match &expected_type {
                             Some(kind) => match &kind.body {
                                 TypeBody::Array {
@@ -1049,7 +1053,7 @@ fn identify_root(
                             code.read(&obj, GENERAL_REG1);
                             let mut return_kind = Kind {
                                 body: TypeBody::Array {
-                                    type_: Box::new(kind.clone().unwrap()),
+                                    type_: Box::new(kind.clone().unwrap_or(Kind::void())),
                                     size: arr.len(),
                                     refs: 0,
                                     nullable: false,

@@ -12,5 +12,5 @@ fun a<T>(arg: int): int {
 
 fun main() {
     let b = [1, 2, 3, 4, 5]
-    io.println([5;100].len())
+    io.println([].len().hello())
 }

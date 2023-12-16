@@ -2210,7 +2210,7 @@ pub mod runtime_types {
                     Types::Int(_) => write!(f, "Int"),
                     Types::Null => write!(f, "Null"),
                     Types::Pointer(_, _) => write!(f, "Pointer"),
-                    Types::Usize(_) => write!(f, "uint"),
+                    Types::Usize(_) => write!(f, "Uint"),
                     Types::NonPrimitive(_) => write!(f, "Non-primitive"),
                     Types::Void => write!(f, "Void"),
                 }
@@ -2225,7 +2225,7 @@ pub mod runtime_types {
                     Types::Int(num) => write!(f, "Int<{num}>"),
                     Types::Null => write!(f, "Null"),
                     Types::Pointer(loc, kind) => write!(f, "Pointer<{loc}, {kind}>"),
-                    Types::Usize(num) => write!(f, "Usize<{num}>"),
+                    Types::Usize(num) => write!(f, "Uint<{num}>"),
                     Types::NonPrimitive(id) => write!(f, "Non-primitive<{id}>"),
                     Types::Void => write!(f, "Void"),
                 }
