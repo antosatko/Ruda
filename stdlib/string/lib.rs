@@ -115,7 +115,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             let args = get_args!();
             if let Types::Pointer(u_size, PointerTypes::String) = args[0] {
                 let len = m.strings.to_str(u_size).len();
-                return Ok(Types::Usize(len));
+                return Ok(Types::Uint(len));
             } else {
                 return Err(runtime_error::ErrTypes::Message(format!(
                     "Invalid string pointer"

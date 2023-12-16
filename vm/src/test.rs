@@ -20,15 +20,15 @@ pub mod test {
                 context.memory.stack.data = vec![
                     Int(1),     // value to write
                     Null,       // pointer placeholder
-                    Usize(5),   // size of object
+                    Uint(5),   // size of object
                     Bool(true), // second value
-                    Usize(3),   // position of second value in object
-                    Usize(4),   // new size for realloc
+                    Uint(3),   // position of second value in object
+                    Uint(4),   // new size for realloc
                 ];
                 context.code.data = vec![
                     // stack
                     ReserveStack(3, 0),
-                    // allocating size Usize(5)
+                    // allocating size Uint(5)
                     Read(1, 0),
                     Allocate(0),
                     // writing pointer on stack
@@ -37,12 +37,12 @@ pub mod test {
                     Swap(0, POINTER_REG),
                     Read(3, 0), // value
                     WritePtr(0),
-                    // writing to pointer[Usize(3)]
+                    // writing to pointer[Uint(3)]
                     ReadConst(4, 0), // index
                     Index(0),
                     ReadConst(3, 0), // value
                     WritePtr(0),
-                    // resizing to Usize(4)
+                    // resizing to Uint(4)
                     ReadConst(5, 0),          // size
                     Read(2, POINTER_REG), // pointer
                     Reallocate(0),
@@ -149,7 +149,7 @@ pub mod test {
             4 => {
                 context.memory.stack.data = vec![
                     Pointer(1, PointerTypes::Object),
-                    Usize(1), // size allocated on each iteration; low for safety measures
+                    Uint(1), // size allocated on each iteration; low for safety measures
                     Int(0),   // index
                     Int(1),   // step
                     Int(300), // range
@@ -181,7 +181,7 @@ pub mod test {
                 true
             }
             5 => {
-                context.memory.stack.data = vec![Usize(1), Null, Int(70)];
+                context.memory.stack.data = vec![Uint(1), Null, Int(70)];
                 context.code.data = vec![
                     ReserveStack(3, 0),
                     Read(3, GENERAL_REG1),
@@ -216,7 +216,7 @@ pub mod test {
             }
             // old version
             6 => {
-                context.memory.stack.data = vec![Usize(1), Null, Int(70), Usize(0)];
+                context.memory.stack.data = vec![Uint(1), Null, Int(70), Uint(0)];
                 context.code.data = vec![
                     ReserveStack(3, 0),
                     ReadConst(0, GENERAL_REG1),
@@ -484,7 +484,7 @@ pub mod test {
             }
             10 => {
                 context.memory.heap.data =
-                    vec![[Types::Usize(656645), Types::Usize(656645)].to_vec()];
+                    vec![[Types::Uint(656645), Types::Uint(656645)].to_vec()];
                 context.memory.strings.pool = vec![
                     "Write something: ".chars().collect(),
                     "You wrote: ".chars().collect(),
@@ -492,8 +492,8 @@ pub mod test {
                 ];
                 context.memory.stack.data = vec![
                     Types::Null,     // args array
-                    Types::Usize(1), // idx
-                    Types::Usize(1), // step
+                    Types::Uint(1), // idx
+                    Types::Uint(1), // step
                     Types::Null,     // len
                 ];
                 context.code.data = vec![

@@ -215,7 +215,7 @@ pub mod tokenizer {
                             Some((val, kind))
                         }
                         'u' => {
-                            let val = ConstValue::Usize(*num as usize);
+                            let val = ConstValue::Uint(*num as usize);
                             let kind = val.gen_type(line)?;
                             Some((val, kind))
                         }

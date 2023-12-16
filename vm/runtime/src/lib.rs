@@ -275,7 +275,7 @@ impl Context {
             }
             Index(index_reg) => {
                 if let Types::Pointer(u_size, kind) = self.memory.registers[POINTER_REG] {
-                    if let Types::Usize(index) = self.memory.registers[index_reg] {
+                    if let Types::Uint(index) = self.memory.registers[index_reg] {
                         match kind {
                             PointerTypes::Object => {
                                 self.memory.registers[POINTER_REG] =
@@ -357,12 +357,12 @@ impl Context {
                 self.next_line();
             }
             Allocate(size_reg) => {
-                if let Types::Usize(size) = self.memory.registers[size_reg] {
+                if let Types::Uint(size) = self.memory.registers[size_reg] {
                     self.memory.registers[POINTER_REG] =
                         Types::Pointer(self.memory.allocate_obj(size), PointerTypes::Object);
                 } else {
                     return self.panic_rt(ErrTypes::Expected(
-                        Types::Usize(0),
+                        Types::Uint(0),
                         self.memory.registers[size_reg],
                     ));
                 }
@@ -377,7 +377,7 @@ impl Context {
                 if let Types::Pointer(u_size, ptr_type) = self.memory.registers[POINTER_REG] {
                     match ptr_type {
                         PointerTypes::Object => {
-                            if let Types::Usize(new_size) = self.memory.registers[size_reg] {
+                            if let Types::Uint(new_size) = self.memory.registers[size_reg] {
                                 self.memory.resize_obj(u_size, new_size);
                             } else {
                                 return self.panic_rt(ErrTypes::WrongTypeOperation(
@@ -387,7 +387,7 @@ impl Context {
                             }
                         }
                         PointerTypes::String => {
-                            if let Types::Usize(new_size) = self.memory.registers[size_reg] {
+                            if let Types::Uint(new_size) = self.memory.registers[size_reg] {
                                 let append_len = new_size - self.memory.strings.pool[u_size].len();
                                 let str = "\0".repeat(append_len);
                                 self.memory.strings.pool[u_size].push_str(&str);
@@ -576,7 +576,7 @@ impl Context {
                 match self.memory.registers[r1] {
                     Types::Int(num1) => operation!(Int, add, num1, r1, r2, res),
                     Types::Float(num1) => operation!(Float, add, num1, r1, r2, res),
-                    Types::Usize(num1) => operation!(Usize, add, num1, r1, r2, res),
+                    Types::Uint(num1) => operation!(Uint, add, num1, r1, r2, res),
                     Types::Char(char1) => {
                         if let Types::Char(char2) = self.memory.registers[r2] {
                             self.memory.registers[res] =
@@ -601,7 +601,7 @@ impl Context {
                 match self.memory.registers[r1] {
                     Types::Int(num1) => operation!(Int, sub, num1, r1, r2, res),
                     Types::Float(num1) => operation!(Float, sub, num1, r1, r2, res),
-                    Types::Usize(num1) => operation!(Usize, sub, num1, r1, r2, res),
+                    Types::Uint(num1) => operation!(Uint, sub, num1, r1, r2, res),
                     Types::Char(char1) => {
                         if let Types::Char(char2) = self.memory.registers[r2] {
                             self.memory.registers[res] =
@@ -626,7 +626,7 @@ impl Context {
                 match self.memory.registers[r1] {
                     Types::Int(num1) => operation!(Int, mul, num1, r1, r2, res),
                     Types::Float(num1) => operation!(Float, mul, num1, r1, r2, res),
-                    Types::Usize(num1) => operation!(Usize, mul, num1, r1, r2, res),
+                    Types::Uint(num1) => operation!(Uint, mul, num1, r1, r2, res),
                     Types::Char(char1) => {
                         if let Types::Char(char2) = self.memory.registers[r2] {
                             self.memory.registers[res] =
@@ -651,7 +651,7 @@ impl Context {
                 match self.memory.registers[r1] {
                     Types::Int(num1) => operation!(Int, div, num1, r1, r2, res),
                     Types::Float(num1) => operation!(Float, div, num1, r1, r2, res),
-                    Types::Usize(num1) => operation!(Usize, div, num1, r1, r2, res),
+                    Types::Uint(num1) => operation!(Uint, div, num1, r1, r2, res),
                     Types::Char(char1) => {
                         if let Types::Char(char2) = self.memory.registers[r2] {
                             self.memory.registers[res] =
@@ -676,7 +676,7 @@ impl Context {
                 match self.memory.registers[r1] {
                     Types::Int(num1) => operation!(Int, %, num1, r1, r2, res),
                     Types::Float(num1) => operation!(Float, %, num1, r1, r2, res),
-                    Types::Usize(num1) => operation!(Usize, %, num1, r1, r2, res),
+                    Types::Uint(num1) => operation!(Uint, %, num1, r1, r2, res),
                     Types::Char(char1) => {
                         if let Types::Char(char2) = self.memory.registers[r2] {
                             self.memory.registers[res] =
@@ -701,7 +701,7 @@ impl Context {
                 match self.memory.registers[r1] {
                     Types::Int(num1) => operation!(Int, eq, num1, bool, r1, r2, res),
                     Types::Float(num1) => operation!(Float, eq, num1, bool, r1, r2, res),
-                    Types::Usize(num1) => operation!(Usize, eq, num1, bool, r1, r2, res),
+                    Types::Uint(num1) => operation!(Uint, eq, num1, bool, r1, r2, res),
                     Types::Pointer(num1, _) => operation!(ptr, eq, num1, bool, r1, r2, res),
                     Types::Bool(var1) => operation!(Bool, eq, var1, bool, r1, r2, res),
                     Types::Char(char1) => operation!(Char, eq, char1, bool, r1, r2, res),
@@ -722,7 +722,7 @@ impl Context {
                 match self.memory.registers[r1] {
                     Types::Int(num1) => operation!(Int, gt, num1, bool, r1, r2, res),
                     Types::Float(num1) => operation!(Float, gt, num1, bool, r1, r2, res),
-                    Types::Usize(num1) => operation!(Usize, gt, num1, bool, r1, r2, res),
+                    Types::Uint(num1) => operation!(Uint, gt, num1, bool, r1, r2, res),
                     Types::Char(char1) => operation!(Char, gt, char1, bool, r1, r2, res),
                     _ => {
                         return self.panic_rt(ErrTypes::WrongTypeOperation(
@@ -737,7 +737,7 @@ impl Context {
                 match self.memory.registers[r1] {
                     Types::Int(num1) => operation!(Int, lt, num1, bool, r1, r2, res),
                     Types::Float(num1) => operation!(Float, lt, num1, bool, r1, r2, res),
-                    Types::Usize(num1) => operation!(Usize, lt, num1, bool, r1, r2, res),
+                    Types::Uint(num1) => operation!(Uint, lt, num1, bool, r1, r2, res),
                     Types::Char(char1) => operation!(Char, lt, char1, bool, r1, r2, res),
                     _ => {
                         return self.panic_rt(ErrTypes::WrongTypeOperation(
@@ -851,16 +851,16 @@ impl Context {
             }
             Len(reg) => {
                 if let Types::NonPrimitive(kind) = self.memory.registers[reg] {
-                    self.memory.registers[reg] = Types::Usize(self.memory.non_primitives[kind].len)
+                    self.memory.registers[reg] = Types::Uint(self.memory.non_primitives[kind].len)
                 } else if let Types::Pointer(u_size, kind) = self.memory.registers[reg] {
                     match kind {
                         PointerTypes::Object => {
                             self.memory.registers[reg] =
-                                Types::Usize(self.memory.heap.data[u_size].len())
+                                Types::Uint(self.memory.heap.data[u_size].len())
                         }
                         PointerTypes::String => {
                             self.memory.registers[reg] =
-                                Types::Usize(self.memory.strings.pool[u_size].len())
+                                Types::Uint(self.memory.strings.pool[u_size].len())
                         }
                         _ => {
                             return self.panic_rt(ErrTypes::WrongTypeOperation(
@@ -940,7 +940,7 @@ impl Context {
             // - dont match on each iteration
             FillRange(val, len) => {
                 let value = self.memory.registers[val];
-                let len = if let Types::Usize(len) = self.memory.registers[len] {
+                let len = if let Types::Uint(len) = self.memory.registers[len] {
                     len
                 } else {
                     return self.panic_rt(ErrTypes::WrongTypeOperation(
@@ -1098,11 +1098,11 @@ impl Context {
                         Ok(Types::Float(0f64))
                     }
                 }
-                Types::Usize(_) => {
+                Types::Uint(_) => {
                     return if bol {
-                        Ok(Types::Usize(1))
+                        Ok(Types::Uint(1))
                     } else {
-                        Ok(Types::Usize(0))
+                        Ok(Types::Uint(0))
                     }
                 }
                 Types::Char(_) => {
@@ -1116,7 +1116,7 @@ impl Context {
             },
             Types::Int(num) => match registers[reg2] {
                 Types::Float(_) => return Ok(Types::Float(num as f64)),
-                Types::Usize(_) => return Ok(Types::Usize(num as usize)),
+                Types::Uint(_) => return Ok(Types::Uint(num as usize)),
                 Types::Char(_) => return Ok(Types::Char(num as u8 as char)),
                 Types::Bool(_) => {
                     return if num == 0 {
@@ -1129,7 +1129,7 @@ impl Context {
             },
             Types::Float(num) => match registers[reg2] {
                 Types::Int(_) => return Ok(Types::Int(num as i64)),
-                Types::Usize(_) => return Ok(Types::Usize(num as usize)),
+                Types::Uint(_) => return Ok(Types::Uint(num as usize)),
                 Types::Char(_) => return Ok(Types::Char(num as u8 as char)),
                 Types::Bool(_) => {
                     return if num == 0f64 {
@@ -1140,7 +1140,7 @@ impl Context {
                 }
                 _ => return Err(ErrTypes::ImplicitCast(registers[reg1], registers[reg2])),
             },
-            Types::Usize(num) => match registers[reg2] {
+            Types::Uint(num) => match registers[reg2] {
                 Types::Int(_) => return Ok(Types::Int(num as i64)),
                 Types::Float(_) => return Ok(Types::Float(num as f64)),
                 Types::Char(_) => return Ok(Types::Char(num as u8 as char)),
@@ -1156,7 +1156,7 @@ impl Context {
             Types::Char(char) => match registers[reg2] {
                 Types::Int(_) => return Ok(Types::Int(char as i64)),
                 Types::Float(_) => return Ok(Types::Float(char as u8 as f64)),
-                Types::Usize(_) => return Ok(Types::Usize(char as usize)),
+                Types::Uint(_) => return Ok(Types::Uint(char as usize)),
                 Types::Bool(_) => {
                     return if char == '\0' {
                         Ok(Types::Bool(false))
@@ -2089,7 +2089,7 @@ pub mod runtime_types {
     pub enum Types {
         Int(i64),
         Float(f64),
-        Usize(usize),
+        Uint(usize),
         Char(char),
         Bool(bool),
         Pointer(usize, PointerTypes),
@@ -2121,7 +2121,7 @@ pub mod runtime_types {
                 Types::Float(f) => f.to_string(),
                 Types::Null => "null".to_string(),
                 Types::NonPrimitive(kind) => kind.to_string(),
-                Types::Usize(val) => val.to_string(),
+                Types::Uint(val) => val.to_string(),
                 Types::Pointer(u_size, val) => match val {
                     PointerTypes::Char(chr) => format!("Ptr<String, {}, {}>", u_size, chr),
                     PointerTypes::Heap(idx) => format!("Ptr<Heap, {}, {}>", u_size, idx),
@@ -2210,7 +2210,7 @@ pub mod runtime_types {
                     Types::Int(_) => write!(f, "Int"),
                     Types::Null => write!(f, "Null"),
                     Types::Pointer(_, _) => write!(f, "Pointer"),
-                    Types::Usize(_) => write!(f, "Uint"),
+                    Types::Uint(_) => write!(f, "Uint"),
                     Types::NonPrimitive(_) => write!(f, "Non-primitive"),
                     Types::Void => write!(f, "Void"),
                 }
@@ -2225,7 +2225,7 @@ pub mod runtime_types {
                     Types::Int(num) => write!(f, "Int<{num}>"),
                     Types::Null => write!(f, "Null"),
                     Types::Pointer(loc, kind) => write!(f, "Pointer<{loc}, {kind}>"),
-                    Types::Usize(num) => write!(f, "Uint<{num}>"),
+                    Types::Uint(num) => write!(f, "Uint<{num}>"),
                     Types::NonPrimitive(id) => write!(f, "Non-primitive<{id}>"),
                     Types::Void => write!(f, "Void"),
                 }
@@ -2238,7 +2238,7 @@ pub mod runtime_types {
                     Types::Int(num) => write!(f, "{num}"),
                     Types::Null => write!(f, "Null"),
                     Types::Pointer(loc, _) => write!(f, "{loc}"),
-                    Types::Usize(num) => write!(f, "{num}"),
+                    Types::Uint(num) => write!(f, "{num}"),
                     Types::NonPrimitive(id) => write!(f, "{id}"),
                     Types::Void => write!(f, "Void"),
                 }
@@ -2390,7 +2390,7 @@ pub mod runtime_types {
         //TODO: add to compiler
         /// Cast: reg1 reg2 | casts value of reg1 to the type of reg2 and stores in reg1
         Cast(usize, usize),
-        /// Length: reg | sets reg to Usize(size of an object)
+        /// Length: reg | sets reg to Uint(size of an object)
         Len(usize),
         /// Type: val type | sets reg(type) to bool(typeof(val) == typeof(type))
         Type(usize, usize),

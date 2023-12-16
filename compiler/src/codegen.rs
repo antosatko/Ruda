@@ -31,12 +31,12 @@ pub fn gen(
         ConstValue::Null,
         ConstValue::Bool(true),
         ConstValue::Bool(false),
-        ConstValue::Usize(0),
+        ConstValue::Uint(0),
         ConstValue::Int(0),
         ConstValue::Int(1),
         ConstValue::Int(-1),
-        ConstValue::Usize(1),
-        ConstValue::Usize(2),
+        ConstValue::Uint(1),
+        ConstValue::Uint(2),
     ];
     vm_context
         .memory

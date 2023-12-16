@@ -1206,7 +1206,7 @@ pub mod dictionary {
         Float(f64),
         Char(char),
         Bool(bool),
-        Usize(usize),
+        Uint(usize),
         Function(Function),
         String(String),
         Null,
@@ -1271,7 +1271,7 @@ pub mod dictionary {
                 ConstValue::Char(c) => Some((*c as usize as f64, 'c')),
                 ConstValue::Int(i) => Some((*i as f64, 'i')),
                 ConstValue::Float(f) => Some((*f, 'f')),
-                ConstValue::Usize(i) => Some((*i as f64, 'u')),
+                ConstValue::Uint(i) => Some((*i as f64, 'u')),
                 _ => None,
             }
         }
@@ -1324,8 +1324,8 @@ pub mod dictionary {
                     runtime::runtime_types::Types::Bool(b) => n == b,
                     _ => false,
                 },
-                ConstValue::Usize(n) => match other {
-                    runtime::runtime_types::Types::Usize(u) => n == u,
+                ConstValue::Uint(n) => match other {
+                    runtime::runtime_types::Types::Uint(u) => n == u,
                     _ => false,
                 },
                 ConstValue::Null => match other {
@@ -1342,7 +1342,7 @@ pub mod dictionary {
                 ConstValue::Float(n) => runtime_types::Types::Float(*n),
                 ConstValue::Char(n) => runtime_types::Types::Char(*n),
                 ConstValue::Bool(n) => runtime_types::Types::Bool(*n),
-                ConstValue::Usize(n) => runtime_types::Types::Usize(*n),
+                ConstValue::Uint(n) => runtime_types::Types::Uint(*n),
                 ConstValue::Null => runtime_types::Types::Null,
                 _ => runtime_types::Types::Null,
             }
@@ -1404,7 +1404,7 @@ pub mod dictionary {
                     line,
                     file: None,
                 },
-                ConstValue::Usize(_) => Kind {
+                ConstValue::Uint(_) => Kind {
                     body: TypeBody::Type {
                         main: vec![String::from("uint")],
                         generics: Vec::new(),
@@ -1694,7 +1694,7 @@ pub mod dictionary {
                 "int" => runtime_types::Types::Int(0),
                 "float" => runtime_types::Types::Float(0.0),
                 "char" => runtime_types::Types::Char(' '),
-                "uint" => runtime_types::Types::Usize(0),
+                "uint" => runtime_types::Types::Uint(0),
                 "bool" => runtime_types::Types::Bool(false),
                 "null" => runtime_types::Types::Null,
                 _ => runtime_types::Types::Null,
@@ -1712,7 +1712,7 @@ pub mod dictionary {
                 "int" => ConstValue::Int(0),
                 "float" => ConstValue::Float(0.0),
                 "char" => ConstValue::Char(' '),
-                "uint" => ConstValue::Usize(0),
+                "uint" => ConstValue::Uint(0),
                 "bool" => ConstValue::Bool(false),
                 "null" => ConstValue::Null,
                 _ => ConstValue::Undefined,
@@ -2664,7 +2664,7 @@ impl Kind {
                     "int" => ConstValue::Int(0),
                     "float" => ConstValue::Float(0.0),
                     "char" => ConstValue::Char(' '),
-                    "uint" => ConstValue::Usize(0),
+                    "uint" => ConstValue::Uint(0),
                     "bool" => ConstValue::Bool(false),
                     "null" => ConstValue::Null,
                     _ => ConstValue::Undefined,

@@ -61,7 +61,7 @@ pub mod writer {
             }
             Byte(byte) => format!("{}{byte:2x}", 67 as char).replace(" ", "0"),
             Char(char) => format!("{}{:2x}", 68 as char, char as u8).replace(" ", "0"),
-            Usize(usize) => format!("{}{usize:32x}", 69 as char).replace(" ", "0"),
+            Uint(usize) => format!("{}{usize:32x}", 69 as char).replace(" ", "0"),
             Bool(bool) => {
                 let num = if bool { 1 } else { 0 };
                 format!("{}{:1x}", 70 as char, num).replace(" ", "0")

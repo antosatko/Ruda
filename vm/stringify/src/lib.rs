@@ -642,7 +642,7 @@ pub fn value_into_byte(value: Types, str: &mut String) {
             )
         }
         Types::Float(n) => s(1) + &b256str(unsafe { std::mem::transmute::<f64, usize>(n) }, 8),
-        Types::Usize(n) => s(2) + &b256str(n, 8),
+        Types::Uint(n) => s(2) + &b256str(n, 8),
         Types::Char(n) => s(3) + &b256str(n as usize, 1),
         Types::Bool(n) => s(4) + &b256str(n as usize, 1),
         Types::Pointer(n, t) => s(5) + &b256str(n, 8) + &ptr_type_into_str(&t),
@@ -662,7 +662,7 @@ fn bytes_into_value(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> Typ
             std::mem::transmute::<usize, i64>(num) 
         }),
         1 => Types::Float(unsafe { std::mem::transmute::<usize, f64>(read_number(chars, 8)) }),
-        2 => Types::Usize(read_number(chars, 8)),
+        2 => Types::Uint(read_number(chars, 8)),
         3 => Types::Char(read_number(chars, 1) as u8 as char),
         4 => Types::Bool(read_number(chars, 1) != 0),
         5 => Types::Pointer(read_number(chars, 8), read_ptr_type(chars)),

@@ -99,7 +99,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             // core::arrlen
             5 => {
                 if let Types::Pointer(u_size, PointerTypes::Object) = m.registers[GENERAL_REG1] {
-                    return Ok(Types::Usize(m.heap.data[u_size].len()));
+                    return Ok(Types::Uint(m.heap.data[u_size].len()));
                 } else {
                     return Err(runtime_error::ErrTypes::Message(format!(
                         "Invalid array pointer"

@@ -46,7 +46,7 @@ pub mod reader {
                 }
                 67 => Types::Byte(self.read_unumber(2) as u8),
                 68 => Types::Char((self.read_unumber(2) as u8) as char),
-                69 => Types::Usize(self.read_unumber(32)),
+                69 => Types::Uint(self.read_unumber(32)),
                 70 => Types::Bool(self.read_unumber(1) != 0),
                 71 => Types::Null,
                 34 => {

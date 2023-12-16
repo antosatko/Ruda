@@ -61,7 +61,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             // Array::len
             4 => {
                 let (_, _, _, len) = read_array(m);
-                return Ok(Types::Usize(len - 1))
+                return Ok(Types::Uint(len - 1))
             }
             _ => unreachable!("Invalid function id"),
         }
