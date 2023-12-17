@@ -154,10 +154,6 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
 #[no_mangle]
 fn register() -> std::string::String {
     "
-
-
-    
-
     fun concat(str=reg.ptr: string, other=reg.g1: string): string > 0i
     fun trim(str=reg.ptr: string): string > 1i
     fun split(str=reg.ptr: string, split=reg.g1: string): [string] > 2i

@@ -377,11 +377,11 @@ KWStruct identifier [keys generic public [methods [impls constructor
 
 KWConstructor [arguments generic errorable code
 	"new" harderr="true"
+	generic_decl ? set="generic"
 	(
 	arg ? set="arguments"
 	, ? back="1"
 	)
-	generic_decl ? set="generic"
 	! ? set="errorable"
 	code_block ? set="code" returnable="true";
 

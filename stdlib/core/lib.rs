@@ -98,8 +98,22 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             }
             // core::arrlen
             5 => {
-                if let Types::Pointer(u_size, PointerTypes::Object) = m.registers[GENERAL_REG1] {
+                let this = get_args!()[0];
+                if let Types::Pointer(u_size, PointerTypes::Object) = this {
                     return Ok(Types::Uint(m.heap.data[u_size].len()));
+                } else {
+                    return Err(runtime_error::ErrTypes::Message(format!(
+                        "Invalid array pointer"
+                    )));
+                }
+            }
+            // core::arrpush
+            6 => {
+                let this = get_args!()[0];
+                let arg = get_args!()[1];
+                if let Types::Pointer(u_size, PointerTypes::Object) = this {
+                    m.heap.data[u_size].push(arg.clone());
+                    return Ok(Types::Void);
                 } else {
                     return Err(runtime_error::ErrTypes::Message(format!(
                         "Invalid array pointer"
@@ -115,6 +129,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
 fn register() -> String {
     let mut result = r#"
     fun arrlen(self=reg.g1): uint > 5
+    fun arrpush<T>(self=reg.g1, value=reg.g2: T) > 6
     "#.to_string();
     let primitives = ["int", "float", "bool", "null", "char", "uint"];
     for i in primitives.iter() {

@@ -10,10 +10,10 @@ entry [nodes
 	; ? back="8"
 	"'eof";
 
-KWUserdata identifier assign generics [methods [traits constructor
+KWUserdata identifier assign generic [methods [traits constructor
 	"userdata" harderr="true"
 	ident set="identifier"
-	generic_decl ? set="generics"
+	generic_decl ? set="generic"
 	assign set="assign"
 	{
 	KWConstructor ? set="constructor" back="0"
@@ -136,7 +136,7 @@ KWStruct identifier [keys generic assign constructor [methods [traits
 	KWImpl ? set="traits" back="0"
 	};
 
-KWConstructor [args errorable generic assign
+KWConstructor [args errorable generic assign generic
 	"new" harderr="true"
 	generic_decl ? set="generic"
 	(
@@ -322,6 +322,7 @@ RESERVED
 	"as" ? end="false"
 	"new" ? end="false"
 	"'any" err="v poradku";
+
 
 ident identifier
 	RESERVED ? err="identifier name is reserved"

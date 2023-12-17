@@ -238,7 +238,7 @@ pub mod dictionary {
                     dictionary.types.push(TypeDef {
                         kind: get_type(step_inside_val(&node, "type"), errors, file_name),
                         identifier: name,
-                        generics: get_generics_decl(&node, errors),
+                        generics: get_generics_decl(&step_inside_val(node, "generics"), errors),
                         overloads: vec![],
                         methods: vec![],
                         public: public(&node),
@@ -915,7 +915,9 @@ pub mod dictionary {
     }
     pub fn get_generics_decl<'a>(node: &'a Node, errors: &mut Vec<ErrType>) -> Vec<GenericDecl> {
         let mut generics = Vec::new();
+        println!("{:?} {} {:?}", node.nodes.keys(), node.line, node.data);
         if let Some(arr) = try_step_inside_arr(step_inside_val(&node, "generic"), "identifiers") {
+            println!("good");
             for generic in arr {
                 let mut traits = Vec::new();
                 for ident in step_inside_arr(generic, "traits") {
@@ -2595,6 +2597,7 @@ impl Kind {
             TypeBody::Function { refs, .. } => *refs,
             TypeBody::Type { refs, .. } => *refs,
             TypeBody::Array { refs, .. } => *refs,
+            TypeBody::Generic { refs, .. } => *refs,
             _ => 0,
         }
     }
@@ -2604,6 +2607,7 @@ impl Kind {
             TypeBody::Function { refs, .. } => refs,
             TypeBody::Type { refs, .. } => refs,
             TypeBody::Array { refs, .. } => refs,
+            TypeBody::Generic { refs, .. } => refs,
             _ => unreachable!("cannot get refs of non type"),
         }
     }
@@ -2613,6 +2617,7 @@ impl Kind {
             TypeBody::Function { .. } => false,
             TypeBody::Type { nullable, .. } => *nullable,
             TypeBody::Array { nullable, .. } => *nullable,
+            TypeBody::Generic { nullable, .. } => *nullable,
             _ => false,
         }
     }
@@ -2621,6 +2626,7 @@ impl Kind {
         match &mut self.body {
             TypeBody::Type { nullable, .. } => nullable,
             TypeBody::Array { nullable, .. } => nullable,
+            TypeBody::Generic { nullable, .. } => nullable,
             _ => unreachable!("cannot get nullable of non type"),
         }
     }

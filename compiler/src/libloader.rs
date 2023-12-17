@@ -100,6 +100,7 @@ pub fn load(
                             errorable: con.1,
                             assign: con.3,
                             takes_self: false,
+                            generics: get_generics_decl(&node, &mut errors),
                         });
                     };
                     dictionary.structs.push(Struct {
@@ -239,16 +240,7 @@ pub fn load(
                 "KWUserdata" => {
                     let ident = get_ident(&node);
                     let assign = get_assign(&node);
-                    let generics = {
-                        let gen = &step_inside_val(&node, "generics");
-                        match &gen.name {
-                            Tokens::Text(txt) => match txt.as_str() {
-                                "'none" => Vec::new(),
-                                _ => get_generics_decl(gen, &mut errors),
-                            },
-                            _ => unreachable!("you somehow managed to break the compiler, gj"),
-                        }  
-                    };
+                    let generics = get_generics_decl(&node, &mut errors);
                     // check if already exists
                     for ud in &dictionary.user_data {
                         if ud.name == ident {
@@ -303,6 +295,7 @@ pub fn load(
                             errorable: con.1,
                             assign: con.3,
                             takes_self: false,
+                            generics: get_generics_decl(&node, &mut errors),
                         });
                     };
                     dictionary.user_data.push(UserData {
@@ -369,6 +362,7 @@ fn get_assign(node: &Node) -> usize {
 fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> Function {
     let mut args: Vec<(String, Kind, MemoryTypes, Line)> = Vec::new();
     let mut takes_self = false;
+    let generics = get_generics_decl(&node, errors);
     for arg in step_inside_arr(node, "arguments") {
         if let Tokens::Text(txt) = &arg.name {
             if txt == "self_arg" {
@@ -378,9 +372,25 @@ fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -
         }
         let ident = get_ident(&arg);
         let mem_loc = get_mem_loc(&arg);
-        let arg_type = get_type(step_inside_val(&arg, "type"), errors, file_name);
+        let mut kind = get_type(step_inside_val(arg, "type"), errors, file_name);
+        match kind.body.clone() {
+            TypeBody::Type { main, refs, nullable, .. } => {
+                if main.len() == 1 {
+                    for generic in &generics {
+                        if generic.identifier == main[0] {
+                            kind = Kind {
+                                body: TypeBody::Generic { identifier: main[0].clone(), constraints: vec![], refs, nullable },
+                                line: kind.line,
+                                file: kind.file.clone(),
+                            }
+                        }
+                    }
+                }
+            }
+            _ => ()
+        }
         let line = arg.line;
-        args.push((ident, arg_type, mem_loc, line));
+        args.push((ident, kind, mem_loc, line));
     }
     let return_type = if let Tokens::Text(txt) = &step_inside_val(node, "type").name {
         if txt == "type_specifier" {
@@ -417,6 +427,7 @@ fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -
         errorable,
         assign: get_assign(node),
         takes_self,
+        generics,
     }
 }
 
@@ -572,6 +583,7 @@ pub struct Function {
     pub errorable: bool,
     pub assign: usize,
     pub takes_self: bool,
+    pub generics: Vec<GenericDecl>,
 }
 
 #[derive(Debug)]

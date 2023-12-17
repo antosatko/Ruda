@@ -352,7 +352,6 @@ fn register() -> String {
     fun fileRead(fileName=reg.ptr: string): string > 0i
     fun fileWrite(fileName=reg.ptr: string, data=reg.G1: string)! > 1i
     fun fileAppend(fileName=reg.ptr: string, data=reg.G1: string)! > 2i
-    fun fileOpen(fileName=reg.ptr: string)!: File > 3i
     fun fileExists(fileName=reg.ptr: string): bool > 8i
     "#
     .to_string()
