@@ -684,7 +684,27 @@ pub mod dictionary {
         };
         let generics = get_generics_decl(&node, errors);
         let kind = if let Some(kind) = try_step_inside_val(step_inside_val(&node, "type"), "type") {
-            Some(get_type(kind, errors, file_name))
+            let kind = get_type(kind, errors, file_name);
+            match kind.body.clone() {
+                TypeBody::Type { main, refs, nullable, .. } => {
+                    if main.len() == 1 {
+                        let mut temp = kind.clone();
+                        for generic in &generics {
+                            if generic.identifier == main[0] {
+                                temp = Kind {
+                                    body: TypeBody::Generic { identifier: main[0].clone(), constraints: vec![], refs, nullable },
+                                    line: kind.line,
+                                    file: kind.file.clone(),
+                                }
+                            }
+                        }
+                        Some(temp)
+                    }else {
+                        Some(kind)
+                    }
+                }
+                _ => Some(kind)
+            }
         } else {
             None
         };
@@ -706,9 +726,26 @@ pub mod dictionary {
                                 ));
                             }
                         }
+                        let mut kind = get_type(step_inside_val(arg, "type"), errors, file_name);
+                        match kind.body.clone() {
+                            TypeBody::Type { main, refs, nullable, .. } => {
+                                if main.len() == 1 {
+                                    for generic in &generics {
+                                        if generic.identifier == main[0] {
+                                            kind = Kind {
+                                                body: TypeBody::Generic { identifier: main[0].clone(), constraints: vec![], refs, nullable },
+                                                line: kind.line,
+                                                file: kind.file.clone(),
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            _ => ()
+                        }
                         args.push(Arg {
                             identifier: ident,
-                            kind: get_type(step_inside_val(&arg, "type"), errors, file_name),
+                            kind,
                             line: arg.line,
                         });
                     }
@@ -887,6 +924,7 @@ pub mod dictionary {
                 generics.push(GenericDecl {
                     identifier: get_ident(generic),
                     traits,
+                    line: generic.line,
                 })
             }
         }
@@ -1023,6 +1061,7 @@ pub mod dictionary {
     pub struct GenericDecl {
         pub identifier: String,
         pub traits: Vec<NestedIdent>,
+        pub line: Line,
     }
     #[derive(Debug)]
     pub struct Error {
@@ -2102,7 +2141,7 @@ pub mod AnalyzationError {
     }
 }
 
-use std::borrow::BorrowMut;
+use std::{borrow::BorrowMut, collections::HashMap};
 
 use super::dictionary::*;
 use crate::{codegen::InnerPath, libloader, tree_walker::tree_walker::Line};
@@ -2129,6 +2168,8 @@ pub enum TypeBody {
     Generic {
         identifier: String,
         constraints: Vec<InnerPath>,
+        refs: usize,
+        nullable: bool,
     },
     Array {
         type_: Box<Kind>,
@@ -2190,16 +2231,25 @@ impl std::fmt::Debug for Kind {
             TypeBody::Generic {
                 identifier,
                 constraints,
+                refs,
+                nullable,
             } => {
+                for _ in 0..*refs {
+                    write!(f, "&")?;
+                }
                 write!(f, "{}", identifier)?;
                 if !constraints.is_empty() {
-                    write!(f, ": ")?;
-                    for (i, constraint) in constraints.iter().enumerate() {
-                        write!(f, "{:?}", constraint)?;
+                    write!(f, "<")?;
+                    for (i, gen) in constraints.iter().enumerate() {
+                        write!(f, "{}", gen.ident)?;
                         if i != constraints.len() - 1 {
                             write!(f, ", ")?;
                         }
                     }
+                    write!(f, ">")?;
+                }
+                if *nullable {
+                    write!(f, "?")?;
                 }
             }
             TypeBody::Array {
@@ -2319,6 +2369,8 @@ impl Kind {
             body: TypeBody::Generic {
                 identifier: ident,
                 constraints,
+                refs: 0,
+                nullable: false,
             },
             line,
             file,
@@ -2416,7 +2468,8 @@ impl Kind {
         }
     }
 
-    pub fn cmp(&self, other: &Self) -> TypeComparison {
+    pub fn cmp(&self, other: &Self, generics: &HashMap<String, Kind>) -> TypeComparison {
+        println!("{:?} == {:?}", self, other);
         match &self.body {
             TypeBody::Function {
                 args,
@@ -2495,7 +2548,7 @@ impl Kind {
                     /*if size != *size_2 {
                         return TypeComparison::ArrayDiff(size, *size_2);
                     }*/
-                    type_.cmp(type_2)
+                    type_.cmp(type_2, generics)
                 } else {
                     TypeComparison::NotEqual
                 }
@@ -2506,8 +2559,34 @@ impl Kind {
             }
             TypeBody::Generic {
                 identifier,
-                constraints,
-            } => todo!(),
+                refs,
+                ..
+            } => {
+                if let TypeBody::Generic {
+                    identifier: identifier2,
+                    refs: refs2,
+                    ..
+                } = &other.body
+                {
+                    if identifier != identifier2 {
+                        return TypeComparison::NotEqual;
+                    }
+                    if *refs != *refs2 {
+                        return TypeComparison::ReferenceDiff(*refs as i32 - *refs2 as i32);
+                    }
+                    TypeComparison::Equal
+                } else if let TypeBody::Type{
+                    ..
+                } = &other.body {
+                    let this = match generics.get(identifier) {
+                        Some(kind) => kind,
+                        None => return TypeComparison::NotEqual,
+                    };
+                    this.cmp(other, generics)
+                } else {
+                    TypeComparison::NotEqual
+                }
+            }
         }
     }
 

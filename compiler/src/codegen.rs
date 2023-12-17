@@ -9,9 +9,7 @@ use runtime::runtime_types::{
 
 use crate::codeblock_parser::Nodes;
 use crate::expression_parser::{self, ArrayRule, FunctionCall, Root, ValueType};
-use crate::intermediate::dictionary::{
-    self, Arg, ConstValue, Function, TypeComparison,
-};
+use crate::intermediate::dictionary::{self, Arg, ConstValue, Function, TypeComparison};
 use crate::intermediate::{Kind, TypeBody};
 use crate::lexer::tokenizer::{self, Operators};
 use crate::tree_walker::tree_walker::Line;
@@ -282,6 +280,42 @@ fn gen_fun<'a>(
     context: &'a mut runtime_types::Context,
     is_constructor: bool,
 ) -> Result<bool, CodegenError> {
+    let mut generics: HashMap<String, Kind> = HashMap::new();
+    let this_fun = fun.get(objects)?;
+    for generic in this_fun.generics.iter() {
+        let mut constraints = Vec::new();
+        for constraint in generic.traits.iter() {
+            let mut path = InnerPath {
+                file: fun.file.clone(),
+                block: None,
+                ident: constraint.last().unwrap().to_string(),
+                kind: ImportKinds::Rd,
+            };
+            for i in 1..constraint.len()-1 {
+                let file = match find_import(objects, &constraint[i], &path.file) {
+                    Some((file, _)) => file.to_string(),
+                    None => Err(CodegenError::ImportNotFound(
+                        constraint[i].to_string(),
+                        this_fun.line.clone(),
+                    ))?,
+                };
+                path.file = file;
+            }
+            match find_trait(objects, &path.ident, &path.file) {
+                None => Err(CodegenError::KindNotFound(
+                    path.ident.clone(),
+                    this_fun.line.clone(),
+                ))?,
+                Some(_) => (),
+            };
+            constraints.push(path);
+        }
+        generics.insert(generic.clone().identifier, Kind{
+            body: TypeBody::Generic { identifier: generic.clone().identifier, constraints, nullable: false, refs: 0 },
+            line: generic.line.clone(),
+            file: Some(fun.file.clone()),
+        });
+    }
     let mut code = Code { code: Vec::new() };
     let mut args_scope_len = 0;
     let mut scopes = vec![ScopeCached {
@@ -318,10 +352,11 @@ fn gen_fun<'a>(
     }
     for arg in this_fun.args.iter() {
         let pos = create_var_pos(&scopes);
+        let kind = dbg!(correct_kind(objects, &arg.kind, fun, &arg.line, &generics)?);
         scopes[0].variables.insert(
             arg.identifier.clone(),
             Variable {
-                kind: Some(arg.kind.clone()),
+                kind: Some(kind),
                 pos,
                 value: None,
                 line: arg.line.clone(),
@@ -329,6 +364,8 @@ fn gen_fun<'a>(
         );
         args_scope_len += 1;
     }
+    println!("variables: {:?}", scopes);
+    println!("generics: {:?}", generics);
     if is_constructor {
         scopes.push(ScopeCached {
             variables: HashMap::new(),
@@ -368,6 +405,7 @@ fn gen_fun<'a>(
             &mut scopes,
             &mut code,
             fun,
+            &generics,
         )?;
         let this_fun = fun.get(objects)?;
         if terminator != ScopeTerminator::Return
@@ -420,13 +458,15 @@ fn expression(
     scope_len: &mut usize,
     expected_type: Option<Kind>,
     line: Line,
+    generics: &HashMap<String, Kind>
 ) -> Result<Kind, CodegenError> {
     use Instructions::*;
     let mut return_kind = Kind::void();
     let expected_type = match expected_type {
-        Some(kind) => Some(correct_kind(objects, &kind, fun, &line)?),
+        Some(kind) => Some(correct_kind(objects, &kind, fun, &line, generics)?),
         None => None,
     };
+    println!("corrected to: {:?}", expected_type);
     match expr {
         ValueType::AnonymousFunction(_) => todo!(),
         ValueType::Expression(expr) => {
@@ -439,7 +479,7 @@ fn expression(
                 None => Err(CodegenError::ExressionNotHandledProperly(expr.line.clone()))?,
             };
             let left_kind = expression(
-                objects, left, scopes, code, context, &fun, scope_len, None, line,
+                objects, left, scopes, code, context, &fun, scope_len, None, line, generics
             )?;
             *scope_len += 1;
             let var = create_var_pos(scopes);
@@ -464,6 +504,7 @@ fn expression(
                 scope_len,
                 Some(left_kind.clone()),
                 line,
+                generics,
             )?;
             code.read(&var, GENERAL_REG2);
             code.push(Swap(GENERAL_REG1, GENERAL_REG2));
@@ -480,6 +521,7 @@ fn expression(
                 context,
                 &fun,
                 &expr.line,
+                generics,
             ) {
                 Some(kind) => kind,
                 None => {
@@ -502,6 +544,7 @@ fn expression(
                 scope_len,
                 ExpectedValueType::Value,
                 expected_type.clone(),
+                generics,
             )?
             .get_kind()?;
             //}
@@ -515,11 +558,14 @@ fn expression(
                     &fun,
                     &line,
                     GENERAL_REG1,
+                    generics,
                 )?;
             }
         }
         ValueType::Blank => {}
     }
+    return_kind = correct_kind(objects, &return_kind, fun, &line, generics)?;
+    println!("ended at {:?}", return_kind);
     if let Some(expected_type) = expected_type {
         match cast(
             objects,
@@ -530,6 +576,7 @@ fn expression(
             &fun,
             &line,
             GENERAL_REG1,
+            generics,
         ) {
             Some(_) => {
                 return_kind = expected_type;
@@ -625,6 +672,24 @@ fn find_struct<'a>(
     None
 }
 
+fn find_trait<'a>(
+    objects: &'a Context,
+    ident: &'a str,
+    file_name: &'a str,
+) -> Option<(&'a str, &'a dictionary::Trait)> {
+    match objects.0.get(file_name) {
+        Some(dictionary) => {
+            for traitt in dictionary.traits.iter() {
+                if traitt.identifier == ident {
+                    return Some((file_name, traitt));
+                }
+            }
+        }
+        None => (),
+    };
+    None
+}
+
 fn find_userdata<'a>(
     objects: &'a Context,
     ident: &'a str,
@@ -660,6 +725,7 @@ fn gen_value(
     scope_len: &mut usize,
     expected_type: ExpectedValueType,
     expected_kind: Option<Kind>,
+    generics: &HashMap<String, Kind>
 ) -> Result<Position, CodegenError> {
     use Instructions::*;
     let root = identify_root(
@@ -673,6 +739,7 @@ fn gen_value(
         scope_len,
         expected_kind,
         fun,
+        generics,
     )?;
     let pos = traverse_tail(
         objects,
@@ -683,6 +750,7 @@ fn gen_value(
         fun,
         root,
         scope_len,
+        generics,
     )?;
     let kind = match &pos {
         Position::CompoundField(path, field, kind) => {
@@ -850,6 +918,7 @@ fn identify_root(
     scope_len: &mut usize,
     expected_type: Option<Kind>,
     fun: &InnerPath,
+    generics: &HashMap<String, Kind>,
 ) -> Result<Position, CodegenError> {
     use Instructions::*;
     match ident {
@@ -981,11 +1050,10 @@ fn identify_root(
                         };
                         let mut kind = match &expected_type {
                             Some(kind) => match &kind.body {
-                                TypeBody::Array {
-                                    type_,
-                                    ..
-                                } => Some(correct_kind(objects, &type_, fun, line)?),
-                                _ => None
+                                TypeBody::Array { type_, .. } => {
+                                    Some(correct_kind(objects, &type_, fun, line, generics)?)
+                                }
+                                _ => None,
                             },
                             None => None,
                         };
@@ -1015,6 +1083,7 @@ fn identify_root(
                                     scope_len,
                                     kind.clone(),
                                     *line,
+                                    generics
                                 )?);
                                 match &kind {
                                     Some(kind) => {
@@ -1027,6 +1096,7 @@ fn identify_root(
                                             &fun,
                                             &line,
                                             GENERAL_REG1,
+                                            generics,
                                         ) {
                                             Some(_) => {
                                                 // do nothing
@@ -1066,11 +1136,10 @@ fn identify_root(
                     ArrayRule::Fill { value, size } => {
                         let expected = match expected_type {
                             Some(ref kind) => match &kind.body {
-                                TypeBody::Array {
-                                    type_,
-                                    ..
-                                } => Some(correct_kind(objects, &type_, fun, line)?),
-                                _ => None
+                                TypeBody::Array { type_, .. } => {
+                                    Some(correct_kind(objects, &type_, fun, line, generics)?)
+                                }
+                                _ => None,
                             },
                             None => None,
                         };
@@ -1085,6 +1154,7 @@ fn identify_root(
                                 scope_len,
                                 expected.clone(),
                                 *line,
+                                generics,
                             )?;
                             *scope_len += 1;
                             let value_var = create_var_pos(scopes);
@@ -1119,6 +1189,7 @@ fn identify_root(
                                     file: Some(file.to_string()),
                                 }),
                                 *line,
+                                generics,
                             )?;
 
                             code.read(&value_var, GENERAL_REG2);
@@ -1191,6 +1262,7 @@ fn identify_root(
                 scope_len,
                 None,
                 *line,
+                generics,
             )?;
             return Ok(Position::Value(kind));
         }
@@ -1206,6 +1278,7 @@ fn traverse_tail(
     fun: &InnerPath,
     pos: Position,
     scope_len: &mut usize,
+    generics: &HashMap<String, Kind>
 ) -> Result<Position, CodegenError> {
     use Instructions::*;
     let mut return_kind = Kind::void();
@@ -1224,9 +1297,10 @@ fn traverse_tail(
                         scope_len,
                         None,
                         &fun,
+                        generics,
                     )?;
                     return traverse_tail(
-                        objects, tail, context, scopes, code, fun, root, scope_len,
+                        objects, tail, context, scopes, code, fun, root, scope_len, generics
                     );
                 }
                 Position::BinImport(fname) => {
@@ -1241,9 +1315,10 @@ fn traverse_tail(
                         scope_len,
                         None,
                         &fun,
+                        generics,
                     )?;
                     return traverse_tail(
-                        objects, tail, context, scopes, code, fun, root, scope_len,
+                        objects, tail, context, scopes, code, fun, root, scope_len, generics
                     );
                 }
                 Position::Variable(vname, _kind) => {
@@ -1258,10 +1333,7 @@ fn traverse_tail(
                     let kind = var.kind.as_ref().unwrap().clone();
 
                     match &kind.body {
-                        TypeBody::Array {
-                            type_,
-                            ..
-                        } => {
+                        TypeBody::Array { type_, .. } => {
                             let path = find_array_method(objects, &ident, &node.1)?;
                             code.read(&pos_cloned, RETURN_REG);
                             return traverse_tail(
@@ -1273,6 +1345,7 @@ fn traverse_tail(
                                 fun,
                                 Position::Function(FunctionKind::Binary(path), *type_.clone()),
                                 scope_len,
+                                generics,
                             );
                         }
                         TypeBody::Type {
@@ -1323,6 +1396,7 @@ fn traverse_tail(
                                                         kind,
                                                     ),
                                                     scope_len,
+                                                    generics,
                                                 );
                                                 return pos;
                                             }
@@ -1351,6 +1425,7 @@ fn traverse_tail(
                                                         kind,
                                                     ),
                                                     scope_len,
+                                                    generics,
                                                 );
                                             }
                                             _ => todo!(),
@@ -1396,6 +1471,7 @@ fn traverse_tail(
                                                         kind,
                                                     ),
                                                     scope_len,
+                                                    generics,
                                                 );
                                             }
                                             _ => todo!(),
@@ -1420,6 +1496,7 @@ fn traverse_tail(
                                         fun,
                                         Position::Function(FunctionKind::Binary(path), kind),
                                         scope_len,
+                                        generics,
                                     );
                                 }
                                 dictionary::KindType::Enum => todo!(),
@@ -1460,10 +1537,7 @@ fn traverse_tail(
                 }
                 Position::Compound(_kind) => {
                     let kind_main = match &_kind.body {
-                        TypeBody::Type {
-                            main,
-                            ..
-                        } => main,
+                        TypeBody::Type { main, .. } => main,
                         _ => unreachable!(
                             "kind not handled properly by the compiler, please report this bug"
                         ),
@@ -1484,12 +1558,9 @@ fn traverse_tail(
                     todo!()
                 }
                 Position::Value(kind) => {
-                    let kind = correct_kind(objects, kind, fun, &node.1)?;
+                    let kind = correct_kind(objects, kind, fun, &node.1, generics)?;
                     match &kind.body {
-                        TypeBody::Array {
-                            type_,
-                            ..
-                        } => {
+                        TypeBody::Array { type_, .. } => {
                             let path = find_array_method(objects, &ident, &node.1)?;
                             code.push(Move(GENERAL_REG1, RETURN_REG));
                             return traverse_tail(
@@ -1501,6 +1572,7 @@ fn traverse_tail(
                                 fun,
                                 Position::Function(FunctionKind::Binary(path), *type_.clone()),
                                 scope_len,
+                                generics,
                             );
                         }
                         TypeBody::Type {
@@ -1550,6 +1622,7 @@ fn traverse_tail(
                                                         kind,
                                                     ),
                                                     scope_len,
+                                                    generics,
                                                 );
                                                 return pos;
                                             }
@@ -1577,6 +1650,7 @@ fn traverse_tail(
                                                         kind,
                                                     ),
                                                     scope_len,
+                                                    generics,
                                                 );
                                             }
                                             _ => todo!(),
@@ -1621,6 +1695,7 @@ fn traverse_tail(
                                                         kind,
                                                     ),
                                                     scope_len,
+                                                    generics,
                                                 );
                                             }
                                             _ => todo!(),
@@ -1645,6 +1720,7 @@ fn traverse_tail(
                                         fun,
                                         Position::Function(FunctionKind::Binary(path), kind),
                                         scope_len,
+                                        generics,
                                     );
                                 }
                                 dictionary::KindType::Enum => todo!(),
@@ -1694,10 +1770,7 @@ fn traverse_tail(
                     code.push(ReadPtr(GENERAL_REG1));
 
                     let return_kind = match field_kind.body {
-                        TypeBody::Array {
-                            type_,
-                            ..
-                        } => *type_.clone(),
+                        TypeBody::Array { type_, .. } => *type_.clone(),
                         _ => Err(CodegenError::CannotIndexNonArray(
                             pos.clone(),
                             node.1.clone(),
@@ -1739,6 +1812,7 @@ fn traverse_tail(
                             file: Some(fun.file.clone()),
                         }),
                         node.1,
+                        generics,
                     )?;
 
                     // restore the pointer from stack to POINTER_REG
@@ -1746,7 +1820,7 @@ fn traverse_tail(
                     code.extend(&[Index(GENERAL_REG1), Move(POINTER_REG, GENERAL_REG1)]);
                     let pos = Position::Pointer(return_kind);
                     return traverse_tail(
-                        objects, tail, context, scopes, code, fun, pos, scope_len,
+                        objects, tail, context, scopes, code, fun, pos, scope_len, generics,
                     );
                 }
                 Position::Import(_) => Err(CodegenError::CannotIndexFile(node.1.clone()))?,
@@ -1758,10 +1832,7 @@ fn traverse_tail(
                     let pos_cloned = var.pos.clone();
 
                     return_kind = match &var.kind.as_ref().unwrap().body {
-                        TypeBody::Array {
-                            type_,
-                            ..
-                        } => *type_.clone(),
+                        TypeBody::Array { type_, .. } => *type_.clone(),
                         _ => Err(CodegenError::CannotIndexNonArray(
                             pos.clone(),
                             node.1.clone(),
@@ -1788,6 +1859,7 @@ fn traverse_tail(
                             file: Some(fun.file.clone()),
                         }),
                         node.1,
+                        generics,
                     )?;
 
                     code.read(&pos_cloned, POINTER_REG);
@@ -1795,15 +1867,12 @@ fn traverse_tail(
 
                     let pos = Position::Pointer(return_kind);
                     return traverse_tail(
-                        objects, tail, context, scopes, code, fun, pos, scope_len,
+                        objects, tail, context, scopes, code, fun, pos, scope_len, generics
                     );
                 }
                 Position::Pointer(ptr) => {
                     let return_kind = match &ptr.body {
-                        TypeBody::Array {
-                            type_,
-                            ..
-                        } => *type_.clone(),
+                        TypeBody::Array { type_, .. } => *type_.clone(),
                         _ => Err(CodegenError::CannotIndexNonArray(
                             pos.clone(),
                             node.1.clone(),
@@ -1848,6 +1917,7 @@ fn traverse_tail(
                             file: Some(fun.file.clone()),
                         }),
                         node.1,
+                        generics,
                     )?;
 
                     // restore the pointer from stack to POINTER_REG
@@ -1855,7 +1925,7 @@ fn traverse_tail(
                     code.extend(&[Index(GENERAL_REG1), Move(POINTER_REG, GENERAL_REG1)]);
                     let pos = Position::Pointer(return_kind);
                     return traverse_tail(
-                        objects, tail, context, scopes, code, fun, pos, scope_len,
+                        objects, tail, context, scopes, code, fun, pos, scope_len, generics
                     );
                 }
                 Position::Compound(_) => Err(CodegenError::CannotIndexNonArray(
@@ -1864,10 +1934,7 @@ fn traverse_tail(
                 ))?,
                 Position::Value(ptr) => {
                     let return_kind = match &ptr.body {
-                        TypeBody::Array {
-                            type_,
-                            ..
-                        } => *type_.clone(),
+                        TypeBody::Array { type_, .. } => *type_.clone(),
                         _ => Err(CodegenError::CannotIndexNonArray(
                             pos.clone(),
                             node.1.clone(),
@@ -1909,6 +1976,7 @@ fn traverse_tail(
                             file: Some(fun.file.clone()),
                         }),
                         node.1,
+                        generics,
                     )?;
 
                     // restore the pointer from stack to POINTER_REG
@@ -1916,7 +1984,7 @@ fn traverse_tail(
                     code.extend(&[Index(GENERAL_REG1), Move(POINTER_REG, GENERAL_REG1)]);
                     let pos = Position::Pointer(return_kind);
                     return traverse_tail(
-                        objects, tail, context, scopes, code, fun, pos, scope_len,
+                        objects, tail, context, scopes, code, fun, pos, scope_len, generics,
                     );
                 }
             },
@@ -1938,7 +2006,7 @@ fn traverse_tail(
                             fun_kind.file = Some(fun_path.file.clone());
                             let pos = Position::Value(fun_kind);
                             return traverse_tail(
-                                objects, tail, context, scopes, code, fun, pos, scope_len,
+                                objects, tail, context, scopes, code, fun, pos, scope_len, generics
                             );
                         }
                         FunctionKind::Binary(fun_path) => {
@@ -1956,7 +2024,7 @@ fn traverse_tail(
                             kind.file = Some(fun_path.file.clone());
                             let pos = Position::Value(kind);
                             return traverse_tail(
-                                objects, tail, context, scopes, code, fun, pos, scope_len,
+                                objects, tail, context, scopes, code, fun, pos, scope_len, generics
                             );
                         }
                         FunctionKind::Dynamic(fun) => todo!("dynamic function call"),
@@ -1997,7 +2065,7 @@ fn traverse_tail(
                     kind.file = Some(path.file.clone());
                     let pos = Position::Value(kind);
                     return traverse_tail(
-                        objects, tail, context, scopes, code, fun, pos, scope_len,
+                        objects, tail, context, scopes, code, fun, pos, scope_len, generics
                     );
                 }
                 Position::CompoundField(path, field, _) => {
@@ -2020,7 +2088,7 @@ fn traverse_tail(
                     kind.file = Some(path.file.clone());
                     let pos = Position::Value(kind);
                     return traverse_tail(
-                        objects, tail, context, scopes, code, fun, pos, scope_len,
+                        objects, tail, context, scopes, code, fun, pos, scope_len, generics
                     );
                 }
                 _ => Err(CodegenError::CanCallOnlyFunctions(node.1.clone()))?,
@@ -2142,6 +2210,7 @@ fn call_binary(
             scope_len,
             Some(arg.1.clone().1),
             arg.0.get_line(),
+            &HashMap::new(),
         )?;
         args.push(kind);
         temp_code.read(&obj, POINTER_REG);
@@ -2155,7 +2224,7 @@ fn call_binary(
         if idx >= args_len {
             Err(CodegenError::IncorrectArgs(line.clone()))?;
         }
-        let cmp = fun.get_bin(objects)?.args[idx].1.cmp(&arg);
+        let cmp = fun.get_bin(objects)?.args[idx].1.cmp(&arg, &HashMap::new());
         if cmp.is_not_equal() {
             let expected = fun.get_bin(objects)?.args[idx].1.clone();
             let ident = fun.get_bin(objects)?.args[idx].0.clone();
@@ -2195,6 +2264,7 @@ fn call_fun(
     _this: &InnerPath,
 ) -> Result<Kind, CodegenError> {
     use Instructions::*;
+    let mut generics_map: HashMap<String, Kind> = HashMap::new();
     let mut temp_code = Code { code: Vec::new() };
     let called_fun = fun.get(objects)?;
     *scope_len += 1;
@@ -2239,17 +2309,52 @@ fn call_fun(
         .zip(called_fun.args.clone())
         .enumerate()
     {
-        let kind = expression(
-            objects,
-            arg.0,
-            scopes,
-            &mut temp_code,
-            context,
-            &fun,
-            scope_len,
-            Some(arg.1.clone().kind),
-            arg.1.line,
-        )?;
+        let kind = match arg.1.kind.body {
+            TypeBody::Generic { identifier, constraints, .. } => {
+                if let Some(kind) = generics_map.get(&identifier) {
+                    expression(
+                        objects,
+                        arg.0,
+                        scopes,
+                        &mut temp_code,
+                        context,
+                        &fun,
+                        scope_len,
+                        Some(kind.clone()),
+                        arg.1.line,
+                        &generics_map,
+                    )?;
+                    kind.clone()
+                } else {
+                    let kind = expression(
+                        objects,
+                        arg.0,
+                        scopes,
+                        &mut temp_code,
+                        context,
+                        &fun,
+                        scope_len,
+                        None,
+                        arg.1.line,
+                        &generics_map,
+                    )?;
+                    generics_map.insert(identifier, kind.clone());
+                    kind
+                }
+            }
+            _ => expression(
+                objects,
+                arg.0,
+                scopes,
+                &mut temp_code,
+                context,
+                &fun,
+                scope_len,
+                Some(arg.1.clone().kind),
+                arg.1.line,
+                &generics_map,
+            )?,
+        };
         args.push(kind);
         temp_code.read(&obj, POINTER_REG);
         temp_code.extend(&[
@@ -2257,13 +2362,14 @@ fn call_fun(
             WritePtr(GENERAL_REG1),
         ])
     }
+    println!("args: {:?}, generics: {:?}", args, generics_map);
     // type check
     let called_fun = fun.get(objects)?;
     for (idx, arg) in args.iter().enumerate() {
         if idx >= called_fun.args.len() {
             Err(CodegenError::IncorrectArgs(line.clone()))?;
         }
-        let cmp = called_fun.args[idx].kind.cmp(&arg);
+        let cmp = called_fun.args[idx].kind.cmp(&arg, &generics_map);
         if cmp.is_not_equal() {
             return Err(CodegenError::ArgTypeMismatch(
                 called_fun.args[idx].clone(),
@@ -2283,17 +2389,32 @@ fn call_fun(
         Move(RETURN_REG, GENERAL_REG1),
     ]);
     merge_code(&mut code.code, &temp_code.code, *scope_len);
-    Ok(called_fun.return_type.clone().unwrap_or(Kind {
-        body: TypeBody::Type {
-            refs: 0,
-            main: vec!["null".to_string()],
-            generics: vec![],
-            nullable: false,
-            kind: dictionary::KindType::Primitive,
+    let return_kind = match called_fun.return_type.clone() {
+        Some(kind) => {
+            if let TypeBody::Generic { identifier, .. } = &kind.body {
+                if let Some(kind) = generics_map.get(identifier) {
+                    kind.clone()
+                } else {
+                    kind
+                }
+            } else {
+                kind
+            }
+        }
+        None => Kind {
+            body: TypeBody::Type {
+                refs: 0,
+                main: vec!["null".to_string()],
+                generics: vec![],
+                nullable: false,
+                kind: dictionary::KindType::Primitive,
+            },
+            line: line.clone(),
+            file: Some(fun.file.clone()),
         },
-        line: line.clone(),
-        file: Some(fun.file.clone()),
-    }))
+    };
+    println!("return kind: {:?}", return_kind);
+    Ok(return_kind)
 }
 
 fn call_whichever(
@@ -2334,6 +2455,7 @@ fn call_whichever(
                 line,
                 this,
             )?;
+            println!("return kind: {:?}", kind);
             return Ok(kind);
         }
     }
@@ -2346,6 +2468,7 @@ fn get_scope(
     other_scopes: &mut Vec<ScopeCached>,
     code: &mut Code,
     fun: &InnerPath,
+    generics: &HashMap<String, Kind>,
 ) -> Result<(usize, ScopeTerminator), CodegenError> {
     let mut max_scope_len = 0;
     other_scopes.push(ScopeCached {
@@ -2361,7 +2484,7 @@ fn get_scope(
     macro_rules! open_scope {
         ($block: expr, $code: expr) => {{
             let (scope_len, terminator) =
-                get_scope(objects, $block, context, other_scopes, $code, fun)?;
+                get_scope(objects, $block, context, other_scopes, $code, fun, generics)?;
             other_scopes.pop();
             max_scope_len += scope_len;
             (scope_len, terminator)
@@ -2407,7 +2530,8 @@ fn get_scope(
                             &mut max_scope_len,
                             kind.clone(),
                             *line,
-                        )?;
+                        generics,
+                    )?;
                         max_scope_len += 1;
                         let pos = create_var_pos(&other_scopes);
                         let cache = last!(other_scopes);
@@ -2467,7 +2591,7 @@ fn get_scope(
                     Some(kind) => kind.clone(),
                     None => expr_kind.clone(),
                 };
-                let kind = match correct_kind(&objects, &kind, &fun, &line) {
+                let kind = match correct_kind(&objects, &kind, &fun, &line, generics) {
                     Ok(kind) => kind,
                     Err(e) => {
                         return Err(e);
@@ -2482,6 +2606,7 @@ fn get_scope(
                     &fun,
                     &line,
                     GENERAL_REG1,
+                    generics
                 ) {
                     Some(_) => {
                         code.write(GENERAL_REG1, &pos);
@@ -2516,6 +2641,7 @@ fn get_scope(
                     &mut max_scope_len,
                     Some(bool_type.clone()),
                     *line,
+                    generics,
                 )?;
                 let (scope, terminator) = open_scope!(body, &mut block_code);
                 if terminator != ScopeTerminator::Return {
@@ -2540,6 +2666,7 @@ fn get_scope(
                         &mut max_scope_len,
                         Some(bool_type.clone()),
                         *line,
+                        generics,
                     )?;
                     let (scope, terminator) = open_scope!(&elif.1, &mut block_code);
                     if terminator != ScopeTerminator::Return {
@@ -2587,10 +2714,7 @@ fn get_scope(
                 }
             }
             crate::codeblock_parser::Nodes::While {
-                cond,
-                body,
-                line,
-                ..
+                cond, body, line, ..
             } => {
                 use Instructions::*;
                 let mut expr_code = Code { code: Vec::new() };
@@ -2605,8 +2729,9 @@ fn get_scope(
                     &mut max_scope_len,
                     Some(bool_type.clone()),
                     *line,
+                    generics,
                 )?;
-                if kind.cmp(&bool_type).is_not_equal() {
+                if kind.cmp(&bool_type, generics).is_not_equal() {
                     return Err(CodegenError::ExpectedBool(line.clone()));
                 }
                 let (scope, terminator) = open_scope!(body, &mut block_code);
@@ -2645,7 +2770,8 @@ fn get_scope(
                             &mut max_scope_len,
                             fun.get(objects)?.return_type.clone(),
                             *line,
-                        )?;
+                        generics,
+                    )?;
                         expr_code.push(Move(GENERAL_REG1, RETURN_REG));
                         kind
                     }
@@ -2666,7 +2792,7 @@ fn get_scope(
                 };
                 let this_fun = fun.get(objects)?;
                 if let Some(ret_type) = &this_fun.return_type {
-                    let cmp = ret_type.cmp(&kind);
+                    let cmp = ret_type.cmp(&kind, generics);
                     if cmp.is_not_equal() {
                         return Err(CodegenError::VariableTypeMismatch(
                             ret_type.clone(),
@@ -2708,6 +2834,7 @@ fn get_scope(
                     &mut max_scope_len,
                     None,
                     *line,
+                    generics,
                 )?;
             }
             crate::codeblock_parser::Nodes::Block { body, line } => {
@@ -2757,6 +2884,7 @@ fn get_scope(
                     &mut max_scope_len,
                     None,
                     *line,
+                    generics,
                 )?;
                 // save expr to stack
                 let pos = create_var_pos(&other_scopes);
@@ -2800,6 +2928,7 @@ fn get_scope(
                         &mut max_scope_len,
                         None,
                         *line,
+                        generics,
                     )?;
                     let (scope, terminator) = open_scope!(&case.1, &mut block_code);
                     if terminator != ScopeTerminator::Return {
@@ -2871,7 +3000,8 @@ fn get_scope(
                             &mut max_scope_len,
                             ExpectedValueType::Pointer,
                             None,
-                        )?;
+                        generics,
+                    )?;
                         match pos {
                             Position::Variable(var, _) => {
                                 let var = match find_var(other_scopes, &var) {
@@ -2891,7 +3021,8 @@ fn get_scope(
                                     &mut max_scope_len,
                                     var.kind.clone(),
                                     *line,
-                                )?;
+                        generics,
+                    )?;
                                 if let Operators::Equal = op {
                                     conclusion_code.write(GENERAL_REG1, &var.pos);
                                 } else {
@@ -2906,6 +3037,7 @@ fn get_scope(
                                         context,
                                         &fun,
                                         &line,
+                                        generics
                                     ) {
                                         Some(_) => (),
                                         None => {
@@ -2943,7 +3075,8 @@ fn get_scope(
                                     &mut max_scope_len,
                                     Some(kind.clone()),
                                     *line,
-                                )?;
+                        generics,
+                    )?;
                                 if let Operators::Equal = op {
                                     conclusion_code.read(&temp_var, POINTER_REG);
                                     conclusion_code.extend(&[WritePtr(GENERAL_REG1)]);
@@ -2960,6 +3093,7 @@ fn get_scope(
                                         context,
                                         &fun,
                                         &line,
+                                        generics
                                     ) {
                                         Some(_) => (),
                                         None => {
@@ -3228,10 +3362,10 @@ impl Position {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct InnerPath {
-    file: String,
-    block: Option<String>,
-    ident: String,
-    kind: ImportKinds,
+    pub file: String,
+    pub block: Option<String>,
+    pub ident: String,
+    pub kind: ImportKinds,
 }
 
 impl InnerPath {
@@ -3358,15 +3492,16 @@ fn native_operand(
     context: &mut runtime_types::Context,
     fun: &InnerPath,
     line: &Line,
+    generics: &HashMap<String, Kind>
 ) -> Option<Kind> {
     use Instructions::*;
     match op {
         Operators::Plus => {
-            if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+            if left.is_number() && right.is_number() && left.cmp(right, generics).is_equal() {
                 code.extend(&[Add(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(left.clone());
-            } else if left.is_number() && right.is_number() && left.cmp(right).is_not_equal() {
-                cast(objects, left, right, code, context, fun, line, GENERAL_REG2)?;
+            } else if left.is_number() && right.is_number() && left.cmp(right, generics).is_not_equal() {
+                cast(objects, left, right, code, context, fun, line, GENERAL_REG2, generics)?;
                 code.extend(&[Add(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(right.clone());
             } else if left.is_string() && right.is_string() {
@@ -3402,6 +3537,7 @@ fn native_operand(
                     fun,
                     line,
                     GENERAL_REG2,
+                    generics
                 )?;
                 code.extend(&[Cal(CORE_LIB, 2), Move(RETURN_REG, GENERAL_REG1)]);
                 return Some(Kind {
@@ -3436,6 +3572,7 @@ fn native_operand(
                     fun,
                     line,
                     GENERAL_REG2,
+                    generics,
                 )?;
                 code.extend(&[
                     Swap(GENERAL_REG1, GENERAL_REG2),
@@ -3458,7 +3595,7 @@ fn native_operand(
             }
         }
         Operators::Minus => {
-            if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+            if left.is_number() && right.is_number() && left.cmp(right, generics).is_equal() {
                 code.extend(&[Sub(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(left.clone());
             } else {
@@ -3466,7 +3603,7 @@ fn native_operand(
             }
         }
         Operators::Star => {
-            if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+            if left.is_number() && right.is_number() && left.cmp(right, generics).is_equal() {
                 code.extend(&[Mul(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(left.clone());
             } else {
@@ -3474,7 +3611,7 @@ fn native_operand(
             }
         }
         Operators::Slash => {
-            if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+            if left.is_number() && right.is_number() && left.cmp(right, generics).is_equal() {
                 code.extend(&[Div(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(left.clone());
             } else {
@@ -3482,7 +3619,7 @@ fn native_operand(
             }
         }
         Operators::Mod => {
-            if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+            if left.is_number() && right.is_number() && left.cmp(right, generics).is_equal() {
                 code.extend(&[Mod(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(left.clone());
             } else {
@@ -3492,7 +3629,7 @@ fn native_operand(
         Operators::Equal => {
             if left.is_primitive_simple()
                 && right.is_primitive_simple()
-                && left.cmp(right).is_equal()
+                && left.cmp(right, generics).is_equal()
             {
                 code.extend(&[Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(Kind {
@@ -3511,7 +3648,7 @@ fn native_operand(
             }
         }
         Operators::AddEq => {
-            if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+            if left.is_number() && right.is_number() && left.cmp(right, generics).is_equal() {
                 code.extend(&[Add(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(left.clone());
             } else {
@@ -3519,7 +3656,7 @@ fn native_operand(
             }
         }
         Operators::SubEq => {
-            if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+            if left.is_number() && right.is_number() && left.cmp(right, generics).is_equal() {
                 code.extend(&[Sub(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(left.clone());
             } else {
@@ -3527,7 +3664,7 @@ fn native_operand(
             }
         }
         Operators::MulEq => {
-            if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+            if left.is_number() && right.is_number() && left.cmp(right, generics).is_equal() {
                 code.extend(&[Mul(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(left.clone());
             } else {
@@ -3535,7 +3672,7 @@ fn native_operand(
             }
         }
         Operators::DivEq => {
-            if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+            if left.is_number() && right.is_number() && left.cmp(right, generics).is_equal() {
                 code.extend(&[Div(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(left.clone());
             } else {
@@ -3559,7 +3696,7 @@ fn native_operand(
             }
             if left.is_primitive_simple()
                 && right.is_primitive_simple()
-                && left.cmp(right).is_equal()
+                && left.cmp(right, generics).is_equal()
             {
                 code.extend(&[Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(Kind {
@@ -3612,7 +3749,7 @@ fn native_operand(
             }
             if left.is_primitive_simple()
                 && right.is_primitive_simple()
-                && left.cmp(right).is_equal()
+                && left.cmp(right, generics).is_equal()
             {
                 code.extend(&[
                     Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1),
@@ -3636,7 +3773,7 @@ fn native_operand(
         Operators::And => {
             if left.is_primitive_simple()
                 && right.is_primitive_simple()
-                && left.cmp(right).is_equal()
+                && left.cmp(right, generics).is_equal()
             {
                 code.extend(&[And(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(Kind {
@@ -3657,7 +3794,7 @@ fn native_operand(
         Operators::Or => {
             if left.is_primitive_simple()
                 && right.is_primitive_simple()
-                && left.cmp(right).is_equal()
+                && left.cmp(right, generics).is_equal()
             {
                 code.extend(&[Or(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(Kind {
@@ -3678,7 +3815,7 @@ fn native_operand(
         Operators::Ampersant => {
             if left.is_primitive_simple()
                 && right.is_primitive_simple()
-                && left.cmp(right).is_equal()
+                && left.cmp(right, generics).is_equal()
             {
                 code.extend(&[And(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(Kind {
@@ -3699,7 +3836,7 @@ fn native_operand(
         Operators::Pipe => {
             if left.is_primitive_simple()
                 && right.is_primitive_simple()
-                && left.cmp(right).is_equal()
+                && left.cmp(right, generics).is_equal()
             {
                 code.extend(&[Or(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                 return Some(Kind {
@@ -3719,7 +3856,7 @@ fn native_operand(
         }
         Operators::AngleBracket(side) => match side {
             false => {
-                if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+                if left.is_number() && right.is_number() && left.cmp(right, generics).is_equal() {
                     code.extend(&[Less(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                     return Some(Kind {
                         body: TypeBody::Type {
@@ -3737,7 +3874,7 @@ fn native_operand(
                 }
             }
             true => {
-                if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+                if left.is_number() && right.is_number() && left.cmp(right, generics).is_equal() {
                     code.extend(&[Grt(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
                     return Some(Kind {
                         body: TypeBody::Type {
@@ -3756,7 +3893,7 @@ fn native_operand(
             }
         },
         Operators::LessEq => {
-            if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+            if left.is_number() && right.is_number() && left.cmp(right, generics).is_equal() {
                 code.extend(&[
                     Grt(GENERAL_REG2, GENERAL_REG1, GENERAL_REG1),
                     Not(GENERAL_REG1, GENERAL_REG1),
@@ -3777,7 +3914,7 @@ fn native_operand(
             }
         }
         Operators::MoreEq => {
-            if left.is_number() && right.is_number() && left.cmp(right).is_equal() {
+            if left.is_number() && right.is_number() && left.cmp(right, generics).is_equal() {
                 code.extend(&[
                     Less(GENERAL_REG2, GENERAL_REG1, GENERAL_REG1),
                     Not(GENERAL_REG1, GENERAL_REG1),
@@ -3811,6 +3948,7 @@ fn native_unary_operand(
     fun: &InnerPath,
     line: &Line,
     register: usize,
+    generics: &HashMap<String, Kind>
 ) -> Result<Kind, CodegenError> {
     use Instructions::*;
     if op.is_none() {
@@ -3838,6 +3976,7 @@ fn native_unary_operand(
                     fun,
                     line,
                     register,
+                    generics,
                 )
                 .is_none()
                 {
@@ -3898,6 +4037,7 @@ fn cast(
     _fun: &InnerPath,
     _line: &Line,
     register: usize,
+    generics: &HashMap<String, Kind>
 ) -> Option<()> {
     use Instructions::*;
     if
@@ -3911,7 +4051,7 @@ fn cast(
     if to.is_null() && from.get_nullable() {
         return None;
     }
-    if from.cmp(to).is_equal() {
+    if from.cmp(to, generics).is_equal() {
         return Some(());
     }
     if from.is_primitive_simple() && to.is_primitive_simple() {
@@ -3951,7 +4091,27 @@ fn correct_kind(
     _kind: &Kind,
     fun: &InnerPath,
     line: &Line,
+    generics: &HashMap<String, Kind>,
 ) -> Result<Kind, CodegenError> {
+    match &_kind.body {
+        TypeBody::Type { refs, main, nullable, kind, .. } => {
+            if main.len() == 1 {
+                if let Some(_kind) = generics.get(&main[0]) {
+                    if let TypeBody::Generic { identifier: _ident, constraints: _constr, refs: _refs, nullable: _nullable } = &_kind.body {
+                        return Ok(Kind {
+                            body: TypeBody::Generic { identifier: _ident.clone(), constraints: _constr.clone(), refs: *_refs, nullable: *_nullable },
+                            line: line.clone(),
+                            file: Some(fun.file.clone()),
+                            .._kind.clone()
+                        });
+                    }else {
+                        unreachable!("this is a bug in the compiler, please report it");
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
     if _kind.is_primitive() {
         let mut kind = _kind.clone();
         *kind.kind_mut() = dictionary::KindType::Primitive;
@@ -4015,7 +4175,7 @@ fn get_kind(objects: &Context, location: &InnerPath, line: &Line) -> Result<Kind
                 return Ok(Kind::from_enum(enumm, location.file.clone()));
             }
         }
-    return Err(CodegenError::KindNotFound(
+        return Err(CodegenError::KindNotFound(
             location.ident.clone(),
             line.clone(),
         ));
@@ -4023,7 +4183,7 @@ fn get_kind(objects: &Context, location: &InnerPath, line: &Line) -> Result<Kind
     let file = match objects.1.get(&location.file) {
         Some(f) => f,
         None => {
-    return Err(CodegenError::KindNotFound(
+            return Err(CodegenError::KindNotFound(
                 location.ident.clone(),
                 line.clone(),
             ));
