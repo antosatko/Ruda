@@ -2,20 +2,18 @@ import "#io"
 import "#fs"
 import "#string"
 
-import "danda.rd"
+import "danda.rd" as d
 
 
-fun a<T>(arg: T): T? {
-    return null
+fun a(): int<aaa> {
+    return 0
+}
+
+fun b(arg: int<aaa>): d.Danda<cccc> {
+    return d.Danda(6)
 }
 
 
 fun main() {
-    let b = a(1)
-    io.println(b)
-
-    let arr = [1, 6, 9]
-    arr.push(3)
-
-    io.println(arr.len())
+    io.println(b(a()))
 }

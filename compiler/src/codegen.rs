@@ -9,7 +9,7 @@ use runtime::runtime_types::{
 
 use crate::codeblock_parser::Nodes;
 use crate::expression_parser::{self, ArrayRule, FunctionCall, Root, ValueType};
-use crate::intermediate::dictionary::{self, Arg, ConstValue, Function, TypeComparison};
+use crate::intermediate::dictionary::{self, Arg, ConstValue, Function, TypeComparison, GenericDecl};
 use crate::intermediate::{Kind, TypeBody};
 use crate::lexer::tokenizer::{self, Operators};
 use crate::tree_walker::tree_walker::Line;
@@ -174,7 +174,7 @@ fn gen_all_funs(
                     .unwrap(),
                 kind: ImportKinds::Rd,
             };
-            gen_fun(objects, &fun, context, false)?;
+            gen_fun(objects, &fun, context, false, None)?;
         }
         for structt in 0..objects.0.get(&file).unwrap().structs.len() {
             let path = InnerPath {
@@ -206,7 +206,16 @@ fn gen_all_funs(
                         fun_path.ident = path.block.clone().unwrap();
                     }
                 }
-                gen_fun(objects, &fun_path, context, is_constructor)?;
+                let structt = objects
+                    .0
+                    .get(&file)
+                    .unwrap()
+                    .structs
+                    .iter()
+                    .find(|struc| struc.identifier == path.block.clone().unwrap())
+                    .clone()
+                    .unwrap();
+                gen_fun(objects, &fun_path, context, is_constructor, Some(structt.generics.clone()))?;
             }
         }
     }
@@ -280,10 +289,19 @@ fn gen_fun<'a>(
     fun: &'a InnerPath,
     context: &'a mut runtime_types::Context,
     is_constructor: bool,
+    self_generics: Option<Vec<GenericDecl>>,
 ) -> Result<bool, CodegenError> {
     let mut generics: HashMap<String, Kind> = HashMap::new();
     let this_fun = fun.get(objects)?;
-    for generic in this_fun.generics.iter() {
+    let mut generics_ = this_fun.generics.clone();
+    let gens = match self_generics {
+        Some(generics) => {
+            generics_.extend(generics);
+            &generics_
+        }
+        None => &this_fun.generics,
+    };
+    for generic in gens {
         let mut constraints = Vec::new();
         for constraint in generic.traits.iter() {
             let mut path = InnerPath {
@@ -325,7 +343,8 @@ fn gen_fun<'a>(
             },
         );
     }
-    let mut code = Code { code: Vec::new() };
+    println!("generics: {:?}", generics);
+    let mut code = Code::new();
     let mut args_scope_len = 0;
     let mut scopes = vec![ScopeCached {
         variables: HashMap::new(),
@@ -404,7 +423,7 @@ fn gen_fun<'a>(
         code.extend(&[Instructions::AllocateStatic(structt.fields.len() + 1)]);
         code.write(POINTER_REG, &pos);
     }
-    let scope_len = {
+    let mut scope_len = {
         let (scope_len, terminator) = get_scope(
             objects,
             &this_fun.code.clone(),
@@ -434,6 +453,7 @@ fn gen_fun<'a>(
     code.push(Instructions::Return);
     let mut args_code = Code {
         code: vec![Instructions::ReserveStack(scope_len, 0)],
+        stops: vec![],
     };
     for (idx, _) in scopes[0].variables.iter().enumerate() {
         args_code.extend(&[
@@ -443,10 +463,10 @@ fn gen_fun<'a>(
             Instructions::Write(scope_len - idx, GENERAL_REG1),
         ]);
     }
-    let mut temp = Vec::new();
-    merge_code(&mut temp, &args_code.code, scope_len);
-    merge_code(&mut temp, &code.code, scope_len);
-    let pos = merge_code(&mut context.code.data, &temp, scope_len);
+    let mut temp = Code::new();
+    merge_code(&mut temp, &args_code, scope_len);
+    merge_code(&mut temp, &code, scope_len);
+    let pos = merge_buffer(&mut context.code.data, &temp.code, &mut scope_len);
     let this_fun = fun.get_mut(objects)?;
     this_fun.location = pos.0;
     this_fun.instrs_end = pos.1;
@@ -1029,6 +1049,9 @@ fn identify_root(
                     userdata.line,
                 )));
             }
+            println!("ident: {}", ident);
+            println!("file: {}", file);
+            println!("line: {}", line);
             Err(CodegenError::VariableNotFound(
                 ident.to_string(),
                 line.clone(),
@@ -2210,7 +2233,7 @@ fn call_binary(
         _ => (),
     }
     let lib_id = objects.1.get(&fun.file).unwrap().id;
-    let mut temp_code = Code { code: Vec::new() };
+    let mut temp_code = Code::new();
     // setup arguments (stack is not needed)
     let args_len = fun.get_bin(objects)?.args.len();
     let mut args = Vec::new();
@@ -2263,7 +2286,7 @@ fn call_binary(
                         scopes,
                         &mut temp_code,
                         context,
-                        &fun,
+                        &this,
                         scope_len,
                         Some(kind.clone()),
                         line.clone(),
@@ -2277,7 +2300,7 @@ fn call_binary(
                         scopes,
                         &mut temp_code,
                         context,
-                        &fun,
+                        &this,
                         scope_len,
                         None,
                         line.clone(),
@@ -2293,7 +2316,7 @@ fn call_binary(
                 scopes,
                 &mut temp_code,
                 context,
-                &fun,
+                &this,
                 scope_len,
                 Some(arg.1.clone().1),
                 line.clone(),
@@ -2336,7 +2359,7 @@ fn call_binary(
         Unfreeze,
         Move(RETURN_REG, GENERAL_REG1),
     ]);
-    merge_code(&mut code.code, &temp_code.code, *scope_len);
+    merge_code(code, &temp_code, *scope_len);
     let return_kind = called_fun.return_type.clone();
     if let TypeBody::Generic { identifier, .. } = &return_kind.body {
         if let Some(kind) = generics_map.get(identifier) {
@@ -2377,7 +2400,7 @@ fn call_fun(
             generic.clone(),
         );
     }
-    let mut temp_code = Code { code: Vec::new() };
+    let mut temp_code = Code::new();
     *scope_len += 1;
     let obj = create_var_pos(scopes);
     let scopes_len = scopes.len();
@@ -2502,7 +2525,7 @@ fn call_fun(
         Unfreeze,
         Move(RETURN_REG, GENERAL_REG1),
     ]);
-    merge_code(&mut code.code, &temp_code.code, *scope_len);
+    merge_code(code, &temp_code, *scope_len);
     let return_kind = match called_fun.return_type.clone() {
         Some(kind) => {
             if let TypeBody::Generic { identifier, .. } = &kind.body {
@@ -2742,8 +2765,8 @@ fn get_scope(
                 use Instructions::*;
                 let mut all_end_with_return = true;
                 // if
-                let mut expr_code = Code { code: Vec::new() };
-                let mut block_code = Code { code: Vec::new() };
+                let mut expr_code = Code::new();
+                let mut block_code = Code::new();
                 let mut gotos = Vec::new();
                 expression(
                     objects,
@@ -2768,8 +2791,8 @@ fn get_scope(
                 // elifs
                 let mut elifs = Vec::new();
                 for elif in elif {
-                    let mut expr_code = Code { code: Vec::new() };
-                    let mut block_code = Code { code: Vec::new() };
+                    let mut expr_code = Code::new();
+                    let mut block_code = Code::new();
                     expression(
                         objects,
                         &elif.0,
@@ -2795,34 +2818,34 @@ fn get_scope(
                 // else
                 let elsse = match els {
                     Some(els) => {
-                        let mut block_code = Code { code: Vec::new() };
+                        let mut block_code = Code::new();
                         let (scope, terminator) = open_scope!(&els.0, &mut block_code);
                         if terminator != ScopeTerminator::Return {
                             all_end_with_return = false;
                         }
                         (block_code, scope)
                     }
-                    None => (Code { code: Vec::new() }, 0),
+                    None => (Code::new(), 0),
                 };
                 // merge
-                let mut buffer = Vec::new();
+                let mut buffer = Code::new();
                 block_code.push(Goto(0));
-                merge_code(&mut buffer, &expr_code.code, scope);
-                merge_code(&mut buffer, &block_code.code, scope);
-                gotos.push(buffer.len() - 1);
+                merge_code(&mut buffer, &expr_code, scope);
+                merge_code(&mut buffer, &block_code, scope);
+                gotos.push(buffer.code.len() - 1);
                 for (expr_code, mut block_code, scope) in elifs {
                     block_code.push(Goto(0));
-                    merge_code(&mut buffer, &expr_code.code, scope);
-                    merge_code(&mut buffer, &block_code.code, scope);
-                    gotos.push(buffer.len() - 1);
+                    merge_code(&mut buffer, &expr_code, scope);
+                    merge_code(&mut buffer, &block_code, scope);
+                    gotos.push(buffer.code.len() - 1);
                 }
-                merge_code(&mut buffer, &elsse.0.code, elsse.1);
+                merge_code(&mut buffer, &elsse.0, elsse.1);
                 // fix gotos
-                for goto in &gotos {
-                    buffer[*goto] = Goto(buffer.len());
+                for goto in gotos {
+                    buffer.code[goto] = Goto(buffer.code.len());
                 }
                 // append
-                merge_code(&mut code.code, &buffer, scope);
+                merge_code(code, &buffer, scope);
                 if all_end_with_return && els.is_some() {
                     return Ok((max_scope_len, ScopeTerminator::Return));
                 }
@@ -2831,8 +2854,8 @@ fn get_scope(
                 cond, body, line, ..
             } => {
                 use Instructions::*;
-                let mut expr_code = Code { code: Vec::new() };
-                let mut block_code = Code { code: Vec::new() };
+                let mut expr_code = Code::new();
+                let mut block_code = Code::new();
                 let kind = expression(
                     objects,
                     cond,
@@ -2853,11 +2876,11 @@ fn get_scope(
                     expr_code.code.len() + 1,
                     expr_code.code.len() + block_code.code.len() + 2,
                 ));
-                let mut buffer = Vec::new();
-                merge_code(&mut buffer, &expr_code.code, scope);
-                merge_code(&mut buffer, &block_code.code, scope);
+                let mut buffer = Code::new();
+                merge_code(&mut buffer, &expr_code, scope);
+                merge_code(&mut buffer, &block_code, scope);
                 buffer.push(Goto(0));
-                merge_code(&mut code.code, &buffer, scope);
+                merge_code(code, &buffer, scope);
                 if terminator != ScopeTerminator::None {
                     return Ok((max_scope_len, ScopeTerminator::Return));
                 }
@@ -2871,7 +2894,7 @@ fn get_scope(
             } => todo!(),
             crate::codeblock_parser::Nodes::Return { expr, line } => {
                 use Instructions::*;
-                let mut expr_code = Code { code: Vec::new() };
+                let mut expr_code = Code::new();
                 let kind = match expr {
                     Some(expr) => {
                         let kind = expression(
@@ -2934,7 +2957,7 @@ fn get_scope(
                     ));
                 }
                 expr_code.push(Instructions::Return);
-                merge_code(&mut code.code, &expr_code.code, 0);
+                merge_code(code, &expr_code, 0);
                 return Ok((max_scope_len, ScopeTerminator::Return));
             }
             crate::codeblock_parser::Nodes::Expr { expr, line } => {
@@ -2961,12 +2984,12 @@ fn get_scope(
                 todo!()
             }
             crate::codeblock_parser::Nodes::Continue { line, ident } => todo!(),
-            crate::codeblock_parser::Nodes::Loop { body, ident, .. } => {
+            crate::codeblock_parser::Nodes::Loop { body, ident, line: _ } => {
                 use Instructions::*;
-                let mut temp_code = Code { code: Vec::new() };
+                let mut temp_code = Code::new();
                 let scope = open_scope!(body, &mut temp_code);
                 temp_code.push(Goto(0));
-                merge_code(&mut code.code, &temp_code.code, scope.0);
+                merge_code(code, &temp_code, scope.0);
                 if scope.1 != ScopeTerminator::None {
                     return Ok((max_scope_len, ScopeTerminator::Return));
                 }
@@ -2986,7 +3009,7 @@ fn get_scope(
             } => {
                 todo!("stack offset is not correct, this needs fix");
                 use Instructions::*;
-                let mut expr_code = Code { code: Vec::new() };
+                let mut expr_code = Code::new();
                 let mut all_return = true;
                 expression(
                     objects,
@@ -3017,10 +3040,10 @@ fn get_scope(
                 if body.len() == 0 {
                     match default {
                         Some(default) => {
-                            let mut block_code = Code { code: Vec::new() };
+                            let mut block_code = Code::new();
                             let (_, terminator) = open_scope!(default, &mut block_code);
-                            merge_code(&mut code.code, &expr_code.code, 0);
-                            merge_code(&mut code.code, &block_code.code, 0);
+                            merge_code(&mut code, &expr_code, 0);
+                            merge_code(&mut code, &block_code, 0);
                             return Ok((max_scope_len, terminator));
                         }
                         None => Err(CodegenError::SwitchWithoutCases(line.clone()))?,
@@ -3030,8 +3053,8 @@ fn get_scope(
                 // body
                 let mut cases = Vec::new();
                 for case in body {
-                    let mut expr_code = Code { code: Vec::new() };
-                    let mut block_code = Code { code: Vec::new() };
+                    let mut expr_code = Code::new();
+                    let mut block_code = Code::new();
                     expression(
                         objects,
                         &case.0,
@@ -3068,7 +3091,7 @@ fn get_scope(
                     + expr_code.code.len();
                 // default
                 let defualt = if let Some(default) = default {
-                    let mut block_code = Code { code: Vec::new() };
+                    let mut block_code = Code::new();
                     let (_, terminator) = open_scope!(default, &mut block_code);
                     if terminator != ScopeTerminator::Return {
                         all_return = false;
@@ -3076,17 +3099,17 @@ fn get_scope(
                     total_len += block_code.code.len();
                     block_code
                 } else {
-                    Code { code: Vec::new() }
+                    Code::new()
                 };
                 // merge
-                let mut buffer = Vec::new();
+                let mut buffer = Code::new();
                 for (expr_code, block_code, scope) in cases.iter_mut() {
                     block_code.push(Goto(total_len + 1)); // +1 because of the goto itself
-                    merge_code(&mut buffer, &expr_code.code, *scope);
-                    merge_code(&mut buffer, &block_code.code, *scope);
+                    merge_code(&mut buffer, &expr_code, *scope);
+                    merge_code(&mut buffer, &block_code, *scope);
                 }
-                merge_code(&mut buffer, &defualt.code, largest_scope);
-                merge_code(&mut code.code, &buffer, 0);
+                merge_code(&mut buffer, &defualt, largest_scope);
+                merge_code(&mut code, &buffer, 0);
                 if all_return {
                     return Ok((max_scope_len, ScopeTerminator::Return));
                 }
@@ -3099,9 +3122,9 @@ fn get_scope(
                 line,
             } => {
                 use Instructions::*;
-                let mut expr_code = Code { code: Vec::new() };
-                let mut target_code = Code { code: Vec::new() };
-                let mut conclusion_code = Code { code: Vec::new() };
+                let mut expr_code = Code::new();
+                let mut target_code = Code::new();
+                let mut conclusion_code = Code::new();
                 match target {
                     ValueType::Value(val) => {
                         let pos = gen_value(
@@ -3160,9 +3183,9 @@ fn get_scope(
                                     };
                                     conclusion_code.write(GENERAL_REG1, &var.pos);
                                 }
-                                merge_code(&mut code.code, &target_code.code, 0);
-                                merge_code(&mut code.code, &expr_code.code, 0);
-                                merge_code(&mut code.code, &conclusion_code.code, 0);
+                                merge_code(code, &target_code, 0);
+                                merge_code(code, &expr_code, 0);
+                                merge_code(code, &conclusion_code, 0);
                             }
                             Position::Pointer(kind) => {
                                 // save pointer to temp var
@@ -3218,9 +3241,9 @@ fn get_scope(
                                     conclusion_code.extend(&[WritePtr(GENERAL_REG1)]);
                                 }
 
-                                merge_code(&mut code.code, &target_code.code, 0);
-                                merge_code(&mut code.code, &expr_code.code, 0);
-                                merge_code(&mut code.code, &conclusion_code.code, 0);
+                                merge_code(code, &target_code, 0);
+                                merge_code(code, &expr_code, 0);
+                                merge_code(code, &conclusion_code, 0);
                             }
                             _ => todo!(),
                         }
@@ -3255,10 +3278,38 @@ fn try_get_const_val() -> Option<ConstValue> {
 
 /// returns starting point and length of appended code
 fn merge_code(
-    buffer: &mut Vec<Instructions>,
-    new_code: &Vec<Instructions>,
+    buffer: &mut Code,
+    new_code: &Code,
     _scope_len: usize,
 ) -> (usize, usize) {
+    let start = buffer.code.len();
+    let mut new_stops = new_code.stops.clone();
+    for (position, kind) in new_stops.iter_mut() {
+        *position += start;
+    }
+    buffer.stops.extend(new_stops);
+    buffer.code.reserve(new_code.code.len());
+    let instrs = buffer.code.len();
+    for instr in &new_code.code {
+        use Instructions::*;
+        let instr = match instr {
+            Goto(idx) => {
+                let idx = idx + instrs;
+                Goto(idx)
+            }
+            Branch(pos1, pos2) => {
+                let pos1 = pos1 + instrs;
+                let pos2 = pos2 + instrs;
+                Branch(pos1, pos2)
+            }
+            _ => instr.clone(),
+        };
+        buffer.push(instr);
+    }
+    (start, buffer.code.len())
+}
+
+pub fn merge_buffer(buffer: &mut Vec<Instructions>, new_code: &Vec<Instructions>, scope_len: &mut usize) -> (usize, usize) {
     let start = buffer.len();
     buffer.reserve(new_code.len());
     let instrs = buffer.len();
@@ -3266,15 +3317,15 @@ fn merge_code(
         use Instructions::*;
         let instr = match instr {
             Goto(idx) => {
-                let idx = *idx + instrs;
+                let idx = idx + instrs;
                 Goto(idx)
             }
             Branch(pos1, pos2) => {
-                let pos1 = *pos1 + instrs;
-                let pos2 = *pos2 + instrs;
+                let pos1 = pos1 + instrs;
+                let pos2 = pos2 + instrs;
                 Branch(pos1, pos2)
             }
-            _ => *instr,
+            _ => instr.clone(),
         };
         buffer.push(instr);
     }
@@ -3376,9 +3427,16 @@ struct Variable {
 
 struct Code {
     pub code: Vec<Instructions>,
+    pub stops: Vec<(usize, CodeStops)>,
 }
 
 impl Code {
+    pub fn new() -> Self {
+        Code {
+            code: Vec::new(),
+            stops: Vec::new(),
+        }
+    }
     pub fn read(&mut self, from: &MemoryTypes, to: usize) {
         match from {
             MemoryTypes::Stack(n) => {
@@ -4357,4 +4415,11 @@ fn get_kind(objects: &Context, location: &InnerPath, line: &Line) -> Result<Kind
 pub enum ExpectedValueType {
     Value,
     Pointer,
+}
+
+
+#[derive(Debug, Clone)]
+pub enum CodeStops {
+    Break(Option<String>),
+    Continue(Option<String>),
 }

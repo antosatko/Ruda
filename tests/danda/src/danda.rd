@@ -1,14 +1,9 @@
 import "#io"
 
-struct Danda {
-    a: float
+struct Danda<T> {
+    a: int
 
-    new (a: float) {
+    new (a: int) {
         self.a = a
-    }
-
-    fun add(self, b: float): float {
-        io.println(self.a)
-        return self.a + b
     }
 }

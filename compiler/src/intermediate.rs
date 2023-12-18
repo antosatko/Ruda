@@ -915,9 +915,7 @@ pub mod dictionary {
     }
     pub fn get_generics_decl<'a>(node: &'a Node, errors: &mut Vec<ErrType>) -> Vec<GenericDecl> {
         let mut generics = Vec::new();
-        println!("{:?} {} {:?}", node.nodes.keys(), node.line, node.data);
         if let Some(arr) = try_step_inside_arr(step_inside_val(&node, "generic"), "identifiers") {
-            println!("good");
             for generic in arr {
                 let mut traits = Vec::new();
                 for ident in step_inside_arr(generic, "traits") {
@@ -1658,12 +1656,6 @@ pub mod dictionary {
                 }
             }*/
             if self.file != other.file && !self.is_primitive() && !other.is_primitive() {
-                println!("{} != {}", display_simple!(self), display_simple!(other));
-                println!(
-                    "{} != {}",
-                    self.file.as_ref().unwrap(),
-                    other.file.as_ref().unwrap()
-                );
                 return TypeComparison::NotEqual;
             }
             TypeComparison::Equal
@@ -2215,7 +2207,12 @@ impl std::fmt::Debug for Kind {
                 for _ in 0..*refs {
                     write!(f, "&")?;
                 }
-                write!(f, "{:?}", main)?;
+                for (i, part) in main.iter().enumerate() {
+                    write!(f, "{}", part)?;
+                    if i != main.len() - 1 {
+                        write!(f, ".")?;
+                    }
+                }
                 if !generics.is_empty() {
                     write!(f, "<")?;
                     for (i, gen) in generics.iter().enumerate() {
@@ -2241,14 +2238,14 @@ impl std::fmt::Debug for Kind {
                 }
                 write!(f, "{}", identifier)?;
                 if !constraints.is_empty() {
-                    write!(f, "<")?;
+                    write!(f, "(")?;
                     for (i, gen) in constraints.iter().enumerate() {
                         write!(f, "{}", gen.ident)?;
                         if i != constraints.len() - 1 {
                             write!(f, ", ")?;
                         }
                     }
-                    write!(f, ">")?;
+                    write!(f, ")")?;
                 }
                 if *nullable {
                     write!(f, "?")?;
@@ -2260,14 +2257,16 @@ impl std::fmt::Debug for Kind {
                 refs,
                 nullable,
             } => {
+                for _ in 0..*refs {
+                    write!(f, "&")?;
+                }
                 write!(f, "[{:?}; {}]", type_, size)?;
                 if *nullable {
                     write!(f, "?")?;
                 }
-                write!(f, " refs: {}", refs)?;
             }
             TypeBody::Void => {
-                write!(f, "void")?;
+                write!(f, "*void*")?;
             }
         }
         Ok(())
@@ -2471,7 +2470,6 @@ impl Kind {
     }
 
     pub fn cmp(&self, other: &Self, generics: &HashMap<String, Kind>) -> TypeComparison {
-        println!("{:?} == {:?}", self, other);
         match &self.body {
             TypeBody::Function {
                 args,
