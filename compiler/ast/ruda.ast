@@ -244,7 +244,7 @@ break;
 "
 KWBreak expression identifier
 	"break" harderr="true"
-	"'string" set="identifier"
+	"'string" ? set="identifier"
 	;?;
 
 
@@ -253,7 +253,7 @@ continue;
 "
 KWContinue identifier
 	"continue" harderr="true"
-	"'string" set="identifier"
+	"'string" ? set="identifier"
 	;?;
 
 

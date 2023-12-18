@@ -15,5 +15,15 @@ fun b(arg: int<aaa>): d.Danda<cccc> {
 
 
 fun main() {
-    io.println(b(a()))
+    let i = 0
+    while "ahoj": true {
+        i += 1;
+        if i == 5 {
+            continue "ahoj"
+        }
+        if i == 10 {
+            break "ahoj"
+        }
+        io.println(i)
+    }
 }

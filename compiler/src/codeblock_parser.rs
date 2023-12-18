@@ -54,7 +54,7 @@ pub fn node_from_node(
                 })
             }
             "KWBreak" => Some(Nodes::Break { line: node.line, ident: get_break_ident(&node) }),
-            "KWContinue" => Some(Nodes::Continue { line: node.line, ident: get_loop_ident(&node) }),
+            "KWContinue" => Some(Nodes::Continue { line: node.line, ident: get_break_ident(&node) }),
             "KWLoop" => {
                 let body = generate_tree(step_inside_val(&node, "code"), errors, file_name);
                 let ident = get_loop_ident(&node);

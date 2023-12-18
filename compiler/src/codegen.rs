@@ -9,7 +9,9 @@ use runtime::runtime_types::{
 
 use crate::codeblock_parser::Nodes;
 use crate::expression_parser::{self, ArrayRule, FunctionCall, Root, ValueType};
-use crate::intermediate::dictionary::{self, Arg, ConstValue, Function, TypeComparison, GenericDecl};
+use crate::intermediate::dictionary::{
+    self, Arg, ConstValue, Function, GenericDecl, TypeComparison,
+};
 use crate::intermediate::{Kind, TypeBody};
 use crate::lexer::tokenizer::{self, Operators};
 use crate::tree_walker::tree_walker::Line;
@@ -215,7 +217,13 @@ fn gen_all_funs(
                     .find(|struc| struc.identifier == path.block.clone().unwrap())
                     .clone()
                     .unwrap();
-                gen_fun(objects, &fun_path, context, is_constructor, Some(structt.generics.clone()))?;
+                gen_fun(
+                    objects,
+                    &fun_path,
+                    context,
+                    is_constructor,
+                    Some(structt.generics.clone()),
+                )?;
             }
         }
     }
@@ -273,6 +281,7 @@ pub enum CodegenError {
     CannotCastNull(Kind, Line),
     SwitchWithoutCases(Line),
     IncorrectNumberOfGenerics(usize, usize, Line),
+    UnresolvedInstructionStops(Vec<CodeStop>),
 }
 
 pub fn stringify(
@@ -343,7 +352,6 @@ fn gen_fun<'a>(
             },
         );
     }
-    println!("generics: {:?}", generics);
     let mut code = Code::new();
     let mut args_scope_len = 0;
     let mut scopes = vec![ScopeCached {
@@ -467,6 +475,9 @@ fn gen_fun<'a>(
     merge_code(&mut temp, &args_code, scope_len);
     merge_code(&mut temp, &code, scope_len);
     let pos = merge_buffer(&mut context.code.data, &temp.code, &mut scope_len);
+    if temp.unresolved() {
+        Err(CodegenError::UnresolvedInstructionStops(temp.stops))?;
+    }
     let this_fun = fun.get_mut(objects)?;
     this_fun.location = pos.0;
     this_fun.instrs_end = pos.1;
@@ -2851,7 +2862,10 @@ fn get_scope(
                 }
             }
             crate::codeblock_parser::Nodes::While {
-                cond, body, line, ..
+                cond,
+                body,
+                line,
+                ident,
             } => {
                 use Instructions::*;
                 let mut expr_code = Code::new();
@@ -2880,6 +2894,41 @@ fn get_scope(
                 merge_code(&mut buffer, &expr_code, scope);
                 merge_code(&mut buffer, &block_code, scope);
                 buffer.push(Goto(0));
+                // resolve breaks
+                let mut i = 0;
+                while i < buffer.stops.len() {
+                    let identifier = match &buffer.stops[i].kind {
+                        CodeStops::Break(ident) => ident,
+                        _ => {
+                            i += 1;
+                            continue;
+                        }
+                    };
+                    if identifier != ident {
+                        i += 1;
+                        continue;
+                    }
+                    buffer.code[buffer.stops[i].pos] = Goto(buffer.code.len());
+                    buffer.stops.remove(i);
+                }
+                // resolve continues
+                i = 0;
+                while i < buffer.stops.len() {
+                    let identifier = match &buffer.stops[i].kind {
+                        CodeStops::Continue(ident) => ident,
+                        _ => {
+                            i += 1;
+                            continue;
+                        }
+                    };
+                    if identifier != ident {
+                        i += 1;
+                        continue;
+                    }
+                    buffer.code[buffer.stops[i].pos] = Goto(0);
+                    buffer.stops.remove(i);
+                }
+
                 merge_code(code, &buffer, scope);
                 if terminator != ScopeTerminator::None {
                     return Ok((max_scope_len, ScopeTerminator::Return));
@@ -2981,14 +3030,72 @@ fn get_scope(
                 }
             }
             crate::codeblock_parser::Nodes::Break { line, ident } => {
-                todo!()
+                use Instructions::*;
+                let mut temp_code = Code::new();
+                temp_code.push(Goto(0));
+                temp_code.stops.push(CodeStop {
+                    pos: temp_code.code.len() - 1,
+                    kind: CodeStops::Break(ident.clone()),
+                    line: line.clone(),
+                });
+                merge_code(code, &temp_code, 0);
+                return Ok((max_scope_len, ScopeTerminator::Break));
             }
-            crate::codeblock_parser::Nodes::Continue { line, ident } => todo!(),
-            crate::codeblock_parser::Nodes::Loop { body, ident, line: _ } => {
+            crate::codeblock_parser::Nodes::Continue { line, ident } => {
+                use Instructions::*;
+                let mut temp_code = Code::new();
+                temp_code.push(Goto(0));
+                temp_code.stops.push(CodeStop {
+                    pos: temp_code.code.len() - 1,
+                    kind: CodeStops::Continue(ident.clone()),
+                    line: line.clone(),
+                });
+                merge_code(code, &temp_code, 0);
+                return Ok((max_scope_len, ScopeTerminator::Continue));
+            }
+            crate::codeblock_parser::Nodes::Loop {
+                body,
+                ident,
+                line: _,
+            } => {
                 use Instructions::*;
                 let mut temp_code = Code::new();
                 let scope = open_scope!(body, &mut temp_code);
                 temp_code.push(Goto(0));
+                let mut i = 0;
+                // resolve breaks
+                while i < temp_code.stops.len() {
+                    let identifier = match &temp_code.stops[i].kind {
+                        CodeStops::Break(ident) => ident,
+                        _ => {
+                            i += 1;
+                            continue;
+                        }
+                    };
+                    if identifier != ident {
+                        i += 1;
+                        continue;
+                    }
+                    temp_code.code[temp_code.stops[i].pos] = Goto(temp_code.code.len());
+                    temp_code.stops.remove(i);
+                }
+                // resolve continues
+                i = 0;
+                while i < temp_code.stops.len() {
+                    let identifier = match &temp_code.stops[i].kind {
+                        CodeStops::Continue(ident) => ident,
+                        _ => {
+                            i += 1;
+                            continue;
+                        }
+                    };
+                    if identifier != ident {
+                        i += 1;
+                        continue;
+                    }
+                    temp_code.code[temp_code.stops[i].pos] = Goto(0);
+                    temp_code.stops.remove(i);
+                }
                 merge_code(code, &temp_code, scope.0);
                 if scope.1 != ScopeTerminator::None {
                     return Ok((max_scope_len, ScopeTerminator::Return));
@@ -3277,15 +3384,11 @@ fn try_get_const_val() -> Option<ConstValue> {
 }
 
 /// returns starting point and length of appended code
-fn merge_code(
-    buffer: &mut Code,
-    new_code: &Code,
-    _scope_len: usize,
-) -> (usize, usize) {
+fn merge_code(buffer: &mut Code, new_code: &Code, _scope_len: usize) -> (usize, usize) {
     let start = buffer.code.len();
     let mut new_stops = new_code.stops.clone();
-    for (position, kind) in new_stops.iter_mut() {
-        *position += start;
+    for stop in new_stops.iter_mut() {
+        stop.pos += start;
     }
     buffer.stops.extend(new_stops);
     buffer.code.reserve(new_code.code.len());
@@ -3309,7 +3412,11 @@ fn merge_code(
     (start, buffer.code.len())
 }
 
-pub fn merge_buffer(buffer: &mut Vec<Instructions>, new_code: &Vec<Instructions>, scope_len: &mut usize) -> (usize, usize) {
+pub fn merge_buffer(
+    buffer: &mut Vec<Instructions>,
+    new_code: &Vec<Instructions>,
+    scope_len: &mut usize,
+) -> (usize, usize) {
     let start = buffer.len();
     buffer.reserve(new_code.len());
     let instrs = buffer.len();
@@ -3427,7 +3534,7 @@ struct Variable {
 
 struct Code {
     pub code: Vec<Instructions>,
-    pub stops: Vec<(usize, CodeStops)>,
+    pub stops: Vec<CodeStop>,
 }
 
 impl Code {
@@ -3436,6 +3543,15 @@ impl Code {
             code: Vec::new(),
             stops: Vec::new(),
         }
+    }
+    pub fn unresolved(&self) -> bool {
+        for stop in self.stops.iter() {
+            match stop.kind {
+                CodeStops::Break(_) | CodeStops::Continue(_) => return true,
+                _ => (),
+            }
+        }
+        false
     }
     pub fn read(&mut self, from: &MemoryTypes, to: usize) {
         match from {
@@ -4266,8 +4382,8 @@ fn cast(
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ScopeTerminator {
     Return,
-    Break(String),
-    Continue(String),
+    Break,
+    Continue,
     Yeet,
     None,
 }
@@ -4417,6 +4533,12 @@ pub enum ExpectedValueType {
     Pointer,
 }
 
+#[derive(Debug, Clone)]
+pub struct CodeStop {
+    pub pos: usize,
+    pub line: Line,
+    pub kind: CodeStops,
+}
 
 #[derive(Debug, Clone)]
 pub enum CodeStops {
