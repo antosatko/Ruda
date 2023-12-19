@@ -44,6 +44,6 @@ fun fib2(n: uint): uint {
 
 fun main() {
     let clock = time.Clock()
-    io.println(fib(33))
+    fib(33)
     io.println(clock.elapsed())
 }
