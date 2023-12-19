@@ -465,9 +465,10 @@ fn gen_fun<'a>(
     };
     for (idx, _) in scopes[0].variables.iter().enumerate() {
         args_code.extend(&[
-            Instructions::Move(ARGS_REG, POINTER_REG),
+            /*Instructions::Move(ARGS_REG, POINTER_REG),
             Instructions::IndexStatic(idx),
-            Instructions::ReadPtr(GENERAL_REG1),
+            Instructions::ReadPtr(GENERAL_REG1),*/
+            Instructions::ReadArg(idx, GENERAL_REG1),
             Instructions::Write(scope_len - idx, GENERAL_REG1),
         ]);
     }
@@ -2248,25 +2249,11 @@ fn call_binary(
     // setup arguments (stack is not needed)
     let args_len = fun.get_bin(objects)?.args.len();
     let mut args = Vec::new();
-    *scope_len += 1;
-    let obj = create_var_pos(scopes);
-    let scopes_len = scopes.len();
-    scopes[scopes_len - 1].variables.insert(
-        scope_len.to_string(),
-        Variable {
-            kind: Some(Kind::void()),
-            pos: obj.clone(),
-            value: None,
-            line: line.clone(),
-        },
-    );
     let takes_self = fun.get_bin(objects)?.takes_self;
     let called_fun = fun.get_bin(objects)?;
     temp_code.extend(&[
         Freeze,
-        AllocateStatic(called_fun.args.len().max(call_params.args.len()) + takes_self as usize),
     ]);
-    temp_code.write(POINTER_REG, &obj);
     if called_fun.args.len() != call_params.args.len() {
         Err(CodegenError::IncorrectNumberOfArgs(
             called_fun.args.len(),
@@ -2275,8 +2262,7 @@ fn call_binary(
         ))?;
     }
     if takes_self {
-        temp_code.push(Move(RETURN_REG, GENERAL_REG1));
-        temp_code.extend(&[IndexStatic(0), WritePtr(GENERAL_REG1)])
+        temp_code.push(WriteArg(0, RETURN_REG));
     }
     for (idx, arg) in call_params
         .args
@@ -2335,10 +2321,8 @@ fn call_binary(
             )?,
         };
         args.push(kind);
-        temp_code.read(&obj, POINTER_REG);
         temp_code.extend(&[
-            IndexStatic(idx + takes_self as usize),
-            WritePtr(GENERAL_REG1),
+            WriteArg(idx + takes_self as usize, GENERAL_REG1),
         ])
     }
     // type check
@@ -2362,7 +2346,6 @@ fn call_binary(
             ));
         }
     }
-    temp_code.read(&obj, ARGS_REG);
     let called_fun = fun.get_bin(objects)?;
     // call
     temp_code.extend(&[
@@ -2412,29 +2395,10 @@ fn call_fun(
         );
     }
     let mut temp_code = Code::new();
-    *scope_len += 1;
-    let obj = create_var_pos(scopes);
-    let scopes_len = scopes.len();
-    scopes[scopes_len - 1].variables.insert(
-        scope_len.to_string(),
-        Variable {
-            kind: Some(Kind::void()),
-            pos: obj.clone(),
-            value: None,
-            line: line.clone(),
-        },
-    );
     let takes_self = called_fun.takes_self;
     temp_code.extend(&[
         Freeze,
-        AllocateStatic(
-            called_fun
-                .args
-                .len()
-                .max(call_params.args.len() + takes_self as usize),
-        ),
     ]);
-    temp_code.write(POINTER_REG, &obj);
     // setup args
     if called_fun.args.len() != call_params.args.len() {
         Err(CodegenError::IncorrectNumberOfArgs(
@@ -2444,8 +2408,7 @@ fn call_fun(
         ))?;
     }
     if takes_self {
-        temp_code.push(Move(RETURN_REG, GENERAL_REG1));
-        temp_code.extend(&[IndexStatic(0), WritePtr(GENERAL_REG1)])
+        temp_code.push(WriteArg(0, RETURN_REG));
     }
     let mut args = Vec::new();
     for (idx, arg) in call_params
@@ -2505,11 +2468,7 @@ fn call_fun(
             )?,
         };
         args.push(kind);
-        temp_code.read(&obj, POINTER_REG);
-        temp_code.extend(&[
-            IndexStatic(idx + takes_self as usize),
-            WritePtr(GENERAL_REG1),
-        ])
+        temp_code.push(WriteArg(idx + takes_self as usize, GENERAL_REG1));
     }
     // type check
     let called_fun = fun.get(objects)?;
@@ -2527,7 +2486,6 @@ fn call_fun(
             ));
         }
     }
-    temp_code.read(&obj, ARGS_REG);
     // call
     temp_code.extend(&[
         // The function may not be generated yet, so we need to jump to its id

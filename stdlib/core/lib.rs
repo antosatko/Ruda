@@ -15,18 +15,6 @@ use runtime::*;
 
 fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_error::ErrTypes> {
         let m = &mut ctx.memory;
-        macro_rules! get_args {
-            () => {
-                match m.args() {
-                    Some(args) => args,
-                    None => {
-                        return Err(runtime_error::ErrTypes::Message(format!(
-                            "Couldn't get args, this is probably a bug in the compiler",
-                        )))
-                    }
-                }
-            };
-        }
         match id {
             // core::str_cpy
             0 => {
@@ -92,13 +80,13 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             }
             // core::anyhello
             4 => {
-                let args = get_args!();
+                let args = m.args();
                 let n = args[0];
                 println!("Hello, {:?}!", n);
             }
             // core::arrlen
             5 => {
-                let this = get_args!()[0];
+                let this = m.args()[0];
                 if let Types::Pointer(u_size, PointerTypes::Object) = this {
                     return Ok(Types::Uint(m.heap.data[u_size].len()));
                 } else {
@@ -109,8 +97,8 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             }
             // core::arrpush
             6 => {
-                let this = get_args!()[0];
-                let arg = get_args!()[1];
+                let this = m.args()[0];
+                let arg = m.args()[1];
                 if let Types::Pointer(u_size, PointerTypes::Object) = this {
                     m.heap.data[u_size].push(arg.clone());
                     return Ok(Types::Void);

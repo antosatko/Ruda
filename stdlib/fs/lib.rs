@@ -19,23 +19,11 @@ use runtime::*;
 
 fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_error::ErrTypes> {
     let m = &mut ctx.memory;
-    macro_rules! get_args {
-        () => {
-            match m.args() {
-                Some(args) => args,
-                None => {
-                    return Err(runtime_error::ErrTypes::Message(format!(
-                        "Couldn't get args, this is probably a bug in the compiler",
-                    )))
-                }
-            }
-        };
-    }
     match id {
         // std::file_read
         0 => {
             use std::io::prelude::*;
-            let args = get_args!();
+            let args = m.args();
             if let Types::Pointer(u_size, PointerTypes::String) =
                 args[0]
             {
@@ -73,7 +61,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
         // std::file_write
         1 => {
             use std::io::prelude::*;
-            let args = get_args!();
+            let args = m.args();
             if let Types::Pointer(u_size, PointerTypes::String) =
                 args[0]
             {
@@ -115,7 +103,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
         2 => {
             use std::fs::OpenOptions;
             use std::io::prelude::*;
-            let args = get_args!();
+            let args = m.args();
             if let Types::Pointer(u_size, PointerTypes::String) =
                 args[0]
             {
@@ -157,7 +145,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
         // std::file_open
         // returns index of file handle
         3 => {
-            let args = get_args!();
+            let args = m.args();
             if let Types::Pointer(u_size, PointerTypes::String) =
                 args[0]
             {
@@ -183,7 +171,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
         // takes index of file handle
         // returns bool
         4 => {
-            let args = get_args!();
+            let args = m.args();
             if let Types::Pointer(u_size, PointerTypes::UserData) =
                 args[0]
             {
@@ -205,7 +193,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
         // returns string
         5 => {
             use std::io::prelude::*;
-            let args = get_args!();
+            let args = m.args();
             if let Types::Pointer(u_size, PointerTypes::UserData) =
                 args[0]
             {
@@ -316,7 +304,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
         // takes string
         // returns bool
         8 => {
-            let args = get_args!();
+            let args = m.args();
             if let Types::Pointer(u_size, PointerTypes::String) =
                 args[0]
             {

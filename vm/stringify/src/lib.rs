@@ -513,6 +513,12 @@ pub fn byte_into_string(byte: Instructions, str: &mut String) {
             s(54) + &b256str(n1, 1) + &b256str(n2, 1) + &b256str(n3, 1)
         }
         Instructions::Neg(n) => s(55) + &b256str(n, 1),
+        Instructions::WriteArg(pos /*0-15*/, reg) => {
+            s(56) + &b256str(pos, 1) + &b256str(reg, 1)
+        }
+        Instructions::ReadArg(pos /*0-15*/, reg) => {
+            s(57) + &b256str(pos, 1) + &b256str(reg, 1)
+        }
     };
     str.push_str(&append);
 }
@@ -628,6 +634,8 @@ pub fn str_into_byte(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> In
             read_number(chars, 1),
         ),
         55 => Instructions::Neg(read_number(chars, 1)),
+        56 => Instructions::WriteArg(read_number(chars, 1), read_number(chars, 1)),
+        57 => Instructions::ReadArg(read_number(chars, 1), read_number(chars, 1)),
         _ => panic!("Unknown instruction"),
     };
     byte

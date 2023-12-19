@@ -16,19 +16,7 @@ use runtime::*;
 use runtime::user_data::UserData;
 
 fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_error::ErrTypes> {
-        let _m = &mut ctx.memory;
-        macro_rules! get_args {
-            () => {
-                match _m.args() {
-                    Some(args) => args,
-                    None => {
-                        return Err(runtime_error::ErrTypes::Message(format!(
-                            "Couldn't get args, this is probably a bug in the compiler",
-                        )))
-                    }
-                }
-            };
-        }
+        let m = &mut ctx.memory;
         match id {
             // time::time
             0 => {
@@ -46,7 +34,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             }
             // time::Rng::coin
             2 => {
-                if let Types::Pointer(ud, PointerTypes::UserData) = get_args!()[0] {
+                if let Types::Pointer(ud, PointerTypes::UserData) = m.args()[0] {
                     let ud = &mut ctx.memory.user_data.data[ud];
                     let ud = Random::from_ud(ud.as_mut())?;
                     return Ok(Types::Bool(ud.rng.gen()));
@@ -54,12 +42,12 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             }
             // time::Rng::range
             3 => {
-                if let Types::Pointer(ud, PointerTypes::UserData) = get_args!()[0] {
-                    let min = match get_args!()[1] {
+                if let Types::Pointer(ud, PointerTypes::UserData) = m.args()[0] {
+                    let min = match m.args()[1] {
                         Types::Int(i) => i,
                         _ => return Err(runtime_error::ErrTypes::Message("Invalid type".to_owned())),
                     };
-                    let max = match get_args!()[2] {
+                    let max = match m.args()[2] {
                         Types::Int(i) => i,
                         _ => return Err(runtime_error::ErrTypes::Message("Invalid type".to_owned())),
                     };
@@ -70,7 +58,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             }
             // time::Rng::gen
             4 => {
-                if let Types::Pointer(ud, PointerTypes::UserData) = get_args!()[0] {
+                if let Types::Pointer(ud, PointerTypes::UserData) = m.args()[0] {
                     let ud = ctx.memory.user_data.data[ud].as_mut();
                     let ud = Random::from_ud(ud)?;
                     return Ok(Types::Float(ud.rng.gen()));
@@ -84,7 +72,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             }
             // time::Clock::reset
             6 => {
-                if let Types::Pointer(ud, PointerTypes::UserData) = get_args!()[0] {
+                if let Types::Pointer(ud, PointerTypes::UserData) = m.args()[0] {
                     let ud = ctx.memory.user_data.data[ud].as_mut();
                     let ud = Clock::from_ud(ud)?;
                     ud.note = std::time::Instant::now();
@@ -93,7 +81,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             }
             // time::Clock::elapsed
             7 => {
-                if let Types::Pointer(ud, PointerTypes::UserData) = get_args!()[0] {
+                if let Types::Pointer(ud, PointerTypes::UserData) = m.args()[0] {
                     let ud = ctx.memory.user_data.data[ud].as_mut();
                     let ud = Clock::from_ud(ud)?;
                     let elapsed = ud.note.elapsed().as_millis();

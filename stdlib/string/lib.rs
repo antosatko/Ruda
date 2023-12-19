@@ -15,22 +15,10 @@ use runtime::*;
 
 fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_error::ErrTypes> {
     let m = &mut ctx.memory;
-    macro_rules! get_args {
-        () => {
-            match m.args() {
-                Some(args) => args,
-                None => {
-                    return Err(runtime_error::ErrTypes::Message(format!(
-                        "Couldn't get args, this is probably a bug in the compiler",
-                    )))
-                }
-            }
-        };
-    }
     match id {
         // string::concat
         0 => {
-            let args = get_args!();
+            let args = m.args();
             // take two strings pointers from registers and concat them returning a new string pointer
             if let Types::Pointer(u_size, PointerTypes::String) = args[0] {
                 if let Types::Pointer(u_size2, PointerTypes::String) = args[1]
@@ -54,7 +42,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
         }
         // string::trim
         1 => {
-            let args = get_args!();
+            let args = m.args();
             // take a string pointer from registers and trim it returning a new string pointer
             if let Types::Pointer(u_size, PointerTypes::String) = args[0] {
                 let new_string = m.strings.to_str(u_size).trim().to_owned();
@@ -70,7 +58,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
         }
         // string::split
         2 => {
-            let args = get_args!();
+            let args = m.args();
             // take a string pointer from registers and split it returning a new string pointer
             // also take a string pointer from GENERAL_REG1 and split it with it
             if let Types::Pointer(u_size, PointerTypes::String) = args[0] {
@@ -99,7 +87,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
         }
         // string::clone
         3 => {
-            let args = get_args!();
+            let args = m.args();
             if let Types::Pointer(u_size, PointerTypes::String) = args[0] {
                 let str = m.strings.to_str(u_size).to_string();
                 let pos = m.strings.from_str(&str);
@@ -112,7 +100,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
         }
         // string::len
         4 => {
-            let args = get_args!();
+            let args = m.args();
             if let Types::Pointer(u_size, PointerTypes::String) = args[0] {
                 let len = m.strings.to_str(u_size).len();
                 return Ok(Types::Uint(len));
@@ -124,7 +112,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
         }
         // string::parse
         5 => {
-            let args = get_args!();
+            let args = m.args();
             if let Types::Pointer(u_size, PointerTypes::String) = args[0] {
                 let str = m.strings.to_str(u_size);
                 let num = str.parse::<f64>();

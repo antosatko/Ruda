@@ -18,22 +18,10 @@ use runtime::*;
 
 fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_error::ErrTypes> {
         let m = &mut ctx.memory;
-        macro_rules! get_args {
-            () => {
-                match m.args() {
-                    Some(args) => args,
-                    None => {
-                        return Err(runtime_error::ErrTypes::Message(format!(
-                            "Couldn't get args, this is probably a bug in the compiler",
-                        )))
-                    }
-                }
-            };
-        }
         match id {
             // std::print
             0 => {
-                let args = get_args!();
+                let args = m.args();
                 if let Types::Pointer(u_size, PointerTypes::String) =
                     args[0]
                 {
@@ -49,7 +37,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             }
             // std::println
             1 => {
-                let args = get_args!();
+                let args = m.args();
                 if let Types::Pointer(u_size, PointerTypes::String) =
                     args[0]
                 {

@@ -14,22 +14,10 @@ use runtime::runtime_types::*;
 use runtime::*;
 
 fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_error::ErrTypes> {
-        let _m = &mut ctx.memory;
-        macro_rules! get_args {
-            () => {
-                match m.args() {
-                    Some(args) => args,
-                    None => {
-                        return Err(runtime_error::ErrTypes::Message(format!(
-                            "Couldn't get args, this is probably a bug in the compiler",
-                        )))
-                    }
-                }
-            };
-        }
+        let m = &mut ctx.memory;
         match id {
             0 => {
-
+                let args = m.args();
             }
             _ => unreachable!("Invalid function id"),
         }

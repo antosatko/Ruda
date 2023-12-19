@@ -28,10 +28,7 @@ def fibonacci(n):
 def main():
     start_time = time.time()
 
-    i = 0
-    while i < 100000:
-        fibonacci(93)
-        i += 1
+    fib(33)
 
     end_time = time.time()
     elapsed_time = (end_time - start_time) * 1000  # Convert to milliseconds
