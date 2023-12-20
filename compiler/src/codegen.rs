@@ -7,6 +7,7 @@ use runtime::runtime_types::{
     GENERAL_REG3, MEMORY_REG1, POINTER_REG, RETURN_REG,
 };
 
+use crate::ast_parser::ast_parser::ArgsCon;
 use crate::codeblock_parser::Nodes;
 use crate::expression_parser::{self, ArrayRule, FunctionCall, Root, ValueType};
 use crate::intermediate::dictionary::{
@@ -472,6 +473,7 @@ fn gen_fun<'a>(
             Instructions::Write(scope_len - idx, GENERAL_REG1),
         ]);
     }
+    args_code.push(Instructions::CloseArgs);
     let mut temp = Code::new();
     merge_code(&mut temp, &args_code, scope_len);
     merge_code(&mut temp, &code, scope_len);
@@ -1320,6 +1322,7 @@ fn traverse_tail(
     scope_len: &mut usize,
     generics: &HashMap<String, Kind>,
 ) -> Result<Position, CodegenError> {
+    println!("fun: {:?}", fun);
     use Instructions::*;
     let mut return_kind = Kind::void();
     match tail.next() {
@@ -2252,6 +2255,7 @@ fn call_binary(
     let takes_self = fun.get_bin(objects)?.takes_self;
     let called_fun = fun.get_bin(objects)?;
     temp_code.extend(&[
+        OpenArgs,
         Freeze,
     ]);
     if called_fun.args.len() != call_params.args.len() {
@@ -2352,6 +2356,7 @@ fn call_binary(
         Cal(lib_id, called_fun.assign),
         Unfreeze,
         Move(RETURN_REG, GENERAL_REG1),
+        CloseArgs,
     ]);
     merge_code(code, &temp_code, *scope_len);
     let return_kind = called_fun.return_type.clone();
@@ -2397,6 +2402,7 @@ fn call_fun(
     let mut temp_code = Code::new();
     let takes_self = called_fun.takes_self;
     temp_code.extend(&[
+        OpenArgs,
         Freeze,
     ]);
     // setup args
@@ -2430,7 +2436,7 @@ fn call_fun(
                         scopes,
                         &mut temp_code,
                         context,
-                        &fun,
+                        &_this,
                         scope_len,
                         Some(kind.clone()),
                         arg.1.line,
@@ -2444,7 +2450,7 @@ fn call_fun(
                         scopes,
                         &mut temp_code,
                         context,
-                        &fun,
+                        &_this,
                         scope_len,
                         None,
                         arg.1.line,
@@ -2460,13 +2466,14 @@ fn call_fun(
                 scopes,
                 &mut temp_code,
                 context,
-                &fun,
+                &_this,
                 scope_len,
                 Some(arg.1.clone().kind),
                 arg.1.line,
                 &generics_map,
             )?,
         };
+        println!("writing arg {}, kind: {:?}", idx+takes_self as usize, kind);
         args.push(kind);
         temp_code.push(WriteArg(idx + takes_self as usize, GENERAL_REG1));
     }

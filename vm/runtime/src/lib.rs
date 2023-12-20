@@ -32,8 +32,8 @@ impl Context {
                         reg_freeze: [Types::Null; FREEZED_REG_SIZE],
                         pointers_len: 0,
                     }; CALL_STACK_SIZE],
-                    call_stack_args: [[Types::Null; MAX_ARGS]; CALL_STACK_SIZE]
                 },
+                args: Args { data: [[Types::Null; MAX_ARGS]; CALL_STACK_SIZE], ptr: 1 },
                 registers: [Types::Null; REGISTER_SIZE],
                 heap: Heap {
                     data: vec![],
@@ -1074,13 +1074,19 @@ impl Context {
                 self.next_line();
             }
             WriteArg(pos, reg) => {
-                let stack_end = self.memory.stack.ptr;
-                self.memory.stack.call_stack_args[stack_end][pos] = self.memory.registers[reg];
+                self.memory.args.data[self.memory.args.ptr][pos] = self.memory.registers[reg];
                 self.next_line();
             }
             ReadArg(pos, reg) => {
-                let stack_end = self.memory.stack.ptr;
-                self.memory.registers[reg] = self.memory.stack.call_stack_args[stack_end-1][pos];
+                self.memory.registers[reg] = self.memory.args.data[self.memory.args.ptr][pos];
+                self.next_line();
+            }
+            OpenArgs => {
+                self.memory.args.ptr += 1;
+                self.next_line();
+            }
+            CloseArgs => {
+                self.memory.args.ptr -= 1;
                 self.next_line();
             }
         }
@@ -1393,6 +1399,10 @@ impl Context {
                 self.memory.stack.data[*pos].to_str(&self.memory),
                 *pos
             ),
+            Instructions::OpenArgs => DEF,
+            Instructions::CloseArgs => {
+                format!("args: {:?}", self.memory.args.data[self.memory.args.ptr])
+            }
         };
         prepend.push_str(&val);
         prepend
@@ -1426,6 +1436,7 @@ pub mod runtime_types {
     }
     pub struct Memory {
         pub stack: Stack,
+        pub args: Args,
         pub registers: Registers,
         pub heap: Heap,
         pub strings: Strings,
@@ -1665,8 +1676,8 @@ pub mod runtime_types {
             Types::Void
         }
         pub fn args(&self) -> &[Types; MAX_ARGS] {
-            let ptr = self.stack.ptr;
-            &self.stack.call_stack_args[ptr]
+            let ptr = self.args.ptr;
+            &self.args.data[ptr]
         }
         /// GC
         pub fn gc_sweep(&mut self) {
@@ -1938,7 +1949,10 @@ pub mod runtime_types {
         pub data: Vec<Types>,
         pub ptr: usize,
         pub call_stack: [CallStack; CALL_STACK_SIZE],
-        pub call_stack_args: [[Types; MAX_ARGS]; CALL_STACK_SIZE],
+    }
+    pub struct Args {
+        pub data: [[Types; MAX_ARGS]; CALL_STACK_SIZE],
+        pub ptr: usize,
     }
     pub struct Heap {
         pub data: Vec<Vec<Types>>,
@@ -2462,6 +2476,10 @@ pub mod runtime_types {
         WriteArg(usize, usize),
         /// Read argument: arg_num reg | reads value of argument on stack to reg(reg)
         ReadArg(usize, usize),
+        /// Open args: | opens arguments for function call
+        OpenArgs,
+        /// Close args: | closes arguments of function call
+        CloseArgs,
     }
     impl fmt::Display for Instructions {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -2524,6 +2542,8 @@ pub mod runtime_types {
                 Instructions::Neg(_) => "Negate",
                 Instructions::WriteArg(_, _) => "WriteArgument",
                 Instructions::ReadArg(_, _) => "ReadArgument",
+                Instructions::OpenArgs => "OpenArguments",
+                Instructions::CloseArgs => "CloseArguments",
             };
             write!(f, "{str}")
         }
