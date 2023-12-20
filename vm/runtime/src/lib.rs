@@ -1787,6 +1787,7 @@ pub mod runtime_types {
                 &mut marked_str,
                 &mut marked_ud,
             );
+            self.gc_mark_args(&mut marked_obj, &mut marked_str, &mut marked_ud);
             (marked_obj, marked_str, marked_ud)
         }
         pub fn gc_mark(&mut self) -> (Vec<bool>, Vec<bool>, Vec<bool>) {
@@ -1795,6 +1796,7 @@ pub mod runtime_types {
             let mut marked_str = vec![false; self.strings.pool.len()];
             let mut marked_ud = vec![false; self.user_data.data.len()];
             self.gc_mark_registers(&mut marked, &mut marked_str, &mut marked_ud);
+            self.gc_mark_args(&mut marked, &mut marked_str, &mut marked_ud);
             while call_stack_idx <= self.stack.ptr {
                 let cs = self.stack.call_stack[call_stack_idx];
                 let prev_cs = self.stack.call_stack[call_stack_idx - 1];
@@ -1901,6 +1903,36 @@ pub mod runtime_types {
                     }
                     _ => {}
                 }
+            }
+        }
+        pub fn gc_mark_args(
+            &mut self,
+            marked: &mut Vec<bool>,
+            marked_str: &mut Vec<bool>,
+            marked_ud: &mut Vec<bool>,
+        ) {
+            for i in 0..self.args.ptr {
+                for arg in self.args.data[i] {
+                    match arg {
+                        Types::Pointer(u_size, PointerTypes::Heap(_)) => {
+                            self.gc_mark_obj(u_size, marked, marked_str);
+                        }
+                        Types::Pointer(u_size, PointerTypes::Object) => {
+                            self.gc_mark_obj(u_size, marked, marked_str);
+                        }
+                        Types::Pointer(u_size, PointerTypes::String) => {
+                            self.gc_mark_string(u_size, marked_str);
+                        }
+                        Types::Pointer(u_size, PointerTypes::Char(_)) => {
+                            self.gc_mark_string(u_size, marked_str);
+                        }
+                        Types::Pointer(u_size, PointerTypes::UserData) => {
+                            self.gc_mark_ud(u_size, marked_ud);
+                        }
+                        _ => {}
+                    }
+                }
+            
             }
         }
         /// return the size of memory in bytes
