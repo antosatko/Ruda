@@ -1063,9 +1063,6 @@ fn identify_root(
                     userdata.line,
                 )));
             }
-            println!("ident: {}", ident);
-            println!("file: {}", file);
-            println!("line: {}", line);
             Err(CodegenError::VariableNotFound(
                 ident.to_string(),
                 line.clone(),
@@ -1322,7 +1319,6 @@ fn traverse_tail(
     scope_len: &mut usize,
     generics: &HashMap<String, Kind>,
 ) -> Result<Position, CodegenError> {
-    println!("fun: {:?}", fun);
     use Instructions::*;
     let mut return_kind = Kind::void();
     match tail.next() {
@@ -2439,7 +2435,7 @@ fn call_fun(
                         &_this,
                         scope_len,
                         Some(kind.clone()),
-                        arg.1.line,
+                        *line,
                         &generics_map,
                     )?;
                     kind.clone()
@@ -2453,7 +2449,7 @@ fn call_fun(
                         &_this,
                         scope_len,
                         None,
-                        arg.1.line,
+                        *line,
                         &generics_map,
                     )?;
                     generics_map.insert(identifier, kind.clone());
@@ -2469,11 +2465,10 @@ fn call_fun(
                 &_this,
                 scope_len,
                 Some(arg.1.clone().kind),
-                arg.1.line,
+                *line,
                 &generics_map,
             )?,
         };
-        println!("writing arg {}, kind: {:?}", idx+takes_self as usize, kind);
         args.push(kind);
         temp_code.push(WriteArg(idx + takes_self as usize, GENERAL_REG1));
     }
