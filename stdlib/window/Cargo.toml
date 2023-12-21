@@ -1,0 +1,19 @@
+[package]
+name = "window"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+runtime = {path = "../../vm/runtime"}
+sfml = "0.21.0"
+
+[lib]
+path = "lib.rs"
+crate-type = ["cdylib"]
+
+
+[profile.dev]
+opt-level = 3
+debug = false

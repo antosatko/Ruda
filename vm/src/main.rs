@@ -62,13 +62,14 @@ fn main() {
                 ShLib { path: "algo".to_string(), owns: stringify::LibOwner::Standard},
                 ShLib { path: "core".to_string(), owns: stringify::LibOwner::Standard},
                 ShLib { path: "time".to_string(), owns: stringify::LibOwner::Standard},
+                ShLib { path: "window".to_string(), owns: stringify::LibOwner::Standard},
             ];
             let mut libs_read = Vec::new();
             for lib in libs.iter() {
                 libs_read.push(test::test::load_lib(&lib.into_real_path(&src, &ruda_path), 0));
             }
             let mut ctx = Context::new(libs_read);
-            let mut data = stringify::parse(&String::from_utf8(file).unwrap());
+            let data = stringify::parse(&String::from_utf8(file).unwrap());
             ctx.memory.stack.data = data.values;
             ctx.memory.strings.pool = data.strings;
             ctx.code.data = data.instructions;

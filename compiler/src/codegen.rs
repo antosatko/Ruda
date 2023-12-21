@@ -1,6 +1,6 @@
 use intermediate::dictionary::ImportKinds;
 use std::collections::HashMap;
-use std::vec;
+use std::{path, vec};
 
 use runtime::runtime_types::{
     self, Instructions, Memory, Stack, Types, ARGS_REG, CODE_PTR_REG, GENERAL_REG1, GENERAL_REG2,
@@ -271,7 +271,7 @@ pub enum CodegenError {
     /// (expected, got, line)
     IncorrectNumberOfArgs(usize, usize, Line),
     ImportNotFound(String, Line),
-    KindNotFound(String, Line),
+    KindNotFound(InnerPath, Line),
     CannotRefDerefNumLiteral(Line),
     CannotIndexNonArray(Position, Line),
     FieldNotInStruct(String, Line),
@@ -332,7 +332,7 @@ fn gen_fun<'a>(
             }
             match find_trait(objects, &path.ident, &path.file) {
                 None => Err(CodegenError::KindNotFound(
-                    path.ident.clone(),
+                    path.clone(),
                     this_fun.line.clone(),
                 ))?,
                 Some(_) => (),
@@ -2246,14 +2246,11 @@ fn call_binary(
     let lib_id = objects.1.get(&fun.file).unwrap().id;
     let mut temp_code = Code::new();
     // setup arguments (stack is not needed)
-    let args_len = fun.get_bin(objects)?.args.len();
     let mut args = Vec::new();
-    let takes_self = fun.get_bin(objects)?.takes_self;
     let called_fun = fun.get_bin(objects)?;
-    temp_code.extend(&[
-        OpenArgs,
-        Freeze,
-    ]);
+    let args_len = called_fun.args.len();
+    let takes_self = called_fun.takes_self;
+    temp_code.extend(&[OpenArgs, Freeze]);
     if called_fun.args.len() != call_params.args.len() {
         Err(CodegenError::IncorrectNumberOfArgs(
             called_fun.args.len(),
@@ -2307,23 +2304,23 @@ fn call_binary(
                     kind
                 }
             }
-            _ => expression(
-                objects,
-                arg.0,
-                scopes,
-                &mut temp_code,
-                context,
-                &this,
-                scope_len,
-                Some(arg.1.clone().1),
-                line.clone(),
-                &generics_map,
-            )?,
+            _ => {
+                expression(
+                    objects,
+                    arg.0,
+                    scopes,
+                    &mut temp_code,
+                    context,
+                    &this,
+                    scope_len,
+                    Some(arg.1.clone().1),
+                    line.clone(),
+                    &generics_map,
+                )?
+            }
         };
         args.push(kind);
-        temp_code.extend(&[
-            WriteArg(idx + takes_self as usize, GENERAL_REG1),
-        ])
+        temp_code.extend(&[WriteArg(idx + takes_self as usize, GENERAL_REG1)])
     }
     // type check
     for (idx, arg) in args.iter().enumerate() {
@@ -2397,10 +2394,7 @@ fn call_fun(
     }
     let mut temp_code = Code::new();
     let takes_self = called_fun.takes_self;
-    temp_code.extend(&[
-        OpenArgs,
-        Freeze,
-    ]);
+    temp_code.extend(&[OpenArgs, Freeze]);
     // setup args
     if called_fun.args.len() != call_params.args.len() {
         Err(CodegenError::IncorrectNumberOfArgs(
@@ -4381,7 +4375,6 @@ fn correct_kind(
                             },
                             line: line.clone(),
                             file: Some(fun.file.clone()),
-                            .._kind.clone()
                         });
                     } else {
                         unreachable!("this is a bug in the compiler, please report it");
@@ -4405,6 +4398,9 @@ fn correct_kind(
         } => {
             let mut file = fun.clone();
             file.file = _kind.file.clone().unwrap_or(file.file);
+            if main.len() == 1 {
+
+            }
             for i in 0..main.len() - 1 {
                 let import = match find_import(objects, &main[i], &file.file) {
                     Some(import) => import,
@@ -4454,18 +4450,17 @@ fn get_kind(objects: &Context, location: &InnerPath, line: &Line) -> Result<Kind
                 return Ok(Kind::from_enum(enumm, location.file.clone()));
             }
         }
-        return Err(CodegenError::KindNotFound(
-            location.ident.clone(),
-            line.clone(),
-        ));
+        return Err(CodegenError::KindNotFound(location.clone(), line.clone()));
     }
-    let file = match objects.1.get(&location.file) {
+    let file = if location.file.starts_with("#") {
+        location.file.clone()
+    } else {
+        format!("#{}", location.file)
+    };
+    let file = match objects.1.get(&file) {
         Some(f) => f,
         None => {
-            return Err(CodegenError::KindNotFound(
-                location.ident.clone(),
-                line.clone(),
-            ));
+            return Err(CodegenError::KindNotFound(location.clone(), line.clone()));
         }
     };
     for fun in file.functions.iter() {
@@ -4482,10 +4477,7 @@ fn get_kind(objects: &Context, location: &InnerPath, line: &Line) -> Result<Kind
             ));
         }
     }
-    Err(CodegenError::KindNotFound(
-        location.ident.clone(),
-        line.clone(),
-    ))
+    Err(CodegenError::KindNotFound(location.clone(), line.clone()))
 }
 
 pub enum ExpectedValueType {

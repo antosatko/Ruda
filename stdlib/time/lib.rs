@@ -88,8 +88,17 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
                     return Ok(Types::Uint(elapsed as usize));
                 }
             }
+            // time::sleep
+            8 => {
+                let ms = match m.args()[0] {
+                    Types::Uint(i) => i,
+                    _ => return Err(runtime_error::ErrTypes::Message("Invalid type".to_owned())),
+                };
+                std::thread::sleep(std::time::Duration::from_millis(ms as u64));
+                return Ok(Types::Void);
+            }
             
-            _ => unreachable!("Invalid function id"),
+            _ => unreachable!("Invalid function id {}", id),
         }
         return Ok(runtime_types::Types::Void);
     }
@@ -114,6 +123,7 @@ fn register() -> String {
         fun gen(self=reg.ptr): float > 4i
     }
     fun time(): uint > 0i
+    fun sleep(ms=reg.g1: uint) > 8i
     "#.to_string()
 }
 
