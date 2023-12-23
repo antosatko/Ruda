@@ -15,7 +15,7 @@ use runtime::runtime_types::*;
 use runtime::*;
 
 use runtime::user_data::UserData;
-use sfml::graphics::{Color, Font, RenderTarget, RenderWindow};
+use sfml::graphics::{Color, Font, RenderTarget, RenderWindow, Rect, RectangleShape, Shape, Transformable, CircleShape, Text};
 use sfml::*;
 
 fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_error::ErrTypes> {
@@ -589,7 +589,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             let color = match arg1 {
                 Types::Pointer(pos, PointerTypes::UserData) => {
                     let color = m.user_data.data[pos].as_mut();
-                    let color = color.as_any_mut().downcast_mut::<Color>().unwrap();
+                    let color = color.as_any_mut().downcast_mut::<WinColor>().unwrap();
                     color.clone()
                 }
                 _ => {
@@ -602,7 +602,12 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
 
             let draw_style = m.user_data.data[ud].as_mut();
             let draw_style = draw_style.as_any_mut().downcast_mut::<DrawStyle>().unwrap();
-            draw_style.color = color;
+            draw_style.color = Color{
+                r: color.r,
+                g: color.g,
+                b: color.b,
+                a: color.a,
+            };
             return Ok(Types::Void);
         }
         // Color::new
@@ -1006,6 +1011,168 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             let ud = ctx.memory.user_data.push(Box::new(win_color));
             return Ok(Types::Pointer(ud, PointerTypes::UserData));
         }
+        // Window::drawRectangle
+        47 => {
+            let args = m.args();
+            let arg1 = args[1];
+            let arg2 = args[2];
+            let arg3 = args[3];
+            let arg4 = args[4];
+            let arg5 = args[5];
+            let ud = match args[0] {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => Err(ErrTypes::InvalidType(
+                    args[0],
+                    Types::Pointer(0, PointerTypes::UserData),
+                ))?,
+            };
+            let x = match arg1 {
+                Types::Float(f) => f as f32,
+                _ => Err(ErrTypes::InvalidType(arg1, Types::Float(0.0)))?,
+            };
+            let y = match arg2 {
+                Types::Float(f) => f as f32,
+                _ => Err(ErrTypes::InvalidType(arg2, Types::Float(0.0)))?,
+            };
+            let width = match arg3 {
+                Types::Float(f) => f as f32,
+                _ => Err(ErrTypes::InvalidType(arg3, Types::Float(0.0)))?,
+            };
+            let height = match arg4 {
+                Types::Float(f) => f as f32,
+                _ => Err(ErrTypes::InvalidType(arg4, Types::Float(0.0)))?,
+            };
+            let color = match arg5 {
+                Types::Pointer(pos, PointerTypes::UserData) => {
+                    let color = m.user_data.data[pos].as_mut();
+                    let color = color.as_any_mut().downcast_mut::<WinColor>().unwrap();
+                    color.clone()
+                }
+                _ => Err(ErrTypes::InvalidType(
+                    arg5,
+                    Types::Pointer(0, PointerTypes::UserData),
+                ))?,
+            };
+            let window = m.user_data.data[ud].as_mut();
+            let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
+            let mut rect = RectangleShape::new();
+            rect.set_position((x, y));
+            rect.set_size((width, height));
+            rect.set_fill_color(Color {
+                r: color.r,
+                g: color.g,
+                b: color.b,
+                a: color.a,
+            });
+            window.window.draw(&rect);
+            return Ok(Types::Void);
+        }
+        // Window::drawCircle
+        48 => {
+            let args = m.args();
+            let arg1 = args[1];
+            let arg2 = args[2];
+            let arg3 = args[3];
+            let arg4 = args[4];
+            let ud = match args[0] {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => Err(ErrTypes::InvalidType(
+                    args[0],
+                    Types::Pointer(0, PointerTypes::UserData),
+                ))?,
+            };
+            let x = match arg1 {
+                Types::Float(f) => f as f32,
+                _ => Err(ErrTypes::InvalidType(arg1, Types::Float(0.0)))?,
+            };
+            let y = match arg2 {
+                Types::Float(f) => f as f32,
+                _ => Err(ErrTypes::InvalidType(arg2, Types::Float(0.0)))?,
+            };
+            let radius = match arg3 {
+                Types::Float(f) => f as f32,
+                _ => Err(ErrTypes::InvalidType(arg3, Types::Float(0.0)))?,
+            };
+            let color = match arg4 {
+                Types::Pointer(pos, PointerTypes::UserData) => {
+                    let color = m.user_data.data[pos].as_mut();
+                    let color = color.as_any_mut().downcast_mut::<WinColor>().unwrap();
+                    color.clone()
+                }
+                _ => Err(ErrTypes::InvalidType(
+                    arg4,
+                    Types::Pointer(0, PointerTypes::UserData),
+                ))?,
+            };
+            let window = m.user_data.data[ud].as_mut();
+            let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
+            let mut circle = CircleShape::new(radius, 30);
+            circle.set_position((x, y));
+            circle.set_fill_color(Color {
+                r: color.r,
+                g: color.g,
+                b: color.b,
+                a: color.a,
+            });
+            window.window.draw(&circle);
+            return Ok(Types::Void);
+        }
+        // Window::drawText
+        49 => {
+            let args = m.args();
+            let arg1 = args[1];
+            let arg2 = args[2];
+            let arg3 = args[3];
+            let arg4 = args[4];
+            let ud = match args[0] {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => Err(ErrTypes::InvalidType(
+                    args[0],
+                    Types::Pointer(0, PointerTypes::UserData),
+                ))?,
+            };
+            let x = match arg1 {
+                Types::Float(f) => f as f32,
+                _ => Err(ErrTypes::InvalidType(arg1, Types::Float(0.0)))?,
+            };
+            let y = match arg2 {
+                Types::Float(f) => f as f32,
+                _ => Err(ErrTypes::InvalidType(arg2, Types::Float(0.0)))?,
+            };
+            let text = match arg3 {
+                Types::Pointer(pos, PointerTypes::String) => &m.strings.pool[pos],
+                _ => Err(ErrTypes::InvalidType(
+                    arg3,
+                    Types::Pointer(0, PointerTypes::String),
+                ))?,
+            };
+            let style = match arg4 {
+                Types::Pointer(pos, PointerTypes::UserData) => {
+                    let style = m.user_data.data[pos].as_mut();
+                    style.as_any_mut().downcast_mut::<DrawStyle>().unwrap()
+                }
+                _ => Err(ErrTypes::InvalidType(
+                    arg4,
+                    Types::Pointer(0, PointerTypes::UserData),
+                ))?,
+            };
+            let font = match style.font {
+                Some(ref font) => font.clone(),
+                None => return Err(ErrTypes::InvalidType(Types::Null, Types::Pointer(0, PointerTypes::UserData))),
+            };
+            let mut text = Text::new(text, &font, style.font_size);
+            text.set_position((x, y));
+            text.set_fill_color(Color {
+                r: style.color.r,
+                g: style.color.g,
+                b: style.color.b,
+                a: style.color.a,
+            });
+            let window = m.user_data.data[ud].as_mut();
+            let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
+            window.window.draw(&text);
+            return Ok(Types::Void);
+        }
         _ => unreachable!("Invalid function id, {}", id),
     }
     return Ok(runtime_types::Types::Void);
@@ -1026,6 +1193,44 @@ fn register() -> String {
         fun close(self=reg.ptr) > 7i
 
         fun poll(self=reg.ptr): Event? > 10i
+
+        fun drawRectangle(
+            self=reg.ptr,
+            x=reg.g1: float,
+            y=reg.g2: float,
+            width=reg.g3: float,
+            height=reg.g4: float,
+            color=reg.g5: Color,
+        ) > 47i
+        fun drawCircle(
+            self=reg.ptr, 
+            x=reg.g1: float, 
+            y=reg.g2: float, 
+            radius=reg.g3: float, 
+            color=reg.g4: Color,
+        ) > 48i
+        fun drawText(
+            self=reg.ptr, 
+            x=reg.g1: float, 
+            y=reg.g2: float, 
+            text=reg.g3: string, 
+            style=reg.g5: DrawStyle,
+        ) > 49i
+        fun styledRectangle(
+            self=reg.ptr,
+            x=reg.g1: float,
+            y=reg.g2: float,
+            width=reg.g3: float,
+            height=reg.g4: float,
+            style=reg.g5: DrawStyle,
+        ) > 50i
+        fun styledCircle(
+            self=reg.ptr, 
+            x=reg.g1: float, 
+            y=reg.g2: float, 
+            radius=reg.g3: float, 
+            style=reg.g4: DrawStyle,
+        ) > 51i
     }
 
     userdata WinBuilder > 1i {
