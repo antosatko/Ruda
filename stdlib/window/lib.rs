@@ -373,6 +373,197 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             };
             return Ok(Types::Uint(scan as usize));
         }
+        // Event::verticalWheel
+        17 => {
+            let args = m.args();
+            let ud = match args[0] {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        args[0],
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+            let event = m.user_data.data[ud].as_mut();
+            let event = event.as_any_mut().downcast_mut::<Event>().unwrap();
+            let wheel = match event.event {
+                window::Event::MouseWheelScrolled { delta,  wheel , ..} => match wheel {
+                    window::mouse::Wheel::VerticalWheel => delta as f64,
+                    window::mouse::Wheel::HorizontalWheel => 0.0,
+                }
+                _ => 0.0,
+            };
+            return Ok(Types::Float(wheel));
+        }
+        // Event::horizontalWheel
+        18 => {
+            let args = m.args();
+            let ud = match args[0] {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        args[0],
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+            let event = m.user_data.data[ud].as_mut();
+            let event = event.as_any_mut().downcast_mut::<Event>().unwrap();
+            let wheel = match event.event {
+                window::Event::MouseWheelScrolled { delta,  wheel , ..} => match wheel {
+                    window::mouse::Wheel::VerticalWheel => 0.0,
+                    window::mouse::Wheel::HorizontalWheel => delta as f64,
+                }
+                _ => 0.0,
+            };
+            return Ok(Types::Float(wheel));
+        }
+        // Event::mouseX
+        19 => {
+            let args = m.args();
+            let ud = match args[0] {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        args[0],
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+            let event = m.user_data.data[ud].as_mut();
+            let event = event.as_any_mut().downcast_mut::<Event>().unwrap();
+            let x = match event.event {
+                window::Event::MouseMoved { x, .. } => x as usize,
+                _ => 0,
+            };
+            return Ok(Types::Uint(x));
+        }
+        // Event::mouseY
+        20 => {
+            let args = m.args();
+            let ud = match args[0] {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        args[0],
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+            let event = m.user_data.data[ud].as_mut();
+            let event = event.as_any_mut().downcast_mut::<Event>().unwrap();
+            let y = match event.event {
+                window::Event::MouseMoved { y, .. } => y as usize,
+                _ => 0,
+            };
+            return Ok(Types::Uint(y));
+        }
+        // Event::mouseButton
+        21 => {
+            let args = m.args();
+            let ud = match args[0] {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        args[0],
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+            let event = m.user_data.data[ud].as_mut();
+            let event = event.as_any_mut().downcast_mut::<Event>().unwrap();
+            let button = match event.event {
+                window::Event::MouseButtonPressed { button, .. } => button as usize,
+                window::Event::MouseButtonReleased { button, .. } => button as usize,
+                _ => 0,
+            };    
+            return Ok(Types::Uint(button));
+        }
+        // Event::alt
+        22 => {
+            let args = m.args();
+            let ud = match args[0] {
+                Types::Pointer(pos, PointerTypes::UserData) => pos, 
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        args[0],
+                        Types::Pointer(0, PointerTypes::UserData)
+                    ))
+                }
+            };
+            let event = m.user_data.data[ud].as_mut();
+            let event = event.as_any_mut().downcast_mut::<Event>().unwrap(); 
+            let alt = match event.event {
+                window::Event::KeyPressed { alt, .. } => alt,
+                window::Event::KeyReleased { alt, .. } => alt,
+                _ => false,
+            };
+            return Ok(Types::Bool(alt));
+        }
+        // Event::control
+        23 => {
+            let args = m.args();
+            let ud = match args[0] {
+                Types::Pointer(pos, PointerTypes::UserData) => pos, 
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        args[0],
+                        Types::Pointer(0, PointerTypes::UserData)
+                    ))
+                }
+            };
+            let event = m.user_data.data[ud].as_mut();
+            let event = event.as_any_mut().downcast_mut::<Event>().unwrap(); 
+            let control = match event.event {
+                window::Event::KeyPressed { ctrl, .. } => ctrl,
+                window::Event::KeyReleased { ctrl, .. } => ctrl,
+                _ => false,
+            };
+            return Ok(Types::Bool(control));
+        }
+        // Event::shift
+        24 => {
+            let args = m.args();
+            let ud = match args[0] {
+                Types::Pointer(pos, PointerTypes::UserData) => pos, 
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        args[0],
+                        Types::Pointer(0, PointerTypes::UserData)
+                    ))
+                }
+            };
+            let event = m.user_data.data[ud].as_mut();
+            let event = event.as_any_mut().downcast_mut::<Event>().unwrap(); 
+            let shift = match event.event {
+                window::Event::KeyPressed { shift, .. } => shift,
+                window::Event::KeyReleased { shift, .. } => shift,
+                _ => false,
+            };
+            return Ok(Types::Bool(shift));
+        }
+        // Event::system
+        25 => {
+            let args = m.args();
+            let ud = match args[0] {
+                Types::Pointer(pos, PointerTypes::UserData) => pos, 
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        args[0],
+                        Types::Pointer(0, PointerTypes::UserData)
+                    ))
+                }
+            };
+            let event = m.user_data.data[ud].as_mut();
+            let event = event.as_any_mut().downcast_mut::<Event>().unwrap(); 
+            let system = match event.event {
+                window::Event::KeyPressed { system, .. } => system,
+                window::Event::KeyReleased { system, .. } => system,
+                _ => false,
+            };
+            return Ok(Types::Bool(system));
+        }
         _ => unreachable!("Invalid function id, {}", id),
     }
     return Ok(runtime_types::Types::Void);
@@ -405,9 +596,20 @@ fn register() -> String {
 
     userdata Event > 2i {
         fun code(self=reg.ptr): Events > 11i
+
         fun key(self=reg.ptr): Keys > 12i
+        fun scan(self=reg.ptr): Scan > 16i
         fun input(self=reg.ptr): char > 14i
-        fun scan(self=reg.ptr): Scan > 15i
+        fun alt(self=reg.ptr): bool > 22i
+        fun control(self=reg.ptr): bool > 23i
+        fun shift(self=reg.ptr): bool > 24i
+        fun system(self=reg.ptr): bool > 25i
+
+        fun verticalWheel(self=reg.ptr): float > 17i
+        fun horizontalWheel(self=reg.ptr): float > 18i
+        fun mouseX(self=reg.ptr): uint > 19i
+        fun mouseY(self=reg.ptr): uint > 20i
+        fun mouseButton(self=reg.ptr): MouseButton > 21i
     }
 
     enum Events > 0i {
@@ -456,6 +658,10 @@ fn register() -> String {
         Back Forward Refresh Stop Search Favorites HomePage 
         LaunchApplication1 LaunchApplication2 LaunchMail LaunchMediaSelect 
         ScancodeCount 
+    }
+    enum MouseButton > 3i {
+        Left Right Middle 
+        XButton1 XButton2
     }
     "#.to_string()
 }

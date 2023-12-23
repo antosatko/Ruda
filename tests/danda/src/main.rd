@@ -33,10 +33,11 @@ fun main() {
     let event: win.Event?
     let i = 0
 
-    let time = time.Clock()
+    let t = time.Clock()
 
     loop "main_loop": {
         ctx.clear()
+        let frameStart = time.Clock()
         loop "event_loop": {
             event = ctx.poll()
             if event {
@@ -58,13 +59,18 @@ fun main() {
 
         ctx.display()
         i += 1
-        if time.elapsed() > 1000000 {
+        if t.elapsed() > 1000 {
+            io.println("closing")
             ctx.close()
             break "main_loop"
         }
+        let slp = (1f/60f) - frameStart.elapsed()
+        if slp > 0f {
+            time.sleep(slp)
+        }
     }
 
-    io.println("elapsed: " + time.elapsed())
+    io.println("elapsed: " + t.elapsed())
     io.println("frames: " + i)
 
 

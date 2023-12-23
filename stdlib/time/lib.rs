@@ -23,8 +23,8 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
                 let time = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .expect("Time went backwards")
-                    .as_millis();
-                return Ok(Types::Uint(time as usize));
+                    .as_secs_f64();
+                return Ok(Types::Float(time));
             }
             // time::Rng::new
             1 => {
@@ -84,17 +84,17 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
                 if let Types::Pointer(ud, PointerTypes::UserData) = m.args()[0] {
                     let ud = ctx.memory.user_data.data[ud].as_mut();
                     let ud = Clock::from_ud(ud)?;
-                    let elapsed = ud.note.elapsed().as_millis();
-                    return Ok(Types::Uint(elapsed as usize));
+                    let elapsed = ud.note.elapsed().as_secs_f64();
+                    return Ok(Types::Float(elapsed));
                 }
             }
             // time::sleep
             8 => {
                 let ms = match m.args()[0] {
-                    Types::Uint(i) => i,
+                    Types::Float(i) => i,
                     _ => return Err(runtime_error::ErrTypes::Message("Invalid type".to_owned())),
                 };
-                std::thread::sleep(std::time::Duration::from_millis(ms as u64));
+                spin_sleep::sleep(std::time::Duration::from_secs_f64(ms));
                 return Ok(Types::Void);
             }
             
@@ -110,9 +110,9 @@ fn register() -> String {
     userdata Clock > 1i {
         new () > 5i
 
-        fun time(): uint > 0i
+        fun time(): float > 0i
         fun reset(self=reg.ptr) > 6i
-        fun elapsed(self=reg.ptr): uint > 7i
+        fun elapsed(self=reg.ptr): float > 7i
     }
 
     userdata Rng > 0i {
@@ -122,8 +122,8 @@ fn register() -> String {
         fun range(self=reg.ptr, min=reg.g1: int, max=reg.g2: int): int > 3i
         fun gen(self=reg.ptr): float > 4i
     }
-    fun time(): uint > 0i
-    fun sleep(ms=reg.g1: uint) > 8i
+    fun time(): float > 0i
+    fun sleep(ms=reg.g1: float) > 8i
     "#.to_string()
 }
 
