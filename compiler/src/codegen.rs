@@ -4415,6 +4415,52 @@ fn cast(
     generics: &HashMap<String, Kind>,
 ) -> Option<()> {
     use Instructions::*;
+    if from.check_type(&dictionary::KindType::Enum) && to.is_number() {
+        return cast(
+            _objects,
+            &Kind {
+                body: TypeBody::Type {
+                    refs: 0,
+                    main: vec!["uint".to_string()],
+                    generics: vec![],
+                    nullable: false,
+                    kind: dictionary::KindType::Primitive,
+                },
+                line: _line.clone(),
+                file: Some(_fun.file.clone()),
+            },
+            to,
+            code,
+            context,
+            _fun,
+            _line,
+            register,
+            generics,
+        );
+    }
+    if from.is_number() && to.check_type(&dictionary::KindType::Enum) {
+        return cast(
+            _objects,
+            from,
+            &Kind {
+                body: TypeBody::Type {
+                    refs: 0,
+                    main: vec!["uint".to_string()],
+                    generics: vec![],
+                    nullable: false,
+                    kind: dictionary::KindType::Primitive,
+                },
+                line: _line.clone(),
+                file: Some(_fun.file.clone()),
+            },
+            code,
+            context,
+            _fun,
+            _line,
+            register,
+            generics,
+        );
+    }
     if to.is_array() && from.is_array() {
         return Some(());
     }
