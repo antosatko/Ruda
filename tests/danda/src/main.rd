@@ -5,10 +5,12 @@ import "#time"
 import "#window" as win
 
 fun main() {
-    let winBuilder = win.WinBuilder()
-    winBuilder.width(800)
-    winBuilder.height(450)
-    let ctx = win.Window("Test", winBuilder)
+    let ctx = win.WinBuilder()
+        .width(800)
+        .height(450)
+        .default()
+        .title("Test")
+        .build()
     let event: win.Event?
     let i = 0
 
@@ -20,6 +22,8 @@ fun main() {
     fontStyle.font(win.FontUbuntuMono())
     fontStyle.fontSize(20)
     fontStyle.color(win.ColorFrom(win.Colors.White))
+    fontStyle.outlineColor(win.ColorFrom(win.Colors.Green))
+    fontStyle.outlineThickness(1)
 
     loop "main_loop": {
         ctx.clear()
@@ -48,7 +52,9 @@ fun main() {
         ctx.drawRectangle(200, 0, 100, 100, win.ColorFrom(win.Colors.Red))
         ctx.drawRectangle(100, 100, 100, 500, win.ColorFrom(win.Colors.Red))
         ctx.drawCircle(100, 0, 50, win.ColorFrom(win.Colors.Blue))
-        ctx.drawText(100, 100, "Hello World!", fontStyle)
+        ctx.drawText(100, 100, "Hello World!"+'\n'+"Danda", fontStyle)
+
+        ctx.styledRectangle(200, 200, 100, 100, fontStyle)
         
 
 
