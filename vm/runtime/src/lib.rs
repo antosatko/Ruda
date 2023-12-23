@@ -2731,6 +2731,7 @@ pub mod user_data {
     }
 
     /// describes how to aproach the object by the garbage collector
+    #[derive(Debug, Clone, Copy)]
     pub enum GcMethod {
         /// object is not garbage collected
         None,

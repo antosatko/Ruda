@@ -4,27 +4,6 @@ import "#string"
 import "#time"
 import "#window" as win
 
-import "danda.rd"
-
-enum TestEnum {
-    A
-    B
-    C
-    Danda
-}
-
-fun tenum_tostr(e: TestEnum): string {
-    if e as uint == TestEnum.A {
-        return "A"
-    } else if e as uint == TestEnum.B {
-        return "B"
-    } else if e as uint == TestEnum.C {
-        return "C"
-    } else {
-        return "Unknown"
-    }
-}
-
 fun main() {
     let winBuilder = win.WinBuilder()
     winBuilder.width(800)
@@ -34,6 +13,8 @@ fun main() {
     let i = 0
 
     let t = time.Clock()
+
+    ctx.fps(60)
 
     loop "main_loop": {
         ctx.clear()
@@ -59,25 +40,13 @@ fun main() {
 
         ctx.display()
         i += 1
-        if t.elapsed() > 1000 {
+        if t.elapsed() > 1 {
             io.println("closing")
             ctx.close()
             break "main_loop"
-        }
-        let slp = (1f/60f) - frameStart.elapsed()
-        if slp > 0f {
-            time.sleep(slp)
         }
     }
 
     io.println("elapsed: " + t.elapsed())
     io.println("frames: " + i)
-
-
-    let d = danda.Danda(60)
-    io.println(d.a as float)
-
-    
-    io.println(tenum_tostr(2))
-    win.Events.Closed
 }

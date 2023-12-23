@@ -15,7 +15,7 @@ use runtime::runtime_types::*;
 use runtime::*;
 
 use runtime::user_data::UserData;
-use sfml::graphics::{Color, RenderTarget, RenderWindow};
+use sfml::graphics::{Color, Font, RenderTarget, RenderWindow};
 use sfml::*;
 
 fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_error::ErrTypes> {
@@ -388,10 +388,10 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             let event = m.user_data.data[ud].as_mut();
             let event = event.as_any_mut().downcast_mut::<Event>().unwrap();
             let wheel = match event.event {
-                window::Event::MouseWheelScrolled { delta,  wheel , ..} => match wheel {
+                window::Event::MouseWheelScrolled { delta, wheel, .. } => match wheel {
                     window::mouse::Wheel::VerticalWheel => delta as f64,
                     window::mouse::Wheel::HorizontalWheel => 0.0,
-                }
+                },
                 _ => 0.0,
             };
             return Ok(Types::Float(wheel));
@@ -411,10 +411,10 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             let event = m.user_data.data[ud].as_mut();
             let event = event.as_any_mut().downcast_mut::<Event>().unwrap();
             let wheel = match event.event {
-                window::Event::MouseWheelScrolled { delta,  wheel , ..} => match wheel {
+                window::Event::MouseWheelScrolled { delta, wheel, .. } => match wheel {
                     window::mouse::Wheel::VerticalWheel => 0.0,
                     window::mouse::Wheel::HorizontalWheel => delta as f64,
-                }
+                },
                 _ => 0.0,
             };
             return Ok(Types::Float(wheel));
@@ -435,6 +435,8 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             let event = event.as_any_mut().downcast_mut::<Event>().unwrap();
             let x = match event.event {
                 window::Event::MouseMoved { x, .. } => x as usize,
+                window::Event::MouseButtonPressed { x, .. } => x as usize,
+                window::Event::MouseButtonReleased { x, .. } => x as usize,
                 _ => 0,
             };
             return Ok(Types::Uint(x));
@@ -455,6 +457,8 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             let event = event.as_any_mut().downcast_mut::<Event>().unwrap();
             let y = match event.event {
                 window::Event::MouseMoved { y, .. } => y as usize,
+                window::Event::MouseButtonPressed { y, .. } => y as usize,
+                window::Event::MouseButtonReleased { y, .. } => y as usize,
                 _ => 0,
             };
             return Ok(Types::Uint(y));
@@ -477,23 +481,23 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
                 window::Event::MouseButtonPressed { button, .. } => button as usize,
                 window::Event::MouseButtonReleased { button, .. } => button as usize,
                 _ => 0,
-            };    
+            };
             return Ok(Types::Uint(button));
         }
         // Event::alt
         22 => {
             let args = m.args();
             let ud = match args[0] {
-                Types::Pointer(pos, PointerTypes::UserData) => pos, 
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
                 _ => {
                     return Err(ErrTypes::InvalidType(
                         args[0],
-                        Types::Pointer(0, PointerTypes::UserData)
+                        Types::Pointer(0, PointerTypes::UserData),
                     ))
                 }
             };
             let event = m.user_data.data[ud].as_mut();
-            let event = event.as_any_mut().downcast_mut::<Event>().unwrap(); 
+            let event = event.as_any_mut().downcast_mut::<Event>().unwrap();
             let alt = match event.event {
                 window::Event::KeyPressed { alt, .. } => alt,
                 window::Event::KeyReleased { alt, .. } => alt,
@@ -505,16 +509,16 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
         23 => {
             let args = m.args();
             let ud = match args[0] {
-                Types::Pointer(pos, PointerTypes::UserData) => pos, 
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
                 _ => {
                     return Err(ErrTypes::InvalidType(
                         args[0],
-                        Types::Pointer(0, PointerTypes::UserData)
+                        Types::Pointer(0, PointerTypes::UserData),
                     ))
                 }
             };
             let event = m.user_data.data[ud].as_mut();
-            let event = event.as_any_mut().downcast_mut::<Event>().unwrap(); 
+            let event = event.as_any_mut().downcast_mut::<Event>().unwrap();
             let control = match event.event {
                 window::Event::KeyPressed { ctrl, .. } => ctrl,
                 window::Event::KeyReleased { ctrl, .. } => ctrl,
@@ -526,16 +530,16 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
         24 => {
             let args = m.args();
             let ud = match args[0] {
-                Types::Pointer(pos, PointerTypes::UserData) => pos, 
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
                 _ => {
                     return Err(ErrTypes::InvalidType(
                         args[0],
-                        Types::Pointer(0, PointerTypes::UserData)
+                        Types::Pointer(0, PointerTypes::UserData),
                     ))
                 }
             };
             let event = m.user_data.data[ud].as_mut();
-            let event = event.as_any_mut().downcast_mut::<Event>().unwrap(); 
+            let event = event.as_any_mut().downcast_mut::<Event>().unwrap();
             let shift = match event.event {
                 window::Event::KeyPressed { shift, .. } => shift,
                 window::Event::KeyReleased { shift, .. } => shift,
@@ -547,22 +551,460 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
         25 => {
             let args = m.args();
             let ud = match args[0] {
-                Types::Pointer(pos, PointerTypes::UserData) => pos, 
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
                 _ => {
                     return Err(ErrTypes::InvalidType(
                         args[0],
-                        Types::Pointer(0, PointerTypes::UserData)
+                        Types::Pointer(0, PointerTypes::UserData),
                     ))
                 }
             };
             let event = m.user_data.data[ud].as_mut();
-            let event = event.as_any_mut().downcast_mut::<Event>().unwrap(); 
+            let event = event.as_any_mut().downcast_mut::<Event>().unwrap();
             let system = match event.event {
                 window::Event::KeyPressed { system, .. } => system,
                 window::Event::KeyReleased { system, .. } => system,
                 _ => false,
             };
             return Ok(Types::Bool(system));
+        }
+        // DrawStyle::new
+        26 => {
+            let ud = ctx.memory.user_data.push(Box::new(DrawStyle::new()));
+            return Ok(Types::Pointer(ud, PointerTypes::UserData));
+        }
+        // DrawStyle::color
+        27 => {
+            let args = m.args();
+            let arg1 = args[1];
+            let ud = match args[0] {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        args[0],
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+            let color = match arg1 {
+                Types::Pointer(pos, PointerTypes::UserData) => {
+                    let color = m.user_data.data[pos].as_mut();
+                    let color = color.as_any_mut().downcast_mut::<Color>().unwrap();
+                    color.clone()
+                }
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        arg1,
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+
+            let draw_style = m.user_data.data[ud].as_mut();
+            let draw_style = draw_style.as_any_mut().downcast_mut::<DrawStyle>().unwrap();
+            draw_style.color = color;
+            return Ok(Types::Void);
+        }
+        // Color::new
+        28 => {
+            let args = m.args();
+            let r = match args[0] {
+                Types::Uint(i) => i as u8,
+                _ => return Err(ErrTypes::InvalidType(args[0], Types::Uint(0))),
+            };
+            let g = match args[1] {
+                Types::Uint(i) => i as u8,
+                _ => return Err(ErrTypes::InvalidType(args[1], Types::Uint(0))),
+            };
+            let b = match args[2] {
+                Types::Uint(i) => i as u8,
+                _ => return Err(ErrTypes::InvalidType(args[2], Types::Uint(0))),
+            };
+            let a = match args[3] {
+                Types::Uint(i) => i as u8,
+                _ => return Err(ErrTypes::InvalidType(args[3], Types::Uint(0))),
+            };
+            let color = WinColor::new(r, g, b, a);
+            let ud = ctx.memory.user_data.push(Box::new(color));
+            return Ok(Types::Pointer(ud, PointerTypes::UserData));
+        }
+        // Color::r
+        29 => {
+            let args = m.args();
+            let arg1 = args[1];
+            let ud = match args[0] {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        args[0],
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+            let color = m.user_data.data[ud].as_mut();
+            let color = color.as_any_mut().downcast_mut::<WinColor>().unwrap();
+            match arg1 {
+                Types::Uint(i) => {
+                    color.r = i as u8;
+                }
+                Types::Null => (),
+                _ => return Err(ErrTypes::InvalidType(arg1, Types::Uint(0))),
+            };
+            return Ok(Types::Uint(color.r as usize));
+        }
+        // Color::g
+        30 => {
+            let args = m.args();
+            let arg1 = args[1];
+            let ud = match args[0] {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        args[0],
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+            let color = m.user_data.data[ud].as_mut();
+            let color = color.as_any_mut().downcast_mut::<WinColor>().unwrap();
+            match arg1 {
+                Types::Uint(i) => {
+                    color.g = i as u8;
+                }
+                Types::Null => (),
+                _ => return Err(ErrTypes::InvalidType(arg1, Types::Uint(0))),
+            };
+            return Ok(Types::Uint(color.g as usize));
+        }
+        // Color::b
+        31 => {
+            let args = m.args();
+            let arg1 = args[1];
+            let ud = match args[0] {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        args[0],
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+            let color = m.user_data.data[ud].as_mut();
+            let color = color.as_any_mut().downcast_mut::<WinColor>().unwrap();
+            match arg1 {
+                Types::Uint(i) => {
+                    color.b = i as u8;
+                }
+                Types::Null => (),
+                _ => return Err(ErrTypes::InvalidType(arg1, Types::Uint(0))),
+            };
+            return Ok(Types::Uint(color.b as usize));
+        }
+        // Color::a
+        32 => {
+            let args = m.args();
+            let arg1 = args[1];
+            let ud = match args[0] {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        args[0],
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+            let color = m.user_data.data[ud].as_mut();
+            let color = color.as_any_mut().downcast_mut::<WinColor>().unwrap();
+            match arg1 {
+                Types::Uint(i) => {
+                    color.a = i as u8;
+                }
+                Types::Null => (),
+                _ => return Err(ErrTypes::InvalidType(arg1, Types::Uint(0))),
+            };
+            return Ok(Types::Uint(color.a as usize));
+        }
+        // Color::fromHex
+        33 => {
+            let args = m.args();
+            let arg1 = args[0];
+            let hex = match arg1 {
+                Types::Pointer(pos, PointerTypes::String) => &m.strings.pool[pos],
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        arg1,
+                        Types::Pointer(0, PointerTypes::String),
+                    ))
+                }
+            };
+            let color = WinColor::from_hex(hex);
+            let ud = ctx.memory.user_data.push(Box::new(color));
+            return Ok(Types::Pointer(ud, PointerTypes::UserData));
+        }
+        // Color::copy
+        34 => {
+            let args = m.args();
+            let arg1 = args[0];
+            let ud = match arg1 {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        arg1,
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+            let color = m.user_data.data[ud].as_mut();
+            let color = color.as_any_mut().downcast_mut::<WinColor>().unwrap();
+            let color = color.clone();
+            let ud = ctx.memory.user_data.push(Box::new(color));
+            return Ok(Types::Pointer(ud, PointerTypes::UserData));
+        }
+        // DrawStyle::rotation
+        35 => {
+            let args = m.args();
+            let arg1 = args[1];
+            let ud = match args[0] {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        args[0],
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+            let rotation = match arg1 {
+                Types::Float(f) => f as f32,
+                _ => return Err(ErrTypes::InvalidType(arg1, Types::Float(0.0))),
+            };
+            let draw_style = m.user_data.data[ud].as_mut();
+            let draw_style = draw_style.as_any_mut().downcast_mut::<DrawStyle>().unwrap();
+            draw_style.rotation = rotation;
+            return Ok(Types::Void);
+        }
+        // DrawStyle::scaleX
+        36 => {
+            let args = m.args();
+            let arg1 = args[1];
+            let ud = match args[0] {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        args[0],
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+            let scale_x = match arg1 {
+                Types::Float(f) => f as f32,
+                _ => return Err(ErrTypes::InvalidType(arg1, Types::Float(0.0))),
+            };
+            let draw_style = m.user_data.data[ud].as_mut();
+            let draw_style = draw_style.as_any_mut().downcast_mut::<DrawStyle>().unwrap();
+            draw_style.scale.0 = scale_x;
+            return Ok(Types::Void);
+        }
+        // DrawStyle::scaleY
+        37 => {
+            let args = m.args();
+            let arg1 = args[1];
+            let ud = match args[0] {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        args[0],
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+            let scale_y = match arg1 {
+                Types::Float(f) => f as f32,
+                _ => return Err(ErrTypes::InvalidType(arg1, Types::Float(0.0))),
+            };
+            let draw_style = m.user_data.data[ud].as_mut();
+            let draw_style = draw_style.as_any_mut().downcast_mut::<DrawStyle>().unwrap();
+            draw_style.scale.1 = scale_y;
+            return Ok(Types::Void);
+        }
+        // DrawStyle::outlineColor
+        38 => {
+            let args = m.args();
+            let arg1 = args[1];
+            let ud = match args[0] {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        args[0],
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+            let color = match arg1 {
+                Types::Pointer(pos, PointerTypes::UserData) => {
+                    let color = m.user_data.data[pos].as_mut();
+                    let color = color.as_any_mut().downcast_mut::<Color>().unwrap();
+                    color.clone()
+                }
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        arg1,
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+
+            let draw_style = m.user_data.data[ud].as_mut();
+            let draw_style = draw_style.as_any_mut().downcast_mut::<DrawStyle>().unwrap();
+            draw_style.outline_color = color;
+            return Ok(Types::Void);
+        }
+        // DrawStyle::outlineThickness
+        39 => {
+            let args = m.args();
+            let arg1 = args[1];
+            let thickness = match arg1 {
+                Types::Float(f) => f as f32,
+                _ => return Err(ErrTypes::InvalidType(arg1, Types::Float(0.0))),
+            };
+            let ud = match args[0] {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        args[0],
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+
+            let draw_style = m.user_data.data[ud].as_mut();
+            let draw_style = draw_style.as_any_mut().downcast_mut::<DrawStyle>().unwrap();
+            draw_style.outline_thickness = thickness;
+            return Ok(Types::Void);
+        }
+        // DrawStyle::font
+        40 => {
+            let args = m.args();
+            let arg1 = args[1];
+            let ud = match args[0] {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        args[0],
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+            let font = match arg1 {
+                Types::Pointer(pos, PointerTypes::UserData) => {
+                    let font = m.user_data.data[pos].as_mut();
+                    font.as_any_mut()
+                        .downcast_mut::<WinFont>()
+                        .unwrap()
+                        .path
+                        .clone()
+                }
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        arg1,
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+
+            let draw_style = m.user_data.data[ud].as_mut();
+            let draw_style = draw_style.as_any_mut().downcast_mut::<DrawStyle>().unwrap();
+            draw_style.font = Font::from_file(&font);
+            return Ok(Types::Void);
+        }
+        // DrawStyle::fontSize
+        41 => {
+            let args = m.args();
+            let arg1 = args[1];
+            let size = match arg1 {
+                Types::Uint(i) => i as u32,
+                _ => return Err(ErrTypes::InvalidType(arg1, Types::Uint(0))),
+            };
+            let ud = match args[0] {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        args[0],
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+
+            let draw_style = m.user_data.data[ud].as_mut();
+            let draw_style = draw_style.as_any_mut().downcast_mut::<DrawStyle>().unwrap();
+            draw_style.font_size = size;
+            return Ok(Types::Void);
+        }
+        // Font::new
+        42 => {
+            let args = m.args();
+            let path = match args[0] {
+                Types::Pointer(pos, PointerTypes::String) => &m.strings.pool[pos],
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        args[0],
+                        Types::Pointer(0, PointerTypes::String),
+                    ))
+                }
+            };
+            let font = WinFont::new(path);
+            let ud = ctx.memory.user_data.push(Box::new(font));
+            return Ok(Types::Pointer(ud, PointerTypes::UserData));
+        }
+        // Font::default
+        43 => {
+            let args = m.args();
+            let name = match args[0] {
+                Types::Pointer(pos, PointerTypes::String) => &m.strings.pool[pos],
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        args[0],
+                        Types::Pointer(0, PointerTypes::String),
+                    ))
+                }
+            };
+            let font = WinFont::default(name);
+            let ud = ctx.memory.user_data.push(Box::new(font));
+            return Ok(Types::Pointer(ud, PointerTypes::UserData));
+        }
+        // Font::ubuntuMono
+        44 => {
+            let font = WinFont::ubuntu_mono();
+            let ud = ctx.memory.user_data.push(Box::new(font));
+            return Ok(Types::Pointer(ud, PointerTypes::UserData));
+        }
+        // Font::roboto
+        45 => {
+            let font = WinFont::roboto();
+            let ud = ctx.memory.user_data.push(Box::new(font));
+            return Ok(Types::Pointer(ud, PointerTypes::UserData));
+        }
+        // Color::from
+        46 => {
+            let args = m.args();
+            let color = match args[0] {
+                Types::Uint(i) => match i {
+                    0 => Color::BLACK,
+                    1 => Color::WHITE,
+                    2 => Color::RED,
+                    3 => Color::GREEN,
+                    4 => Color::BLUE,
+                    5 => Color::YELLOW,
+                    6 => Color::MAGENTA,
+                    7 => Color::CYAN,
+                    8 => Color::TRANSPARENT,
+                    _ => return Err(ErrTypes::InvalidType(args[0], Types::Uint(0))),
+                },
+                _ => return Err(ErrTypes::InvalidType(args[0], Types::Uint(0))),
+            };
+            let win_color =
+                WinColor::new(color.r as u8, color.g as u8, color.b as u8, color.a as u8);
+            let ud = ctx.memory.user_data.push(Box::new(win_color));
+            return Ok(Types::Pointer(ud, PointerTypes::UserData));
         }
         _ => unreachable!("Invalid function id, {}", id),
     }
@@ -611,6 +1053,40 @@ fn register() -> String {
         fun mouseY(self=reg.ptr): uint > 20i
         fun mouseButton(self=reg.ptr): MouseButton > 21i
     }
+
+    userdata DrawStyle > 3i {
+        new () > 26i
+
+        fun color(self=reg.ptr, color=reg.g1: Color) > 27i
+        fun rotation(self=reg.ptr, rotation=reg.g1: float) > 35i
+        fun scaleX(self=reg.ptr, scaleX=reg.g1: float) > 36i
+        fun scaleY(self=reg.ptr, scaleY=reg.g1: float) > 37i
+        fun outlineColor(self=reg.ptr, outlineColor=reg.g1: Color) > 38i
+        fun outlineThickness(self=reg.ptr, outlineThickness=reg.g1: float) > 39i
+        fun font(self=reg.ptr, font=reg.g1: Font) > 40i
+        fun fontSize(self=reg.ptr, fontSize=reg.g1: uint) > 41i
+    }
+
+    userdata Color > 4i {
+        new (r=reg.g1: uint, g=reg.g2: uint, b=reg.g3: uint, a=reg.g4: uint) > 28i
+
+        fun r(self=reg.ptr, set=reg.g1: uint?): uint > 29i
+        fun g(self=reg.ptr, set=reg.g1: uint?): uint > 30i
+        fun b(self=reg.ptr, set=reg.g1: uint?): uint > 31i
+        fun a(self=reg.ptr, set=reg.g1: uint?): uint > 32i
+
+    }
+    fun ColorFromHex(hex=reg.g1: string): Color > 33i
+    fun ColorCopy(self=reg.ptr): Color > 34i
+    fun ColorFrom(color=reg.g1: Colors): Color > 46i
+
+    userdata Font > 5i {
+        new (path=reg.g1: string) > 42i
+
+    }
+    fun FontDefault(name=reg.g1: string): Font > 43i
+    fun FontUbuntuMono(): Font > 44i
+    fun FontRoboto(): Font > 45i
 
     enum Events > 0i {
         Closed
@@ -663,6 +1139,9 @@ fn register() -> String {
         Left Right Middle 
         XButton1 XButton2
     }
+    enum Colors > 4i {
+        Black White Red Green Blue Yellow Magenta Cyan Transparent
+    }
     "#.to_string()
 }
 
@@ -694,6 +1173,63 @@ impl Window {
     }
 }
 impl UserData for Window {
+    fn label(&self) -> &str {
+        &self.name
+    }
+
+    fn id(&self) -> usize {
+        self.id
+    }
+
+    fn lib_id(&self) -> usize {
+        self.lib_id
+    }
+
+    fn gc_method(&self) -> &user_data::GcMethod {
+        &self.gc_method
+    }
+
+    fn cleanup(&mut self) {}
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+}
+
+struct DrawStyle {
+    color: Color,
+    rotation: f32,
+    scale: (f32, f32),
+    outline_color: Color,
+    outline_thickness: f32,
+    font: Option<SfBox<Font>>,
+    font_size: u32,
+    name: String,
+    id: usize,
+    lib_id: usize,
+    gc_method: user_data::GcMethod,
+}
+impl DrawStyle {
+    /// Creates a new DrawStyle
+    fn new() -> Self {
+        Self {
+            color: Color::WHITE,
+            rotation: 0.0,
+            scale: (1.0, 1.0),
+            outline_color: Color::TRANSPARENT,
+            outline_thickness: 0.0,
+            font: None,
+            font_size: 30,
+            name: "DrawStyle".to_string(),
+            id: 0,
+            lib_id: 0,
+            gc_method: user_data::GcMethod::None,
+        }
+    }
+}
+impl UserData for DrawStyle {
     fn label(&self) -> &str {
         &self.name
     }
@@ -786,6 +1322,155 @@ impl Event {
     }
 }
 impl UserData for Event {
+    fn label(&self) -> &str {
+        &self.name
+    }
+
+    fn id(&self) -> usize {
+        self.id
+    }
+
+    fn lib_id(&self) -> usize {
+        self.lib_id
+    }
+
+    fn gc_method(&self) -> &user_data::GcMethod {
+        &self.gc_method
+    }
+
+    fn cleanup(&mut self) {}
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+}
+
+#[derive(Clone)]
+struct WinColor {
+    r: u8,
+    g: u8,
+    b: u8,
+    a: u8,
+    name: String,
+    id: usize,
+    lib_id: usize,
+    gc_method: user_data::GcMethod,
+}
+impl WinColor {
+    fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
+        Self {
+            r,
+            g,
+            b,
+            a,
+            name: "Color".to_string(),
+            id: 3,
+            lib_id: 0,
+            gc_method: user_data::GcMethod::None,
+        }
+    }
+    fn from_hex(hex: &str) -> Self {
+        let hex = hex.trim_start_matches('#');
+        let r = u8::from_str_radix(&hex[0..2], 16).unwrap();
+        let g = u8::from_str_radix(&hex[2..4], 16).unwrap();
+        let b = u8::from_str_radix(&hex[4..6], 16).unwrap();
+        let a = if hex.len() == 8 {
+            u8::from_str_radix(&hex[6..8], 16).unwrap()
+        } else {
+            255
+        };
+        Self {
+            r,
+            g,
+            b,
+            a,
+            name: "Color".to_string(),
+            id: 3,
+            lib_id: 0,
+            gc_method: user_data::GcMethod::None,
+        }
+    }
+}
+impl UserData for WinColor {
+    fn label(&self) -> &str {
+        &self.name
+    }
+
+    fn id(&self) -> usize {
+        self.id
+    }
+
+    fn lib_id(&self) -> usize {
+        self.lib_id
+    }
+
+    fn gc_method(&self) -> &user_data::GcMethod {
+        &self.gc_method
+    }
+
+    fn cleanup(&mut self) {}
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+}
+
+struct WinFont {
+    path: String,
+    name: String,
+    id: usize,
+    lib_id: usize,
+    gc_method: user_data::GcMethod,
+}
+impl WinFont {
+    fn new(path: &str) -> Self {
+        Self {
+            path: path.to_string(),
+            name: "Font".to_string(),
+            id: 4,
+            lib_id: 0,
+            gc_method: user_data::GcMethod::None,
+        }
+    }
+    fn default(name: &str) -> Self {
+        let ruda_path = std::env::var("RUDA_PATH").unwrap_or_else(|_| ".".to_string());
+        let path = format!("{}/fonts/{}.ttf", ruda_path, name);
+        Self {
+            path,
+            name: "Font".to_string(),
+            id: 4,
+            lib_id: 0,
+            gc_method: user_data::GcMethod::None,
+        }
+    }
+    fn ubuntu_mono() -> Self {
+        let ruda_path = std::env::var("RUDA_PATH").unwrap_or_else(|_| ".".to_string());
+        let path = format!("{}/fonts/UbuntuMono-Regular.ttf", ruda_path);
+        Self {
+            path,
+            name: "Font".to_string(),
+            id: 4,
+            lib_id: 0,
+            gc_method: user_data::GcMethod::None,
+        }
+    }
+    fn roboto() -> Self {
+        let ruda_path = std::env::var("RUDA_PATH").unwrap_or_else(|_| ".".to_string());
+        let path = format!("{}/fonts/Roboto-Regular.ttf", ruda_path);
+        Self {
+            path,
+            name: "Font".to_string(),
+            id: 4,
+            lib_id: 0,
+            gc_method: user_data::GcMethod::None,
+        }
+    }
+}
+impl UserData for WinFont {
     fn label(&self) -> &str {
         &self.name
     }
