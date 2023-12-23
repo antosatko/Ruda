@@ -203,11 +203,13 @@ pub mod dictionary {
                     line: node.line,
                 };
                 for enum_value in step_inside_arr(&node, "values") {
-                    let n = if let Tokens::Number(n, _) = get_token(&enum_value, "default") {
+                    let n = if let Tokens::Number(n, 'i') = get_token(&enum_value, "default") {
                         *n as usize
                     } else {
-                        let len = result.keys.len() - 1;
-                        result.keys[len].1 + 1
+                        match result.keys.last() {
+                            Some((_, n, _)) => n + 1,
+                            None => 0,
+                        }
                     };
                     let ident = get_ident(&enum_value);
                     for variant in &result.keys {
@@ -2320,6 +2322,20 @@ impl Kind {
         }
     }
 
+    pub fn from_benum(benum: &libloader::Enum, file: String, line: Line) -> Self {
+        Kind {
+            body: TypeBody::Type {
+                refs: 0,
+                main: vec![benum.name.clone()],
+                generics: Vec::new(),
+                nullable: false,
+                kind: KindType::Enum,
+            },
+            line,
+            file: Some(file),
+        }
+    }
+
     pub fn from_trait(trait_: &Trait, file: String) -> Self {
         Kind {
             body: TypeBody::Type {
@@ -2651,6 +2667,15 @@ impl Kind {
                     return true;
                 }
                 false
+            }
+            _ => false,
+        }
+    }
+
+    pub fn check_type(&self, _kind: &KindType) -> bool {
+        match &self.body {
+            TypeBody::Type { kind, ..} => {
+                *kind == *_kind
             }
             _ => false,
         }

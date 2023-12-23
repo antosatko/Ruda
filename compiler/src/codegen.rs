@@ -1,4 +1,5 @@
 use intermediate::dictionary::ImportKinds;
+use libloading::Library;
 use std::collections::HashMap;
 use std::{path, vec};
 
@@ -9,7 +10,7 @@ use runtime::runtime_types::{
 
 use crate::ast_parser::ast_parser::ArgsCon;
 use crate::codeblock_parser::Nodes;
-use crate::expression_parser::{self, ArrayRule, FunctionCall, Root, ValueType};
+use crate::expression_parser::{self, ArrayRule, FunctionCall, Root, TailNodes, ValueType};
 use crate::intermediate::dictionary::{
     self, Arg, ConstValue, Function, GenericDecl, TypeComparison,
 };
@@ -275,6 +276,7 @@ pub enum CodegenError {
     CannotRefDerefNumLiteral(Line),
     CannotIndexNonArray(Position, Line),
     FieldNotInStruct(String, Line),
+    FieldNotInEnum(String, Line),
     CannotDereference(usize, Kind, Line),
     CannotReference(usize, Kind, Line),
     CannotGetKind(Position),
@@ -283,6 +285,7 @@ pub enum CodegenError {
     SwitchWithoutCases(Line),
     IncorrectNumberOfGenerics(usize, usize, Line),
     UnresolvedInstructionStops(Vec<CodeStop>),
+    CannotCast(Kind, Position, Line),
 }
 
 pub fn stringify(
@@ -747,6 +750,42 @@ fn find_userdata<'a>(
     None
 }
 
+fn find_enum<'a>(
+    objects: &'a Context,
+    ident: &'a str,
+    file_name: &'a str,
+) -> Option<(&'a str, &'a dictionary::Enum)> {
+    match objects.0.get(file_name) {
+        Some(dictionary) => {
+            for enumm in dictionary.enums.iter() {
+                if enumm.identifier == ident {
+                    return Some((file_name, enumm));
+                }
+            }
+        }
+        None => (),
+    };
+    None
+}
+
+fn find_benum<'a>(
+    objects: &'a Context,
+    ident: &'a str,
+    file_name: &'a str,
+) -> Option<(&'a str, &'a libloader::Enum)> {
+    match objects.1.get(file_name) {
+        Some(dictionary) => {
+            for enumm in dictionary.enums.iter() {
+                if enumm.name == ident {
+                    return Some((file_name, enumm));
+                }
+            }
+        }
+        None => (),
+    };
+    None
+}
+
 #[derive(Debug, Clone)]
 pub enum FunctionKind {
     Fun(InnerPath),
@@ -943,6 +982,34 @@ fn gen_value(
         },
         _ => pos,
     };
+    match value.tail.last() {
+        Some((TailNodes::Cast(to_kind), _line)) => {
+            let to_kind = correct_kind(objects, &to_kind, fun, &value.root.1, generics)?;
+            match cast(
+                objects,
+                &mut kind.get_kind()?,
+                &to_kind,
+                code,
+                context,
+                &fun,
+                &value.root.1,
+                GENERAL_REG1,
+                generics,
+            ) {
+                Some(_) => {
+                    return Ok(Position::Value(to_kind));
+                }
+                None => {
+                    return Err(CodegenError::CouldNotCastTo(
+                        to_kind,
+                        kind.get_kind()?,
+                        value.root.1.clone(),
+                    ));
+                }
+            }
+        }
+        _ => (),
+    }
     Ok(kind)
 }
 
@@ -1061,6 +1128,19 @@ fn identify_root(
                     userdata.name.to_string(),
                     fname.to_string(),
                     userdata.line,
+                )));
+            }
+            if let Some((fname, enumm)) = find_enum(objects, &ident, &file) {
+                return Ok(Position::Compound(Kind::from_enum(
+                    enumm,
+                    fname.to_string(),
+                )));
+            }
+            if let Some((fname, benum)) = find_benum(objects, &ident, &file) {
+                return Ok(Position::Compound(Kind::from_benum(
+                    benum,
+                    fname.to_string(),
+                    line.clone(),
                 )));
             }
             Err(CodegenError::VariableNotFound(
@@ -1602,6 +1682,47 @@ fn traverse_tail(
                                 node.1.clone(),
                             ))?,
                         };
+                    }
+                    if let Some((_, enumm)) = find_enum(
+                        objects,
+                        &kind_main.first().unwrap(),
+                        &_kind.file.as_ref().unwrap(),
+                    ) {
+                        let (ident, key_code, line) =
+                            match enumm.keys.iter().find(|field| &field.0 == ident) {
+                                Some(field) => field,
+                                None => Err(CodegenError::FieldNotInEnum(
+                                    ident.clone(),
+                                    node.1.clone(),
+                                ))?,
+                            };
+                        let pos = new_const(context, &ConstValue::Uint(*key_code))?;
+                        code.push(ReadConst(pos, GENERAL_REG1));
+                        return Ok(Position::Value(Kind::from_enum(
+                            enumm,
+                            _kind.file.as_ref().unwrap().to_string(),
+                        )));
+                    }
+                    if let Some((_, enumm)) = find_benum(
+                        objects,
+                        &kind_main.first().unwrap(),
+                        &_kind.file.as_ref().unwrap(),
+                    ) {
+                        let (ident, key_code) =
+                            match enumm.variants.iter().find(|field| &field.0 == ident) {
+                                Some(field) => field,
+                                None => Err(CodegenError::FieldNotInEnum(
+                                    ident.clone(),
+                                    node.1.clone(),
+                                ))?,
+                            };
+                        let pos = new_const(context, &ConstValue::Uint(*key_code))?;
+                        code.push(ReadConst(pos, GENERAL_REG1));
+                        return Ok(Position::Value(Kind::from_benum(
+                            enumm,
+                            _kind.file.as_ref().unwrap().to_string(),
+                            enumm.line.clone(),
+                        )));
                     }
                     todo!()
                 }
@@ -2156,7 +2277,7 @@ fn traverse_tail(
                 }
                 _ => Err(CodegenError::CanCallOnlyFunctions(node.1.clone()))?,
             },
-            expression_parser::TailNodes::Cast(_) => todo!(),
+            expression_parser::TailNodes::Cast(_) => (), // cast is always the last node and will be handled by the caller
         },
         None => {
             // finish the sequence
@@ -2304,20 +2425,18 @@ fn call_binary(
                     kind
                 }
             }
-            _ => {
-                expression(
-                    objects,
-                    arg.0,
-                    scopes,
-                    &mut temp_code,
-                    context,
-                    &this,
-                    scope_len,
-                    Some(arg.1.clone().1),
-                    line.clone(),
-                    &generics_map,
-                )?
-            }
+            _ => expression(
+                objects,
+                arg.0,
+                scopes,
+                &mut temp_code,
+                context,
+                &this,
+                scope_len,
+                Some(arg.1.clone().1),
+                line.clone(),
+                &generics_map,
+            )?,
         };
         args.push(kind);
         temp_code.extend(&[WriteArg(idx + takes_self as usize, GENERAL_REG1)])
@@ -4296,9 +4415,7 @@ fn cast(
     generics: &HashMap<String, Kind>,
 ) -> Option<()> {
     use Instructions::*;
-    if
-    /*to.array_depth > 0 && to.array_depth == from.array_depth*/
-    to.is_array() && from.is_array() {
+    if to.is_array() && from.is_array() {
         return Some(());
     }
     if to.get_nullable() && from.is_null() {
@@ -4398,9 +4515,7 @@ fn correct_kind(
         } => {
             let mut file = fun.clone();
             file.file = _kind.file.clone().unwrap_or(file.file);
-            if main.len() == 1 {
-
-            }
+            if main.len() == 1 {}
             for i in 0..main.len() - 1 {
                 let import = match find_import(objects, &main[i], &file.file) {
                     Some(import) => import,
@@ -4475,6 +4590,11 @@ fn get_kind(objects: &Context, location: &InnerPath, line: &Line) -> Result<Kind
                 location.file.clone(),
                 user_data.line,
             ));
+        }
+    }
+    for enumm in file.enums.iter() {
+        if enumm.name == location.ident {
+            return Ok(Kind::from_benum(enumm, location.file.clone(), line.clone()));
         }
     }
     Err(CodegenError::KindNotFound(location.clone(), line.clone()))

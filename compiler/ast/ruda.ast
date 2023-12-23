@@ -337,8 +337,7 @@ KWEnum identifier [values public
 	"enum" harderr="true"
 	ident set="identifier"
 	{
-	enum_value ? set="values"
-	, ? back="1"
+	enum_value ? set="values" back="0"
 	};
 
 
@@ -747,7 +746,7 @@ value_mod kw
 
 cast type
 	"as" harderr="true"
-	type_ident set="type";
+	type set="type";
 
 ident identifier
 	RESERVED ? err="identifier name is reserved"

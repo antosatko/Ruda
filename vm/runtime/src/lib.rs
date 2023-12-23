@@ -2168,9 +2168,6 @@ pub mod runtime_types {
         /// ID
         NonPrimitive(usize),
     }
-    pub struct I {
-        i: u8,
-    }
     impl Types {
         /// may panic, so use this only if you are 100% certain that you got a character
         pub fn get_char(&self) -> char {

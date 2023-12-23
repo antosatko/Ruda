@@ -1,6 +1,6 @@
 import "#io"
 
-struct Danda<T> {
+struct Danda {
     a: int
 
     new (a: int) {

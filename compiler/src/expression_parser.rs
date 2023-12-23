@@ -421,7 +421,7 @@ pub fn get_tail(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> Vec<
                 continue;
             }
             if txt == "cast" {
-                let kind = get_nested_ident(step_inside_val(&child, "type"), errors);
+                let kind = get_type(step_inside_val(&child, "type"), errors, file_name);
                 tail.push((TailNodes::Cast(kind), child.line));
                 break;
             }
@@ -661,5 +661,5 @@ pub enum TailNodes {
     Nested(String),
     Index(ValueType),
     Call(FunctionCall),
-    Cast(Vec<String>),
+    Cast(Kind),
 }

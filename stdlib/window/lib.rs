@@ -16,6 +16,7 @@ use runtime::*;
 
 use runtime::user_data::UserData;
 use sfml::*;
+use sfml::graphics::{RenderWindow, RenderTarget, Color};
 
 fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_error::ErrTypes> {
         let m = &mut ctx.memory;
@@ -104,6 +105,39 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
                 };
                 return Ok(Types::Uint(win_builder.height as usize));
             }
+            // Window::clear
+            5 => {
+                let args = m.args();
+                let ud = match args[0] {
+                    Types::Pointer(pos, PointerTypes::UserData) => pos,
+                    _ => Err(ErrTypes::InvalidType(args[0], Types::Pointer(0, PointerTypes::UserData)))?,
+                };
+                let window = m.user_data.data[ud].as_mut();
+                let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
+                window.window.clear(Color::BLACK);
+            }
+            // Window::display
+            6 => {
+                let args = m.args();
+                let ud = match args[0] {
+                    Types::Pointer(pos, PointerTypes::UserData) => pos,
+                    _ => Err(ErrTypes::InvalidType(args[0], Types::Pointer(0, PointerTypes::UserData)))?,
+                };
+                let window = m.user_data.data[ud].as_mut();
+                let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
+                window.window.display();
+            }
+            // Window::close
+            7 => {
+                let args = m.args();
+                let ud = match args[0] {
+                    Types::Pointer(pos, PointerTypes::UserData) => pos,
+                    _ => Err(ErrTypes::InvalidType(args[0], Types::Pointer(0, PointerTypes::UserData)))?,
+                };
+                let window = m.user_data.data[ud].as_mut();
+                let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
+                window.window.close();
+            }
             _ => unreachable!("Invalid function id, {}", id),
         }
         return Ok(runtime_types::Types::Void);
@@ -115,6 +149,10 @@ fn register() -> String {
     r#"
     userdata Window > 0i {
         new (title=reg.g1: string, settings=reg.ptr: WinBuilder) > 0i
+
+        fun clear(self=reg.ptr) > 5i
+        fun display(self=reg.ptr) > 6i
+        fun close(self=reg.ptr) > 7i
     }
 
     userdata WinBuilder > 1i {
@@ -123,6 +161,16 @@ fn register() -> String {
         fun title(self=reg.ptr, title=reg.g1: string?): string > 2i
         fun width(self=reg.ptr, width=reg.g1: uint?): uint > 3i
         fun height(self=reg.ptr, height=reg.g1: uint?): uint > 4i
+    }
+
+    enum Event > 0i {
+        Closed
+        Resized
+        LostFocus
+        GainedFocus
+        TextEntered
+        KeyPressed
+        KeyReleased
     }
     "#.to_string()
 }
@@ -133,13 +181,12 @@ pub fn init(_ctx: &mut Context, my_id: usize) -> fn(&mut Context, usize, usize) 
 }
 
 struct Window {
-    window: window::Window,
+    window: RenderWindow,
     name: String,
     id: usize,
     lib_id: usize,
     gc_method: user_data::GcMethod,
 }
-
 impl Window {
     fn new(
         size: (u32, u32),
@@ -147,7 +194,7 @@ impl Window {
         style: window::Style,
         settings: &WinBuilder
     ) -> Self {
-        let window = window::Window::new(
+        let window = RenderWindow::new(
             size,
             title,
             style,
@@ -162,8 +209,6 @@ impl Window {
         }
     }
 }
-
-
 impl UserData for Window {
     fn label(&self) -> &str {
         &self.name
@@ -201,7 +246,6 @@ struct WinBuilder {
     lib_id: usize,
     gc_method: user_data::GcMethod,
 }
-
 impl WinBuilder {
     fn new() -> Self {
         Self {
@@ -215,7 +259,6 @@ impl WinBuilder {
         }
     }
 }
-
 impl UserData for WinBuilder {
     fn label(&self) -> &str {
         &self.name

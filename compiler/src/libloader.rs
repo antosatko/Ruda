@@ -164,6 +164,7 @@ pub fn load(
                         name: ident,
                         variants,
                         assign,
+                        line: node.line,
                     });
                 }
                 "KWFun" => {
@@ -602,6 +603,7 @@ pub struct Enum {
     pub name: String,
     pub variants: Vec<(String, usize)>,
     pub assign: usize,
+    pub line: Line,
 }
 
 #[derive(Debug)]

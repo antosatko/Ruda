@@ -98,15 +98,13 @@ KWType identifier type assign
 	assign set="assign"
 	;?;
 
-KWEnum identifier [values assign [methods [traits 
+KWEnum identifier [values public assign
+	"pub" ? set="public"
 	"enum" harderr="true"
 	ident set="identifier"
 	assign set="assign"
 	{
-	enum_value ? set="values"
-	KWFun ? set="methods" back="0"
-	KWOverload ? set="methods" back="1"
-	KWImpl ? set="traits" back="0"
+	enum_value ? set="values" back="0"
 	};
 
 enum_value identifier default
