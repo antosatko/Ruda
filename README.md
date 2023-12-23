@@ -12,7 +12,7 @@
 
 ## About
 
-Ruda was designed to offer an easy but performant alternative to common languages. It aims to provide flawless experience for hobbyists. Ruda was never meant to go into production but it is more than capable to fill this role. 
+Ruda was designed to offer an easy and user-friendly alternative to common languages. It aims to provide flawless experience for hobbyists. Ruda was never meant to go into production but it is more than capable to fill this role. 
 
 To learn how to use Ruda, see [Ruda docs](https://it-2001.github.io/Ruda-docs/).
 
