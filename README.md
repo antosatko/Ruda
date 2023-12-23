@@ -44,7 +44,7 @@ Just clone the repository and run `py ruda_build.py`. This should create a  `bui
 
 Add `build/bin` to your enviroment path variable and create a new variable `RUDA_PATH` with the path to `build` directory. If this is unclear, look up _How to Change the PATH Environment Variable on Windows_ (or any other platform).
 
-Ruda also requires `SFLM 2.6+` to be installed. You can download it from https://www.sfml-dev.org/download/sfml/2.5.1/. Make sure to follow the instructions for your platform and toolchain.
+Ruda also requires `SFLM 2.6+` to be installed. You can download it from https://www.sfml-dev.org/download/sfml/2.6.1/. Make sure to follow the instructions for your platform and toolchain.
 
 Open new terminal and try `ruda --version`.
 
