@@ -52,7 +52,7 @@ Open new terminal and try `ruda --version`.
 
 Ruda is currently only supported on Windows. Linux support is planned for public testing.
 
-Only 64-bit systems are supported. This will unlikely change in the future.
+Only 64-bit systems are supported. This is very unlikely to change in the future.
 
 ## Other
 
