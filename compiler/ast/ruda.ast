@@ -586,6 +586,7 @@ variable_tail [nodes
 	nested ? set="nodes" back="0" harderr="true"
 	idx ? set="nodes" back="1" harderr="true"
 	function_call ? set="nodes" back="2" harderr="true"
+	? ? set="nodes" back="3" harderr="true"
 	cast ? set="nodes";
 
 free_parenthesis expression tail

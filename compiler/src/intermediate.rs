@@ -1570,6 +1570,7 @@ pub mod dictionary {
     pub enum KindType {
         Struct,
         Enum,
+        BEnum,
         Trait,
         Fun,
         Primitive,
@@ -1584,6 +1585,7 @@ pub mod dictionary {
             match self {
                 KindType::Struct => Some(ImportKinds::Rd),
                 KindType::Enum => Some(ImportKinds::Rd),
+                KindType::BEnum => Some(ImportKinds::Dll),
                 KindType::Trait => Some(ImportKinds::Rd),
                 KindType::Fun => Some(ImportKinds::Rd),
                 KindType::Primitive => None,
@@ -2329,7 +2331,7 @@ impl Kind {
                 main: vec![benum.name.clone()],
                 generics: Vec::new(),
                 nullable: false,
-                kind: KindType::Enum,
+                kind: KindType::BEnum,
             },
             line,
             file: Some(file),
@@ -2675,7 +2677,12 @@ impl Kind {
     pub fn check_type(&self, _kind: &KindType) -> bool {
         match &self.body {
             TypeBody::Type { kind, ..} => {
-                *kind == *_kind
+                match &kind {
+                    KindType::Enum | KindType::BEnum => {
+                        *_kind == KindType::Enum || *_kind == KindType::BEnum
+                    }
+                    _ => *_kind == *kind,
+                }
             }
             _ => false,
         }

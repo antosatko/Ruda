@@ -27,22 +27,51 @@ fun tenum_tostr(e: TestEnum): string {
 
 fun main() {
     let winBuilder = win.WinBuilder()
-    winBuilder.width(160)
-    winBuilder.height(90)
+    winBuilder.width(800)
+    winBuilder.height(450)
     let ctx = win.Window("Test", winBuilder)
-    ctx.clear()
+    let event: win.Event?
+    let i = 0
 
-    // event poll ..
+    let time = time.Clock()
 
-    // drawing ..
+    loop "main_loop": {
+        ctx.clear()
+        loop "event_loop": {
+            event = ctx.poll()
+            if event {
+                break "event_loop"
+            }
 
-    ctx.display()
+
+
+
+            if event.code() as int == win.Events.Closed {
+                break "main_loop"
+            }
+            if event.code() as int == win.Events.Input {
+                io.println("key pressed: " + event.input())
+            }
+
+        }
+        ctx.title("Frame - " + i)
+
+        ctx.display()
+        i += 1
+        if time.elapsed() > 1000000 {
+            ctx.close()
+            break "main_loop"
+        }
+    }
+
+    io.println("elapsed: " + time.elapsed())
+    io.println("frames: " + i)
+
 
     let d = danda.Danda(60)
     io.println(d.a as float)
 
-    ctx.close()
     
     io.println(tenum_tostr(2))
-    win.Event.Closed
+    win.Events.Closed
 }

@@ -1628,6 +1628,7 @@ fn traverse_tail(
                                     );
                                 }
                                 dictionary::KindType::Enum => todo!(),
+                                dictionary::KindType::BEnum => todo!(),
                                 dictionary::KindType::Trait => todo!(),
                                 dictionary::KindType::Fun => todo!(),
                                 dictionary::KindType::Error => todo!(),
@@ -1903,6 +1904,7 @@ fn traverse_tail(
                                     );
                                 }
                                 dictionary::KindType::Enum => todo!(),
+                                dictionary::KindType::BEnum => todo!(),
                                 dictionary::KindType::Trait => todo!(),
                                 dictionary::KindType::Fun => todo!(),
                                 dictionary::KindType::Error => todo!(),
@@ -4085,7 +4087,34 @@ fn native_operand(
                     line: line.clone(),
                     file: Some(fun.file.clone()),
                 });
+            } else if left.get_nullable() && right.is_null() {
+                code.extend(&[Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
+                return Some(Kind {
+                    body: TypeBody::Type {
+                        refs: 0,
+                        main: vec!["bool".to_string()],
+                        generics: vec![],
+                        nullable: false,
+                        kind: dictionary::KindType::Primitive,
+                    },
+                    line: line.clone(),
+                    file: Some(fun.file.clone()),
+                });
+            } else if right.get_nullable() && left.is_null() {
+                code.extend(&[Equ(GENERAL_REG1, GENERAL_REG2, GENERAL_REG1)]);
+                return Some(Kind {
+                    body: TypeBody::Type {
+                        refs: 0,
+                        main: vec!["bool".to_string()],
+                        generics: vec![],
+                        nullable: false,
+                        kind: dictionary::KindType::Primitive,
+                    },
+                    line: line.clone(),
+                    file: Some(fun.file.clone()),
+                });
             } else {
+                println!("{:?} == {:?}", left, right);
                 None?
             }
         }
@@ -4415,6 +4444,8 @@ fn cast(
     generics: &HashMap<String, Kind>,
 ) -> Option<()> {
     use Instructions::*;
+    let from = &correct_kind(_objects, from, _fun, _line, generics).ok()?;
+    let to = &correct_kind(_objects, to, _fun, _line, generics).ok()?;
     if from.check_type(&dictionary::KindType::Enum) && to.is_number() {
         return cast(
             _objects,
@@ -4460,6 +4491,17 @@ fn cast(
             register,
             generics,
         );
+    }
+    if to.is_bool() && from.get_nullable() {
+        let null = new_const(context, &ConstValue::Null).ok()?;
+        if register != GENERAL_REG2 {
+            code.extend(&[Move(register, GENERAL_REG2)]);
+        }
+        code.extend(&[
+            ReadConst(null, GENERAL_REG1),
+            Equ(GENERAL_REG1, GENERAL_REG2, register),
+        ]);
+        return Some(());
     }
     if to.is_array() && from.is_array() {
         return Some(());
