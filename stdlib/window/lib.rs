@@ -1737,6 +1737,30 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             draw_style.character_spacing = spacing;
             return Ok(Types::Pointer(ud, PointerTypes::UserData));
         }
+        // Window::lineSpacing
+        72 => {
+            let args = m.args();
+            let arg1 = args[0];
+            let arg2 = args[1];
+            let spacing = match arg2 {
+                Types::Float(f) => f as f32,
+                _ => return Err(ErrTypes::InvalidType(arg2, Types::Float(0.0))),
+            };
+            let ud = match arg1 {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        arg1,
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+
+            let draw_style = m.user_data.data[ud].as_mut();
+            let draw_style = draw_style.as_any_mut().downcast_mut::<DrawStyle>().unwrap();
+            draw_style.line_spacing = spacing;
+            return Ok(Types::Pointer(ud, PointerTypes::UserData));
+        }
         // Window::styledText
         73 => {
             let args = m.args();
@@ -1840,6 +1864,48 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
                 None => (),
             }
             return Ok(Types::Void);
+        }
+        // Event::resizeX
+        76 => {
+            let args = m.args();
+            let arg1 = args[0];
+            let ud = match arg1 {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        arg1,
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+            let event = m.user_data.data[ud].as_mut();
+            let event = event.as_any_mut().downcast_mut::<Event>().unwrap();
+            let size = match event.event {
+                window::Event::Resized { width, .. } => width,
+                _ => 0,
+            };
+            return Ok(Types::Uint(size as usize));
+        }
+        // Event::resizeY
+        77 => {
+            let args = m.args();
+            let arg1 = args[0];
+            let ud = match arg1 {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        arg1,
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+            let event = m.user_data.data[ud].as_mut();
+            let event = event.as_any_mut().downcast_mut::<Event>().unwrap();
+            let size = match event.event {
+                window::Event::Resized { height, .. } => height,
+                _ => 0,
+            };
+            return Ok(Types::Uint(size as usize));
         }
         _ => unreachable!("Invalid function id, {}", id),
     }
@@ -1956,6 +2022,9 @@ fn register() -> String {
         fun mouseX(self=reg.ptr): uint > 19i
         fun mouseY(self=reg.ptr): uint > 20i
         fun mouseButton(self=reg.ptr): MouseButton > 21i
+
+        fun resizeX(self=reg.ptr): uint > 76i
+        fun resizeY(self=reg.ptr): uint > 77i
     }
 
     userdata DrawStyle > 3i {
@@ -2002,9 +2071,9 @@ fn register() -> String {
         Input
         KeyPressed
         KeyReleased
-        MouseWheelScrolled
-        MouseButtonPressed
-        MouseButtonReleased
+        Wheel
+        MousePressed
+        MouseReleased
         MouseMoved
 
         Unknown
