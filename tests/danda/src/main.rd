@@ -20,9 +20,9 @@ fun main() {
     let style = win.DrawStyle()
         .font(win.FontUbuntuMono())
         .fontSize(20)
-        /*.color(win.ColorFrom(win.Colors.White))
+        .color(win.ColorFrom(win.Colors.White))
         .outlineColor(win.ColorFrom(win.Colors.Green))
-        .outlineThickness(1)*/
+        .outlineThickness(10)
 
 
     loop "main_loop": {

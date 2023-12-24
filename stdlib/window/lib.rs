@@ -1194,7 +1194,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             rect.set_position((x, y));
             rect.set_size((width, height));
             rect.set_fill_color(style.color);
-            rect.set_outline_color(style.color);
+            rect.set_outline_color(style.outline_color);
             rect.set_outline_thickness(style.outline_thickness);
             rect.set_rotation(style.rotation);
             rect.set_scale((style.scale.0, style.scale.1));
@@ -1242,7 +1242,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             let mut circle = CircleShape::new(radius, 30);
             circle.set_position((x, y));
             circle.set_fill_color(style.color);
-            circle.set_outline_color(style.color);
+            circle.set_outline_color(style.outline_color);
             circle.set_outline_thickness(style.outline_thickness);
             circle.set_rotation(style.rotation);
             circle.set_scale((style.scale.0, style.scale.1));
@@ -1773,7 +1773,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             let mut text = Text::new(text, &font, style.font_size);
             text.set_position((x, y));
             text.set_fill_color(style.color);
-            text.set_outline_color(style.color);
+            text.set_outline_color(style.outline_color);
             text.set_outline_thickness(style.outline_thickness);
             text.set_rotation(style.rotation);
             text.set_scale((style.scale.0, style.scale.1));
