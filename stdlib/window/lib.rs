@@ -1139,18 +1139,8 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             };
             let mut text = Text::new(text, &font, style.font_size);
             text.set_position((x, y));
-            text.set_fill_color(Color {
-                r: style.color.r,
-                g: style.color.g,
-                b: style.color.b,
-                a: style.color.a,
-            });
-            text.set_outline_color(Color {
-                r: style.outline_color.r,
-                g: style.outline_color.g,
-                b: style.outline_color.b,
-                a: style.outline_color.a,
-            });
+            text.set_fill_color(style.color);
+            text.set_outline_color(style.color);
             text.set_outline_thickness(style.outline_thickness);
             text.set_rotation(style.rotation);
             text.set_scale((style.scale.0, style.scale.1));
@@ -1203,18 +1193,8 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             let mut rect = RectangleShape::new();
             rect.set_position((x, y));
             rect.set_size((width, height));
-            rect.set_fill_color(Color {
-                r: style.color.r,
-                g: style.color.g,
-                b: style.color.b,
-                a: style.color.a,
-            });
-            rect.set_outline_color(Color {
-                r: style.outline_color.r,
-                g: style.outline_color.g,
-                b: style.outline_color.b,
-                a: style.outline_color.a,
-            });
+            rect.set_fill_color(style.color);
+            rect.set_outline_color(style.color);
             rect.set_outline_thickness(style.outline_thickness);
             rect.set_rotation(style.rotation);
             rect.set_scale((style.scale.0, style.scale.1));
@@ -1261,18 +1241,8 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             };
             let mut circle = CircleShape::new(radius, 30);
             circle.set_position((x, y));
-            circle.set_fill_color(Color {
-                r: style.color.r,
-                g: style.color.g,
-                b: style.color.b,
-                a: style.color.a,
-            });
-            circle.set_outline_color(Color {
-                r: style.outline_color.r,
-                g: style.outline_color.g,
-                b: style.outline_color.b,
-                a: style.outline_color.a,
-            });
+            circle.set_fill_color(style.color);
+            circle.set_outline_color(style.color);
             circle.set_outline_thickness(style.outline_thickness);
             circle.set_rotation(style.rotation);
             circle.set_scale((style.scale.0, style.scale.1));
@@ -1752,6 +1722,128 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             draw_style.character_spacing = spacing;
             return Ok(Types::Pointer(ud, PointerTypes::UserData));
         }
+        // Window::styledText
+        73 => {
+            let args = m.args();
+            let arg1 = args[1];
+            let arg2 = args[2];
+            let arg3 = args[3];
+            let arg4 = args[4];
+            let ud = match args[0] {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => Err(ErrTypes::InvalidType(
+                    args[0],
+                    Types::Pointer(0, PointerTypes::UserData),
+                ))?,
+            };
+            let x = match arg1 {
+                Types::Float(f) => f as f32,
+                _ => Err(ErrTypes::InvalidType(arg1, Types::Float(0.0)))?,
+            };
+            let y = match arg2 {
+                Types::Float(f) => f as f32,
+                _ => Err(ErrTypes::InvalidType(arg2, Types::Float(0.0)))?,
+            };
+            let text = match arg3 {
+                Types::Pointer(pos, PointerTypes::String) => &m.strings.pool[pos],
+                _ => Err(ErrTypes::InvalidType(
+                    arg3,
+                    Types::Pointer(0, PointerTypes::String),
+                ))?,
+            };
+            let style = match arg4 {
+                Types::Pointer(pos, PointerTypes::UserData) => {
+                    let style = m.user_data.data[pos].as_mut();
+                    style.as_any().downcast_ref::<DrawStyle>().unwrap()
+                }
+                _ => Err(ErrTypes::InvalidType(
+                    arg4,
+                    Types::Pointer(0, PointerTypes::UserData),
+                ))?,
+            };
+            let font = match &style.font {
+                Some(font) => font,
+                None => {
+                    return Err(ErrTypes::Message(
+                        "Window::drawText: no font set".to_string(),
+                    ))
+                }
+            };
+            let font = font.to_owned();
+            let mut text = Text::new(text, &font, style.font_size);
+            text.set_position((x, y));
+            text.set_fill_color(style.color);
+            text.set_outline_color(style.color);
+            text.set_outline_thickness(style.outline_thickness);
+            text.set_rotation(style.rotation);
+            text.set_scale((style.scale.0, style.scale.1));
+            text.set_letter_spacing(style.character_spacing);
+            text.set_line_spacing(style.line_spacing);
+            let window = m.user_data.data[ud].as_mut();
+            let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
+            window.window.draw(&text);
+            return Ok(Types::Void);
+        }
+        // Window::save
+        74 => {
+            let args = m.args();
+            let arg1 = args[0];
+            let ud = match arg1 {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        arg1,
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+            let window = m.user_data.data[ud].as_mut();
+            let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
+            let ds = DrawStyle {
+                color: window.style.color,
+                rotation: window.style.rotation,
+                scale: window.style.scale,
+                outline_color: window.style.outline_color,
+                outline_thickness: window.style.outline_thickness,
+                font: None,
+                font_size: window.style.font_size,
+                character_spacing: window.style.character_spacing,
+                line_spacing: window.style.line_spacing,
+                lib_id,
+            };
+            window.style_stack.push(ds);
+            return Ok(Types::Void);
+        }
+        // Window::restore
+        75 => {
+            let args = m.args();
+            let arg1 = args[0];
+            let ud = match arg1 {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        arg1,
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+            let window = m.user_data.data[ud].as_mut();
+            let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
+            match window.style_stack.pop() {
+                Some(style) => {
+                    window.style.color = style.color;
+                    window.style.rotation = style.rotation;
+                    window.style.scale = style.scale;
+                    window.style.outline_color = style.outline_color;
+                    window.style.outline_thickness = style.outline_thickness;
+                    window.style.font_size = style.font_size;
+                    window.style.character_spacing = style.character_spacing;
+                    window.style.line_spacing = style.line_spacing;
+                }
+                None => (),
+            }
+            return Ok(Types::Void);
+        }
         _ => unreachable!("Invalid function id, {}", id),
     }
     return Ok(runtime_types::Types::Void);
@@ -1807,6 +1899,15 @@ fn register() -> String {
             radius=reg.g3: float, 
             style=reg.g4: DrawStyle,
         ) > 51i
+        /// Draws text with a style
+        /// Use only if you can't set the style of the window
+        fun styledText(
+            self=reg.ptr, 
+            x=reg.g1: float, 
+            y=reg.g2: float, 
+            text=reg.g3: string, 
+            style=reg.g4: DrawStyle,
+        ) > 73i
 
         fun background(self=reg.ptr, color=reg.g1: Color) > 60i
         fun getStyle(self=reg.ptr): DrawStyle > 61i
@@ -1821,6 +1922,11 @@ fn register() -> String {
         fun fontSize(self=reg.ptr, fontSize=reg.g1: uint) > 70i
         fun characterSpacing(self=reg.ptr, characterSpacing=reg.g1: float) > 71i
         fun lineSpacing(self=reg.ptr, lineSpacing=reg.g1: float) > 72i
+
+        /// Saves the current style
+        /// This does not affect saved font, since fonts are expensive to copy
+        fun save(self=reg.ptr) > 74i
+        fun restore(self=reg.ptr) > 75i
     }
 
     userdata WinBuilder > 1i {
@@ -1962,10 +2068,9 @@ struct Window {
     bg: Color,
     /// Style for drawing
     style: DrawStyle,
-    name: String,
-    id: usize,
+    /// Stack for saving and restoring the style
+    style_stack: Vec<DrawStyle>,
     lib_id: usize,
-    gc_method: user_data::GcMethod,
 }
 impl Window {
     fn new(size: (u32, u32), title: &str, style: window::Style, settings: &WinBuilder) -> Self {
@@ -1978,20 +2083,18 @@ impl Window {
             window,
             bg: Color::BLACK,
             style,
-            name: "Window".to_string(),
-            id: 0,
+            style_stack: Vec::new(),
             lib_id: 0,
-            gc_method: user_data::GcMethod::None,
         }
     }
 }
 impl UserData for Window {
     fn label(&self) -> &str {
-        &self.name
+        &"Window"
     }
 
     fn id(&self) -> usize {
-        self.id
+        0
     }
 
     fn lib_id(&self) -> usize {
@@ -1999,7 +2102,7 @@ impl UserData for Window {
     }
 
     fn gc_method(&self) -> &user_data::GcMethod {
-        &self.gc_method
+        &user_data::GcMethod::Gc
     }
 
     fn cleanup(&mut self) {}
@@ -2022,10 +2125,7 @@ struct DrawStyle {
     font_size: u32,
     character_spacing: f32,
     line_spacing: f32,
-    name: String,
-    id: usize,
     lib_id: usize,
-    gc_method: user_data::GcMethod,
 }
 impl DrawStyle {
     /// Creates a new DrawStyle
@@ -2040,20 +2140,17 @@ impl DrawStyle {
             font_size: 30,
             character_spacing: 1.0,
             line_spacing: 1.0,
-            name: "DrawStyle".to_string(),
-            id: 0,
             lib_id: 0,
-            gc_method: user_data::GcMethod::None,
         }
     }
 }
 impl UserData for DrawStyle {
     fn label(&self) -> &str {
-        &self.name
+        &"DrawStyle"
     }
 
     fn id(&self) -> usize {
-        self.id
+        0
     }
 
     fn lib_id(&self) -> usize {
@@ -2061,7 +2158,7 @@ impl UserData for DrawStyle {
     }
 
     fn gc_method(&self) -> &user_data::GcMethod {
-        &self.gc_method
+        &user_data::GcMethod::Gc
     }
 
     fn cleanup(&mut self) {}
@@ -2078,10 +2175,7 @@ struct WinBuilder {
     width: u32,
     height: u32,
     style: window::Style,
-    name: String,
-    id: usize,
     lib_id: usize,
-    gc_method: user_data::GcMethod,
 }
 impl WinBuilder {
     fn new() -> Self {
@@ -2090,20 +2184,17 @@ impl WinBuilder {
             width: 800,
             height: 600,
             style: window::Style::NONE,
-            name: "WinBuilder".to_string(),
-            id: 1,
             lib_id: 0,
-            gc_method: user_data::GcMethod::None,
         }
     }
 }
 impl UserData for WinBuilder {
     fn label(&self) -> &str {
-        &self.name
+        &"WinBuilder"
     }
 
     fn id(&self) -> usize {
-        self.id
+        1
     }
 
     fn lib_id(&self) -> usize {
@@ -2111,7 +2202,7 @@ impl UserData for WinBuilder {
     }
 
     fn gc_method(&self) -> &user_data::GcMethod {
-        &self.gc_method
+        &user_data::GcMethod::Gc
     }
 
     fn cleanup(&mut self) {}
@@ -2124,30 +2215,21 @@ impl UserData for WinBuilder {
 }
 
 struct Event {
-    name: String,
-    id: usize,
     lib_id: usize,
-    gc_method: user_data::GcMethod,
     event: window::Event,
 }
 impl Event {
     fn new(event: window::Event) -> Self {
-        Self {
-            name: "Event".to_string(),
-            id: 2,
-            lib_id: 0,
-            gc_method: user_data::GcMethod::None,
-            event,
-        }
+        Self { lib_id: 0, event }
     }
 }
 impl UserData for Event {
     fn label(&self) -> &str {
-        &self.name
+        &"Event"
     }
 
     fn id(&self) -> usize {
-        self.id
+        2
     }
 
     fn lib_id(&self) -> usize {
@@ -2155,7 +2237,7 @@ impl UserData for Event {
     }
 
     fn gc_method(&self) -> &user_data::GcMethod {
-        &self.gc_method
+        &user_data::GcMethod::Gc
     }
 
     fn cleanup(&mut self) {}
@@ -2173,10 +2255,7 @@ struct WinColor {
     g: u8,
     b: u8,
     a: u8,
-    name: String,
-    id: usize,
     lib_id: usize,
-    gc_method: user_data::GcMethod,
 }
 impl WinColor {
     fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
@@ -2185,10 +2264,7 @@ impl WinColor {
             g,
             b,
             a,
-            name: "Color".to_string(),
-            id: 3,
             lib_id: 0,
-            gc_method: user_data::GcMethod::None,
         }
     }
     fn from_hex(hex: &str) -> Self {
@@ -2206,20 +2282,17 @@ impl WinColor {
             g,
             b,
             a,
-            name: "Color".to_string(),
-            id: 3,
             lib_id: 0,
-            gc_method: user_data::GcMethod::None,
         }
     }
 }
 impl UserData for WinColor {
     fn label(&self) -> &str {
-        &self.name
+        &"Color"
     }
 
     fn id(&self) -> usize {
-        self.id
+        3
     }
 
     fn lib_id(&self) -> usize {
@@ -2227,7 +2300,7 @@ impl UserData for WinColor {
     }
 
     fn gc_method(&self) -> &user_data::GcMethod {
-        &self.gc_method
+        &user_data::GcMethod::Gc
     }
 
     fn cleanup(&mut self) {}
@@ -2241,62 +2314,38 @@ impl UserData for WinColor {
 
 struct WinFont {
     path: String,
-    name: String,
-    id: usize,
     lib_id: usize,
-    gc_method: user_data::GcMethod,
 }
 impl WinFont {
     fn new(path: &str) -> Self {
         Self {
             path: path.to_string(),
-            name: "Font".to_string(),
-            id: 4,
             lib_id: 0,
-            gc_method: user_data::GcMethod::None,
         }
     }
     fn default(name: &str) -> Self {
         let ruda_path = std::env::var("RUDA_PATH").unwrap_or_else(|_| ".".to_string());
         let path = format!("{}/fonts/{}.ttf", ruda_path, name);
-        Self {
-            path,
-            name: "Font".to_string(),
-            id: 4,
-            lib_id: 0,
-            gc_method: user_data::GcMethod::None,
-        }
+        Self { path, lib_id: 0 }
     }
     fn ubuntu_mono() -> Self {
         let ruda_path = std::env::var("RUDA_PATH").unwrap_or_else(|_| ".".to_string());
         let path = format!("{}/fonts/UbuntuMono-Regular.ttf", ruda_path);
-        Self {
-            path,
-            name: "Font".to_string(),
-            id: 4,
-            lib_id: 0,
-            gc_method: user_data::GcMethod::None,
-        }
+        Self { path, lib_id: 0 }
     }
     fn roboto() -> Self {
         let ruda_path = std::env::var("RUDA_PATH").unwrap_or_else(|_| ".".to_string());
         let path = format!("{}/fonts/Roboto-Regular.ttf", ruda_path);
-        Self {
-            path,
-            name: "Font".to_string(),
-            id: 4,
-            lib_id: 0,
-            gc_method: user_data::GcMethod::None,
-        }
+        Self { path, lib_id: 0 }
     }
 }
 impl UserData for WinFont {
     fn label(&self) -> &str {
-        &self.name
+        &"Font"
     }
 
     fn id(&self) -> usize {
-        self.id
+        4
     }
 
     fn lib_id(&self) -> usize {
@@ -2304,7 +2353,7 @@ impl UserData for WinFont {
     }
 
     fn gc_method(&self) -> &user_data::GcMethod {
-        &self.gc_method
+        &user_data::GcMethod::Gc
     }
 
     fn cleanup(&mut self) {}

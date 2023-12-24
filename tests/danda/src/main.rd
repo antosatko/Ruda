@@ -17,7 +17,7 @@ fun main() {
     let t = time.Clock()
 
     
-    let fontStyle = win.DrawStyle()
+    let style = win.DrawStyle()
         .font(win.FontUbuntuMono())
         .fontSize(20)
         /*.color(win.ColorFrom(win.Colors.White))
@@ -43,13 +43,15 @@ fun main() {
         }
         ctx.title("Frame - " + i)
 
+        ctx.save()
         ctx.drawRectangle(0, 0, 100, 100)
         ctx.drawRectangle(200, 0, 100, 100)
         ctx.color(win.ColorFrom(win.Colors.Red))
         ctx.drawRectangle(100, 100, 100, 100)
         ctx.drawCircle(100, 0, 50)
         ctx.drawText(100, 100, "Hello World!"+'\n'+"Danda")
-        ctx.styledRectangle(200, 200, 100, 100, fontStyle)
+        ctx.styledRectangle(200, 200, 100, 100, style)
+        ctx.restore()
         
         ctx.display()
         i += 1
