@@ -16,8 +16,8 @@ use runtime::*;
 
 use runtime::user_data::UserData;
 use sfml::graphics::{
-    CircleShape, Color, Font, Rect, RectangleShape, RenderTarget, RenderWindow, Shape, Text,
-    TextStyle, Transformable, Image,
+    CircleShape, Color, Font, Image, Rect, RectangleShape, RenderTarget, RenderWindow, Shape, Text,
+    TextStyle, Transformable,
 };
 use sfml::window::Style;
 use sfml::*;
@@ -51,7 +51,11 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             );
             match Image::from_memory(include_bytes!("../../logo.png")) {
                 Some(icon) => {
-                    unsafe { window.window.set_icon(icon.size().x, icon.size().y, icon.pixel_data()) };
+                    unsafe {
+                        window
+                            .window
+                            .set_icon(icon.size().x, icon.size().y, icon.pixel_data())
+                    };
                 }
                 None => (),
             };
@@ -150,7 +154,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             };
             let window = m.user_data.data[ud].as_mut();
             let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
-            window.window.clear(Color::BLACK);
+            window.window.clear(window.bg);
         }
         // Window::display
         6 => {
@@ -614,7 +618,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
                 b: color.b,
                 a: color.a,
             };
-            return Ok(Types::Void);
+            return Ok(Types::Pointer(ud, PointerTypes::UserData));
         }
         // Color::new
         28 => {
@@ -791,7 +795,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             let draw_style = m.user_data.data[ud].as_mut();
             let draw_style = draw_style.as_any_mut().downcast_mut::<DrawStyle>().unwrap();
             draw_style.rotation = rotation;
-            return Ok(Types::Void);
+            return Ok(Types::Pointer(ud, PointerTypes::UserData));
         }
         // DrawStyle::scaleX
         36 => {
@@ -813,7 +817,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             let draw_style = m.user_data.data[ud].as_mut();
             let draw_style = draw_style.as_any_mut().downcast_mut::<DrawStyle>().unwrap();
             draw_style.scale.0 = scale_x;
-            return Ok(Types::Void);
+            return Ok(Types::Pointer(ud, PointerTypes::UserData));
         }
         // DrawStyle::scaleY
         37 => {
@@ -835,7 +839,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             let draw_style = m.user_data.data[ud].as_mut();
             let draw_style = draw_style.as_any_mut().downcast_mut::<DrawStyle>().unwrap();
             draw_style.scale.1 = scale_y;
-            return Ok(Types::Void);
+            return Ok(Types::Pointer(ud, PointerTypes::UserData));
         }
         // DrawStyle::outlineColor
         38 => {
@@ -872,7 +876,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
                 b: color.b,
                 a: color.a,
             };
-            return Ok(Types::Void);
+            return Ok(Types::Pointer(ud, PointerTypes::UserData));
         }
         // DrawStyle::outlineThickness
         39 => {
@@ -895,7 +899,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             let draw_style = m.user_data.data[ud].as_mut();
             let draw_style = draw_style.as_any_mut().downcast_mut::<DrawStyle>().unwrap();
             draw_style.outline_thickness = thickness;
-            return Ok(Types::Void);
+            return Ok(Types::Pointer(ud, PointerTypes::UserData));
         }
         // DrawStyle::font
         40 => {
@@ -930,7 +934,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             let draw_style = m.user_data.data[ud].as_mut();
             let draw_style = draw_style.as_any_mut().downcast_mut::<DrawStyle>().unwrap();
             draw_style.font = Font::from_file(&font);
-            return Ok(Types::Void);
+            return Ok(Types::Pointer(ud, PointerTypes::UserData));
         }
         // DrawStyle::fontSize
         41 => {
@@ -953,7 +957,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             let draw_style = m.user_data.data[ud].as_mut();
             let draw_style = draw_style.as_any_mut().downcast_mut::<DrawStyle>().unwrap();
             draw_style.font_size = size;
-            return Ok(Types::Void);
+            return Ok(Types::Pointer(ud, PointerTypes::UserData));
         }
         // Font::new
         42 => {
@@ -1029,7 +1033,6 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             let arg2 = args[2];
             let arg3 = args[3];
             let arg4 = args[4];
-            let arg5 = args[5];
             let ud = match args[0] {
                 Types::Pointer(pos, PointerTypes::UserData) => pos,
                 _ => Err(ErrTypes::InvalidType(
@@ -1053,28 +1056,12 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
                 Types::Float(f) => f as f32,
                 _ => Err(ErrTypes::InvalidType(arg4, Types::Float(0.0)))?,
             };
-            let color = match arg5 {
-                Types::Pointer(pos, PointerTypes::UserData) => {
-                    let color = m.user_data.data[pos].as_mut();
-                    let color = color.as_any_mut().downcast_mut::<WinColor>().unwrap();
-                    color.clone()
-                }
-                _ => Err(ErrTypes::InvalidType(
-                    arg5,
-                    Types::Pointer(0, PointerTypes::UserData),
-                ))?,
-            };
             let window = m.user_data.data[ud].as_mut();
             let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
             let mut rect = RectangleShape::new();
             rect.set_position((x, y));
             rect.set_size((width, height));
-            rect.set_fill_color(Color {
-                r: color.r,
-                g: color.g,
-                b: color.b,
-                a: color.a,
-            });
+            rect.set_fill_color(window.style.color);
             window.window.draw(&rect);
             return Ok(Types::Void);
         }
@@ -1084,7 +1071,6 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             let arg1 = args[1];
             let arg2 = args[2];
             let arg3 = args[3];
-            let arg4 = args[4];
             let ud = match args[0] {
                 Types::Pointer(pos, PointerTypes::UserData) => pos,
                 _ => Err(ErrTypes::InvalidType(
@@ -1104,27 +1090,11 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
                 Types::Float(f) => f as f32,
                 _ => Err(ErrTypes::InvalidType(arg3, Types::Float(0.0)))?,
             };
-            let color = match arg4 {
-                Types::Pointer(pos, PointerTypes::UserData) => {
-                    let color = m.user_data.data[pos].as_mut();
-                    let color = color.as_any_mut().downcast_mut::<WinColor>().unwrap();
-                    color.clone()
-                }
-                _ => Err(ErrTypes::InvalidType(
-                    arg4,
-                    Types::Pointer(0, PointerTypes::UserData),
-                ))?,
-            };
             let window = m.user_data.data[ud].as_mut();
             let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
             let mut circle = CircleShape::new(radius, 30);
             circle.set_position((x, y));
-            circle.set_fill_color(Color {
-                r: color.r,
-                g: color.g,
-                b: color.b,
-                a: color.a,
-            });
+            circle.set_fill_color(window.style.color);
             window.window.draw(&circle);
             return Ok(Types::Void);
         }
@@ -1134,7 +1104,6 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             let arg1 = args[1];
             let arg2 = args[2];
             let arg3 = args[3];
-            let arg4 = args[4];
             let ud = match args[0] {
                 Types::Pointer(pos, PointerTypes::UserData) => pos,
                 _ => Err(ErrTypes::InvalidType(
@@ -1157,22 +1126,14 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
                     Types::Pointer(0, PointerTypes::String),
                 ))?,
             };
-            let style = match arg4 {
-                Types::Pointer(pos, PointerTypes::UserData) => {
-                    let style = m.user_data.data[pos].as_mut();
-                    style.as_any_mut().downcast_mut::<DrawStyle>().unwrap()
-                }
-                _ => Err(ErrTypes::InvalidType(
-                    arg4,
-                    Types::Pointer(0, PointerTypes::UserData),
-                ))?,
-            };
-            let font = match style.font {
-                Some(ref font) => font.clone(),
+            let window = m.user_data.data[ud].as_mut();
+            let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
+            let style = &window.style;
+            let font = match &style.font {
+                Some(font) => font,
                 None => {
-                    return Err(ErrTypes::InvalidType(
-                        Types::Null,
-                        Types::Pointer(0, PointerTypes::UserData),
+                    return Err(ErrTypes::Message(
+                        "Window::drawText: no font set".to_string(),
                     ))
                 }
             };
@@ -1195,8 +1156,6 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             text.set_scale((style.scale.0, style.scale.1));
             text.set_letter_spacing(style.character_spacing);
             text.set_line_spacing(style.line_spacing);
-            let window = m.user_data.data[ud].as_mut();
-            let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
             window.window.draw(&text);
             return Ok(Types::Void);
         }
@@ -1343,7 +1302,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             let draw_style = m.user_data.data[ud].as_mut();
             let draw_style = draw_style.as_any_mut().downcast_mut::<DrawStyle>().unwrap();
             draw_style.character_spacing = spacing;
-            return Ok(Types::Void);
+            return Ok(Types::Pointer(ud, PointerTypes::UserData));
         }
         // DrawStyle::lineSpacing
         53 => {
@@ -1366,7 +1325,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             let draw_style = m.user_data.data[ud].as_mut();
             let draw_style = draw_style.as_any_mut().downcast_mut::<DrawStyle>().unwrap();
             draw_style.line_spacing = spacing;
-            return Ok(Types::Void);
+            return Ok(Types::Pointer(ud, PointerTypes::UserData));
         }
         // WinBuilder::build
         54 => {
@@ -1389,7 +1348,9 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             match Image::from_memory(include_bytes!("../../logo.png")) {
                 Some(icon) => {
                     unsafe {
-                        window.window.set_icon(icon.size().x, icon.size().y, icon.pixel_data())
+                        window
+                            .window
+                            .set_icon(icon.size().x, icon.size().y, icon.pixel_data())
                     };
                 }
                 None => (),
@@ -1482,7 +1443,315 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             builder.style = builder.style | default;
             return Ok(Types::Pointer(ud, PointerTypes::UserData));
         }
+        // Window::background
+        60 => {
+            let args = m.args();
+            let ud = match args[0] {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => Err(ErrTypes::InvalidType(
+                    args[0],
+                    Types::Pointer(0, PointerTypes::UserData),
+                ))?,
+            };
+            let arg1 = args[1];
+            let color = match arg1 {
+                Types::Pointer(pos, PointerTypes::UserData) => {
+                    let color = m.user_data.data[pos].as_mut();
+                    let color = color.as_any_mut().downcast_mut::<WinColor>().unwrap();
+                    color.clone()
+                }
+                _ => Err(ErrTypes::InvalidType(
+                    arg1,
+                    Types::Pointer(0, PointerTypes::UserData),
+                ))?,
+            };
+            let window = m.user_data.data[ud].as_mut();
+            let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
+            window.bg = Color {
+                r: color.r,
+                g: color.g,
+                b: color.b,
+                a: color.a,
+            };
+            return Ok(Types::Void);
+        }
+        // Window::getStyle
+        61 => {
+            let args = m.args();
+            let arg1 = args[0];
+            let ud = match arg1 {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => Err(ErrTypes::InvalidType(
+                    arg1,
+                    Types::Pointer(0, PointerTypes::UserData),
+                ))?,
+            };
+            let window = m.user_data.data[ud].as_mut();
+            let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
+            let style = window.style.clone();
+            let ud = ctx.memory.user_data.push(Box::new(style));
+            return Ok(Types::Pointer(ud, PointerTypes::UserData));
+        }
+        // Window::setStyle
+        62 => {
+            let args = m.args();
+            let arg1 = args[0];
+            let arg2 = args[1];
+            let ud = match arg1 {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => Err(ErrTypes::InvalidType(
+                    arg1,
+                    Types::Pointer(0, PointerTypes::UserData),
+                ))?,
+            };
+            let style = match arg2 {
+                Types::Pointer(pos, PointerTypes::UserData) => {
+                    let style = m.user_data.data[pos].as_mut();
+                    style
+                        .as_any_mut()
+                        .downcast_mut::<DrawStyle>()
+                        .unwrap()
+                        .clone()
+                }
+                _ => Err(ErrTypes::InvalidType(
+                    arg2,
+                    Types::Pointer(0, PointerTypes::UserData),
+                ))?,
+            };
+            let window = m.user_data.data[ud].as_mut();
+            let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
+            window.style = style;
+            return Ok(Types::Void);
+        }
+        // Window::color
+        63 => {
+            let args = m.args();
+            let arg1 = args[0];
+            let arg2 = args[1];
+            let ud = match arg1 {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => Err(ErrTypes::InvalidType(
+                    arg1,
+                    Types::Pointer(0, PointerTypes::UserData),
+                ))?,
+            };
+            let color = match arg2 {
+                Types::Pointer(pos, PointerTypes::UserData) => {
+                    let color = m.user_data.data[pos].as_mut();
+                    let color = color.as_any_mut().downcast_mut::<WinColor>().unwrap();
+                    color.clone()
+                }
+                _ => Err(ErrTypes::InvalidType(
+                    arg2,
+                    Types::Pointer(0, PointerTypes::UserData),
+                ))?,
+            };
+            let window = m.user_data.data[ud].as_mut();
+            let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
+            window.style.color = Color {
+                r: color.r,
+                g: color.g,
+                b: color.b,
+                a: color.a,
+            };
+            return Ok(Types::Void);
+        }
+        // Window::rotation
+        64 => {
+            let args = m.args();
+            let arg1 = args[0];
+            let arg2 = args[1];
+            let rotation = match arg2 {
+                Types::Float(f) => f as f32,
+                _ => return Err(ErrTypes::InvalidType(arg2, Types::Float(0.0))),
+            };
+            let ud = match arg1 {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => Err(ErrTypes::InvalidType(
+                    arg1,
+                    Types::Pointer(0, PointerTypes::UserData),
+                ))?,
+            };
+            let window = m.user_data.data[ud].as_mut();
+            let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
+            window.style.rotation = rotation;
+            return Ok(Types::Void);
+        }
+        // Window::scaleX
+        65 => {
+            let args = m.args();
+            let arg1 = args[0];
+            let arg2 = args[1];
+            let scale_x = match arg2 {
+                Types::Float(f) => f as f32,
+                _ => return Err(ErrTypes::InvalidType(arg2, Types::Float(0.0))),
+            };
+            let ud = match arg1 {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => Err(ErrTypes::InvalidType(
+                    arg1,
+                    Types::Pointer(0, PointerTypes::UserData),
+                ))?,
+            };
+            let window = m.user_data.data[ud].as_mut();
+            let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
+            window.style.scale.0 = scale_x;
+            return Ok(Types::Void);
+        }
+        // Window::scaleY
+        66 => {
+            let args = m.args();
+            let arg1 = args[0];
+            let arg2 = args[1];
+            let scale_y = match arg2 {
+                Types::Float(f) => f as f32,
+                _ => return Err(ErrTypes::InvalidType(arg2, Types::Float(0.0))),
+            };
+            let ud = match arg1 {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => Err(ErrTypes::InvalidType(
+                    arg1,
+                    Types::Pointer(0, PointerTypes::UserData),
+                ))?,
+            };
+            let window = m.user_data.data[ud].as_mut();
+            let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
+            window.style.scale.1 = scale_y;
+            return Ok(Types::Void);
+        }
+        // Window::outlineColor
+        67 => {
+            let args = m.args();
+            let arg1 = args[0];
+            let arg2 = args[1];
+            let color = match arg2 {
+                Types::Pointer(pos, PointerTypes::UserData) => {
+                    let color = m.user_data.data[pos].as_mut();
+                    let color = color.as_any_mut().downcast_mut::<WinColor>().unwrap();
+                    color.clone()
+                }
+                _ => Err(ErrTypes::InvalidType(
+                    arg2,
+                    Types::Pointer(0, PointerTypes::UserData),
+                ))?,
+            };
+            let ud = match arg1 {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => Err(ErrTypes::InvalidType(
+                    arg1,
+                    Types::Pointer(0, PointerTypes::UserData),
+                ))?,
+            };
+            let window = m.user_data.data[ud].as_mut();
+            let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
+            window.style.outline_color = Color {
+                r: color.r,
+                g: color.g,
+                b: color.b,
+                a: color.a,
+            };
+            return Ok(Types::Void);
+        }
+        // Window::outlineThickness
+        68 => {
+            let args = m.args();
+            let arg1 = args[0];
+            let arg2 = args[1];
+            let thickness = match arg2 {
+                Types::Float(f) => f as f32,
+                _ => return Err(ErrTypes::InvalidType(arg2, Types::Float(0.0))),
+            };
+            let ud = match arg1 {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => Err(ErrTypes::InvalidType(
+                    arg1,
+                    Types::Pointer(0, PointerTypes::UserData),
+                ))?,
+            };
+            let window = m.user_data.data[ud].as_mut();
+            let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
+            window.style.outline_thickness = thickness;
+            return Ok(Types::Void);
+        }
+        // Window::font
+        69 => {
+            let args = m.args();
+            let arg1 = args[0];
+            let arg2 = args[1];
+            let font = match arg2 {
+                Types::Pointer(pos, PointerTypes::UserData) => {
+                    let font = m.user_data.data[pos].as_mut();
+                    font.as_any_mut()
+                        .downcast_mut::<WinFont>()
+                        .unwrap()
+                        .path
+                        .clone()
+                }
+                _ => Err(ErrTypes::InvalidType(
+                    arg2,
+                    Types::Pointer(0, PointerTypes::UserData),
+                ))?,
+            };
+            let ud = match arg1 {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => Err(ErrTypes::InvalidType(
+                    arg1,
+                    Types::Pointer(0, PointerTypes::UserData),
+                ))?,
+            };
+            let font = Font::from_file(&font);
+            let window = m.user_data.data[ud].as_mut();
+            let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
+            window.style.font = font;
+            return Ok(Types::Bool(window.style.font.is_some()));
+        }
+        // Window::fontSize
+        70 => {
+            let args = m.args();
+            let arg1 = args[0];
+            let arg2 = args[1];
+            let size = match arg2 {
+                Types::Uint(i) => i as u32,
+                _ => return Err(ErrTypes::InvalidType(arg2, Types::Uint(0))),
+            };
+            let ud = match arg1 {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        arg1,
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+            let window = m.user_data.data[ud].as_mut();
+            let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
+            window.style.font_size = size;
+            return Ok(Types::Void);
+        }
+        // Window::characterSpacing
+        71 => {
+            let args = m.args();
+            let arg1 = args[0];
+            let arg2 = args[1];
+            let spacing = match arg2 {
+                Types::Float(f) => f as f32,
+                _ => return Err(ErrTypes::InvalidType(arg2, Types::Float(0.0))),
+            };
+            let ud = match arg1 {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        arg1,
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
 
+            let draw_style = m.user_data.data[ud].as_mut();
+            let draw_style = draw_style.as_any_mut().downcast_mut::<DrawStyle>().unwrap();
+            draw_style.character_spacing = spacing;
+            return Ok(Types::Pointer(ud, PointerTypes::UserData));
+        }
         _ => unreachable!("Invalid function id, {}", id),
     }
     return Ok(runtime_types::Types::Void);
@@ -1510,21 +1779,18 @@ fn register() -> String {
             y=reg.g2: float,
             width=reg.g3: float,
             height=reg.g4: float,
-            color=reg.g5: Color,
         ) > 47i
         fun drawCircle(
             self=reg.ptr, 
             x=reg.g1: float, 
             y=reg.g2: float, 
-            radius=reg.g3: float, 
-            color=reg.g4: Color,
+            radius=reg.g3: float,
         ) > 48i
         fun drawText(
             self=reg.ptr, 
             x=reg.g1: float, 
             y=reg.g2: float, 
             text=reg.g3: string, 
-            style=reg.g5: DrawStyle,
         ) > 49i
         fun styledRectangle(
             self=reg.ptr,
@@ -1541,6 +1807,20 @@ fn register() -> String {
             radius=reg.g3: float, 
             style=reg.g4: DrawStyle,
         ) > 51i
+
+        fun background(self=reg.ptr, color=reg.g1: Color) > 60i
+        fun getStyle(self=reg.ptr): DrawStyle > 61i
+        fun setStyle(self=reg.ptr, style=reg.g1: DrawStyle) > 62i
+        fun color(self=reg.ptr, color=reg.g1: Color) > 63i
+        fun rotation(self=reg.ptr, rotation=reg.g1: float) > 64i
+        fun scaleX(self=reg.ptr, scaleX=reg.g1: float) > 65i
+        fun scaleY(self=reg.ptr, scaleY=reg.g1: float) > 66i
+        fun outlineColor(self=reg.ptr, outlineColor=reg.g1: Color) > 67i
+        fun outlineThickness(self=reg.ptr, outlineThickness=reg.g1: float) > 68i
+        fun font(self=reg.ptr, font=reg.g1: Font): bool > 69i
+        fun fontSize(self=reg.ptr, fontSize=reg.g1: uint) > 70i
+        fun characterSpacing(self=reg.ptr, characterSpacing=reg.g1: float) > 71i
+        fun lineSpacing(self=reg.ptr, lineSpacing=reg.g1: float) > 72i
     }
 
     userdata WinBuilder > 1i {
@@ -1578,16 +1858,16 @@ fn register() -> String {
     userdata DrawStyle > 3i {
         new () > 26i
 
-        fun color(self=reg.ptr, color=reg.g1: Color) > 27i
-        fun rotation(self=reg.ptr, rotation=reg.g1: float) > 35i
-        fun scaleX(self=reg.ptr, scaleX=reg.g1: float) > 36i
-        fun scaleY(self=reg.ptr, scaleY=reg.g1: float) > 37i
-        fun outlineColor(self=reg.ptr, outlineColor=reg.g1: Color) > 38i
-        fun outlineThickness(self=reg.ptr, outlineThickness=reg.g1: float) > 39i
-        fun font(self=reg.ptr, font=reg.g1: Font) > 40i
-        fun fontSize(self=reg.ptr, fontSize=reg.g1: uint) > 41i
-        fun characterSpacing(self=reg.ptr, characterSpacing=reg.g1: float) > 52i
-        fun lineSpacing(self=reg.ptr, lineSpacing=reg.g1: float) > 53i
+        fun color(self=reg.ptr, color=reg.g1: Color): DrawStyle > 27i
+        fun rotation(self=reg.ptr, rotation=reg.g1: float): DrawStyle > 35i
+        fun scaleX(self=reg.ptr, scaleX=reg.g1: float): DrawStyle > 36i
+        fun scaleY(self=reg.ptr, scaleY=reg.g1: float): DrawStyle > 37i
+        fun outlineColor(self=reg.ptr, outlineColor=reg.g1: Color): DrawStyle > 38i
+        fun outlineThickness(self=reg.ptr, outlineThickness=reg.g1: float): DrawStyle > 39i
+        fun font(self=reg.ptr, font=reg.g1: Font): DrawStyle > 40i
+        fun fontSize(self=reg.ptr, fontSize=reg.g1: uint): DrawStyle > 41i
+        fun characterSpacing(self=reg.ptr, characterSpacing=reg.g1: float): DrawStyle > 52i
+        fun lineSpacing(self=reg.ptr, lineSpacing=reg.g1: float): DrawStyle > 53i
     }
 
     userdata Color > 4i {
@@ -1678,6 +1958,10 @@ pub fn init(
 
 struct Window {
     window: RenderWindow,
+    /// Background color for clearing the window
+    bg: Color,
+    /// Style for drawing
+    style: DrawStyle,
     name: String,
     id: usize,
     lib_id: usize,
@@ -1686,8 +1970,14 @@ struct Window {
 impl Window {
     fn new(size: (u32, u32), title: &str, style: window::Style, settings: &WinBuilder) -> Self {
         let window = RenderWindow::new(size, title, style, &Default::default());
+        let font =
+            unsafe { Font::from_memory(include_bytes!("../../sfml/fonts/Roboto-Regular.ttf")) };
+        let mut style = DrawStyle::new();
+        style.font = font;
         Self {
             window,
+            bg: Color::BLACK,
+            style,
             name: "Window".to_string(),
             id: 0,
             lib_id: 0,
@@ -1721,6 +2011,7 @@ impl UserData for Window {
     }
 }
 
+#[derive(Clone)]
 struct DrawStyle {
     color: Color,
     rotation: f32,
