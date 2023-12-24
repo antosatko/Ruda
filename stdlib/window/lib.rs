@@ -1062,6 +1062,10 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             rect.set_position((x, y));
             rect.set_size((width, height));
             rect.set_fill_color(window.style.color);
+            rect.set_outline_color(window.style.outline_color);
+            rect.set_outline_thickness(window.style.outline_thickness);
+            rect.set_rotation(window.style.rotation);
+            rect.set_scale((window.style.scale.0, window.style.scale.1));
             window.window.draw(&rect);
             return Ok(Types::Void);
         }
@@ -1095,6 +1099,10 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             let mut circle = CircleShape::new(radius, 30);
             circle.set_position((x, y));
             circle.set_fill_color(window.style.color);
+            circle.set_outline_color(window.style.outline_color);
+            circle.set_outline_thickness(window.style.outline_thickness);
+            circle.set_rotation(window.style.rotation);
+            circle.set_scale((window.style.scale.0, window.style.scale.1));
             window.window.draw(&circle);
             return Ok(Types::Void);
         }

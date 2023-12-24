@@ -45,6 +45,8 @@ fun main() {
 
         ctx.save()
         ctx.drawRectangle(0, 0, 100, 100)
+        ctx.outlineColor(win.ColorFrom(win.Colors.Blue))
+        ctx.outlineThickness(10)
         ctx.drawRectangle(200, 0, 100, 100)
         ctx.color(win.ColorFrom(win.Colors.Red))
         ctx.drawRectangle(100, 100, 100, 100)
