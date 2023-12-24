@@ -51,7 +51,7 @@ fun main() {
         ctx.color(win.ColorFrom(win.Colors.Red))
         ctx.drawRectangle(100, 100, 100, 100)
         ctx.drawCircle(100, 0, 50)
-        ctx.drawText(100, 100, "Hello World!"+'\n'+"Danda")
+        ctx.styledText(100, 100, "Hello World!"+'\n'+"Danda", style)
         ctx.styledRectangle(200, 200, 100, 100, style)
         ctx.restore()
         

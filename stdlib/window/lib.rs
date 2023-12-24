@@ -10,6 +10,8 @@
  */
 extern crate runtime;
 
+use std::sync::Arc;
+
 use runtime::runtime_error::ErrTypes;
 use runtime::runtime_types::*;
 use runtime::*;
@@ -933,7 +935,10 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
 
             let draw_style = m.user_data.data[ud].as_mut();
             let draw_style = draw_style.as_any_mut().downcast_mut::<DrawStyle>().unwrap();
-            draw_style.font = Font::from_file(&font);
+            match Font::from_file(&font) {
+                Some(font) => draw_style.font = Some(Arc::new(font)),
+                None => ()
+            };
             return Ok(Types::Pointer(ud, PointerTypes::UserData));
         }
         // DrawStyle::fontSize
@@ -1677,10 +1682,12 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
                     Types::Pointer(0, PointerTypes::UserData),
                 ))?,
             };
-            let font = Font::from_file(&font);
             let window = m.user_data.data[ud].as_mut();
             let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
-            window.style.font = font;
+            match Font::from_file(&font) {
+                Some(font) => window.style.font =  Some(Arc::new(font)),
+                None => ()
+            };
             return Ok(Types::Bool(window.style.font.is_some()));
         }
         // Window::fontSize
@@ -1777,7 +1784,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
                     ))
                 }
             };
-            let font = font.to_owned();
+            let font = font.clone();
             let mut text = Text::new(text, &font, style.font_size);
             text.set_position((x, y));
             text.set_fill_color(style.color);
@@ -1807,18 +1814,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             };
             let window = m.user_data.data[ud].as_mut();
             let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
-            let ds = DrawStyle {
-                color: window.style.color,
-                rotation: window.style.rotation,
-                scale: window.style.scale,
-                outline_color: window.style.outline_color,
-                outline_thickness: window.style.outline_thickness,
-                font: None,
-                font_size: window.style.font_size,
-                character_spacing: window.style.character_spacing,
-                line_spacing: window.style.line_spacing,
-                lib_id,
-            };
+            let ds = window.style.clone();
             window.style_stack.push(ds);
             return Ok(Types::Void);
         }
@@ -2083,10 +2079,11 @@ struct Window {
 impl Window {
     fn new(size: (u32, u32), title: &str, style: window::Style, settings: &WinBuilder) -> Self {
         let window = RenderWindow::new(size, title, style, &Default::default());
-        let font =
-            unsafe { Font::from_memory(include_bytes!("../../sfml/fonts/Roboto-Regular.ttf")) };
         let mut style = DrawStyle::new();
-        style.font = font;
+        match unsafe { Font::from_memory(include_bytes!("../../sfml/fonts/Roboto-Regular.ttf")) } {
+            Some(font) => style.font = Some(Arc::new(font)),
+            None => (),
+        }
         Self {
             window,
             bg: Color::BLACK,
@@ -2129,7 +2126,7 @@ struct DrawStyle {
     scale: (f32, f32),
     outline_color: Color,
     outline_thickness: f32,
-    font: Option<SfBox<Font>>,
+    font: Option<Arc<SfBox<Font>>>,
     font_size: u32,
     character_spacing: f32,
     line_spacing: f32,
