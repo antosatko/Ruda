@@ -17,7 +17,7 @@ use runtime::*;
 use runtime::user_data::UserData;
 use sfml::graphics::{
     CircleShape, Color, Font, Rect, RectangleShape, RenderTarget, RenderWindow, Shape, Text,
-    TextStyle, Transformable,
+    TextStyle, Transformable, Image,
 };
 use sfml::window::Style;
 use sfml::*;
@@ -43,12 +43,18 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
                 ))?,
             };
             let settings = settings.as_any_mut().downcast_mut::<WinBuilder>().unwrap();
-            let window = Window::new(
+            let mut window = Window::new(
                 (settings.width, settings.height),
                 &title,
                 settings.style,
                 settings,
             );
+            match Image::from_memory(include_bytes!("../../logo.png")) {
+                Some(icon) => {
+                    unsafe { window.window.set_icon(icon.size().x, icon.size().y, icon.pixel_data()) };
+                }
+                None => (),
+            };
             let ud = ctx.memory.user_data.push(Box::new(window));
             return Ok(Types::Pointer(ud, PointerTypes::UserData));
         }
@@ -1374,12 +1380,20 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             };
             let builder = m.user_data.data[ud].as_mut();
             let settings = builder.as_any_mut().downcast_mut::<WinBuilder>().unwrap();
-            let window = Window::new(
+            let mut window = Window::new(
                 (settings.width, settings.height),
                 &settings.title.clone(),
                 settings.style,
                 &settings,
             );
+            match Image::from_memory(include_bytes!("../../logo.png")) {
+                Some(icon) => {
+                    unsafe {
+                        window.window.set_icon(icon.size().x, icon.size().y, icon.pixel_data())
+                    };
+                }
+                None => (),
+            }
             let ud = ctx.memory.user_data.push(Box::new(window));
             return Ok(Types::Pointer(ud, PointerTypes::UserData));
         }

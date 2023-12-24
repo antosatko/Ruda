@@ -180,3 +180,6 @@ os.makedirs(fonts_dir, exist_ok=True)
 sfml_fonts_dir = os.path.join(current_dir, "sfml", "fonts")
 for file in os.listdir(sfml_fonts_dir):
     shutil.copy(os.path.join(sfml_fonts_dir, file), fonts_dir)
+
+# Copy logo.png to build
+shutil.copy(os.path.join(current_dir, "logo.png"), root_dir)
