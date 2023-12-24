@@ -156,3 +156,31 @@ shutil.copy(registry_ast, root_dir)
 if not os.path.exists(os.path.join(root_dir, "Ruda.toml")):
     shutil.copy(os.path.join(pacman_dir, "templates", "Ruda.toml"), root_dir)
 
+# Copy sfml/windows directory contents to build/bin
+if platform.system() == "Windows":
+    sfml_dir = os.path.join(current_dir, "sfml", "windows")
+    for file in os.listdir(sfml_dir):
+        print("Copying " + file + " to " + bin_dir)
+        shutil.copy(os.path.join(sfml_dir, file), bin_dir)
+
+# Copy sfml/linux directory contents to build/bin
+if platform.system() == "Linux":
+    sfml_dir = os.path.join(current_dir, "sfml", "linux")
+    for file in os.listdir(sfml_dir):
+        print("Copying " + file + " to " + bin_dir)
+        shutil.copy(os.path.join(sfml_dir, file), bin_dir)
+
+# Copy sfml/macos directory contents to build/bin
+if platform.system() == "Darwin":
+    sfml_dir = os.path.join(current_dir, "sfml", "macos")
+    for file in os.listdir(sfml_dir):
+        print("Copying " + file + " to " + bin_dir)
+        shutil.copy(os.path.join(sfml_dir, file), bin_dir)
+
+# Copy fonts from sfml/fonts to build/fonts
+fonts_dir = os.path.join(root_dir, "fonts")
+os.makedirs(fonts_dir, exist_ok=True)
+sfml_fonts_dir = os.path.join(current_dir, "sfml", "fonts")
+for file in os.listdir(sfml_fonts_dir):
+    print("Copying " + file + " to " + fonts_dir)
+    shutil.copy(os.path.join(sfml_fonts_dir, file), fonts_dir)
