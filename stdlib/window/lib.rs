@@ -937,7 +937,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             let draw_style = draw_style.as_any_mut().downcast_mut::<DrawStyle>().unwrap();
             match Font::from_file(&font) {
                 Some(font) => draw_style.font = Some(Arc::new(font)),
-                None => ()
+                None => (),
             };
             return Ok(Types::Pointer(ud, PointerTypes::UserData));
         }
@@ -1071,6 +1071,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             rect.set_outline_thickness(window.style.outline_thickness);
             rect.set_rotation(window.style.rotation);
             rect.set_scale((window.style.scale.0, window.style.scale.1));
+            rect.set_origin(window.style.origin);
             window.window.draw(&rect);
             return Ok(Types::Void);
         }
@@ -1108,6 +1109,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             circle.set_outline_thickness(window.style.outline_thickness);
             circle.set_rotation(window.style.rotation);
             circle.set_scale((window.style.scale.0, window.style.scale.1));
+            circle.set_origin(window.style.origin);
             window.window.draw(&circle);
             return Ok(Types::Void);
         }
@@ -1159,6 +1161,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             text.set_scale((style.scale.0, style.scale.1));
             text.set_letter_spacing(style.character_spacing);
             text.set_line_spacing(style.line_spacing);
+            text.set_origin(style.origin);
             window.window.draw(&text);
             return Ok(Types::Void);
         }
@@ -1211,6 +1214,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             rect.set_outline_thickness(style.outline_thickness);
             rect.set_rotation(style.rotation);
             rect.set_scale((style.scale.0, style.scale.1));
+            rect.set_origin(style.origin);
             let window = m.user_data.data[ud].as_mut();
             let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
             window.window.draw(&rect);
@@ -1259,6 +1263,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             circle.set_outline_thickness(style.outline_thickness);
             circle.set_rotation(style.rotation);
             circle.set_scale((style.scale.0, style.scale.1));
+            circle.set_origin(style.origin);
             let window = m.user_data.data[ud].as_mut();
             let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
             window.window.draw(&circle);
@@ -1685,8 +1690,8 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             let window = m.user_data.data[ud].as_mut();
             let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
             match Font::from_file(&font) {
-                Some(font) => window.style.font =  Some(Arc::new(font)),
-                None => ()
+                Some(font) => window.style.font = Some(Arc::new(font)),
+                None => (),
             };
             return Ok(Types::Bool(window.style.font.is_some()));
         }
@@ -1818,6 +1823,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             text.set_scale((style.scale.0, style.scale.1));
             text.set_letter_spacing(style.character_spacing);
             text.set_line_spacing(style.line_spacing);
+            text.set_origin(style.origin);
             let window = m.user_data.data[ud].as_mut();
             let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
             window.window.draw(&text);
@@ -1906,6 +1912,35 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
                 _ => 0,
             };
             return Ok(Types::Uint(size as usize));
+        }
+        // DrawStyle::origin
+        78 => {
+            let args = m.args();
+            let arg1 = args[0];
+            let arg2 = args[1];
+            let arg3 = args[2];
+            let x = match arg2 {
+                Types::Float(f) => f as f32,
+                _ => return Err(ErrTypes::InvalidType(arg2, Types::Float(0.0))),
+            };
+            let y = match arg3 {
+                Types::Float(f) => f as f32,
+                _ => return Err(ErrTypes::InvalidType(arg3, Types::Float(0.0))),
+            };
+            let ud = match arg1 {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => {
+                    return Err(ErrTypes::InvalidType(
+                        arg1,
+                        Types::Pointer(0, PointerTypes::UserData),
+                    ))
+                }
+            };
+
+            let draw_style = m.user_data.data[ud].as_mut();
+            let draw_style = draw_style.as_any_mut().downcast_mut::<DrawStyle>().unwrap();
+            draw_style.origin = (x, y);
+            return Ok(Types::Pointer(ud, PointerTypes::UserData));
         }
         _ => unreachable!("Invalid function id, {}", id),
     }
@@ -2040,6 +2075,7 @@ fn register() -> String {
         fun fontSize(self=reg.ptr, fontSize=reg.g1: uint): DrawStyle > 41i
         fun characterSpacing(self=reg.ptr, characterSpacing=reg.g1: float): DrawStyle > 52i
         fun lineSpacing(self=reg.ptr, lineSpacing=reg.g1: float): DrawStyle > 53i
+        fun origin(self=reg.ptr, x=reg.g1: float, y=reg.g2: float): DrawStyle > 78i
     }
 
     userdata Color > 4i {
@@ -2186,6 +2222,7 @@ struct DrawStyle {
     color: Color,
     rotation: f32,
     scale: (f32, f32),
+    origin: (f32, f32),
     outline_color: Color,
     outline_thickness: f32,
     font: Option<Arc<SfBox<Font>>>,
@@ -2201,6 +2238,7 @@ impl DrawStyle {
             color: Color::WHITE,
             rotation: 0.0,
             scale: (1.0, 1.0),
+            origin: (0.0, 0.0),
             outline_color: Color::TRANSPARENT,
             outline_thickness: 0.0,
             font: None,

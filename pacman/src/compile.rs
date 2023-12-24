@@ -144,7 +144,6 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) -> bool{
     match prep_objects::prep(&mut context) {
         Ok(_) => {
             println!("Objects prepared.");
-            println!("{:?}", context.destruct());
         }
         Err(err) => {
             println!("Failed to prepare objects.");
