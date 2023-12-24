@@ -33,9 +33,6 @@ fun main() {
             if event {
                 break "event_loop"
             }
-
-
-
             if event.code() as int == win.Events.Closed {
                 break "main_loop"
             }
@@ -46,19 +43,13 @@ fun main() {
         }
         ctx.title("Frame - " + i)
 
-
         ctx.drawRectangle(0, 0, 100, 100, win.ColorFrom(win.Colors.Red))
         ctx.drawRectangle(200, 0, 100, 100, win.ColorFrom(win.Colors.Red))
         ctx.drawRectangle(100, 100, 100, 100, win.ColorFrom(win.Colors.Red))
         ctx.drawCircle(100, 0, 50, win.ColorFrom(win.Colors.Blue))
         ctx.drawText(100, 100, "Hello World!"+'\n'+"Danda", fontStyle)
-
         ctx.styledRectangle(200, 200, 100, 100, fontStyle)
         
-
-
-
-
         ctx.display()
         i += 1
         if t.elapsed() > 100000 {
@@ -67,7 +58,6 @@ fun main() {
             break "main_loop"
         }
     }
-
     io.println("elapsed: " + t.elapsed())
     io.println("frames: " + i)
 }
