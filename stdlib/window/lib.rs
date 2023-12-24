@@ -1835,14 +1835,7 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
             match window.style_stack.pop() {
                 Some(style) => {
-                    window.style.color = style.color;
-                    window.style.rotation = style.rotation;
-                    window.style.scale = style.scale;
-                    window.style.outline_color = style.outline_color;
-                    window.style.outline_thickness = style.outline_thickness;
-                    window.style.font_size = style.font_size;
-                    window.style.character_spacing = style.character_spacing;
-                    window.style.line_spacing = style.line_spacing;
+                    window.style = style;
                 }
                 None => (),
             }
