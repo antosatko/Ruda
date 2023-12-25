@@ -14,7 +14,13 @@ fun main() {
     let event: win.Event?
     let i = 0
 
+
+    io.println(win.alert("Title", "Message"))
+    io.println(win.prompt("Title", "Message", "Default"))
+    io.println(win.confirm("Title", "Message"))
+
     let t = time.Clock()
+
 
     
     let style = win.DrawStyle()

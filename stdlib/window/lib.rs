@@ -10,6 +10,7 @@
  */
 extern crate runtime;
 
+use std::os::windows::process;
 use std::sync::Arc;
 
 use runtime::runtime_error::ErrTypes;
@@ -1942,6 +1943,92 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             draw_style.origin = (x, y);
             return Ok(Types::Pointer(ud, PointerTypes::UserData));
         }
+        // alert
+        79 => {
+            let args = m.args();
+            let arg1 = args[0];
+            let arg2 = args[1];
+            let title = match arg1 {
+                Types::Pointer(pos, PointerTypes::String) => &m.strings.pool[pos],
+                _ => Err(ErrTypes::InvalidType(
+                    arg1,
+                    Types::Pointer(0, PointerTypes::String),
+                ))?,
+            };
+            let message = match arg2 {
+                Types::Pointer(pos, PointerTypes::String) => &m.strings.pool[pos],
+                _ => Err(ErrTypes::InvalidType(
+                    arg2,
+                    Types::Pointer(0, PointerTypes::String),
+                ))?,
+            };
+            let mut alert = Alert::new(AlertType::Alert, title, message);
+            match alert.show() {
+                AlertResponse::Alert(ok) => return Ok(Types::Bool(ok)),
+                _ => return Ok(Types::Bool(false)),
+            }
+        }
+        // prompt
+        80 => {
+            let args = m.args();
+            let arg1 = args[0];
+            let arg2 = args[1];
+            let arg3 = args[2];
+            let title = match arg1 {
+                Types::Pointer(pos, PointerTypes::String) => &m.strings.pool[pos],
+                _ => Err(ErrTypes::InvalidType(
+                    arg1,
+                    Types::Pointer(0, PointerTypes::String),
+                ))?,
+            };
+            let message = match arg2 {
+                Types::Pointer(pos, PointerTypes::String) => &m.strings.pool[pos],
+                _ => Err(ErrTypes::InvalidType(
+                    arg2,
+                    Types::Pointer(0, PointerTypes::String),
+                ))?,
+            };
+            let default = match arg3 {
+                Types::Pointer(pos, PointerTypes::String) => &m.strings.pool[pos],
+                _ => Err(ErrTypes::InvalidType(
+                    arg3,
+                    Types::Pointer(0, PointerTypes::String),
+                ))?,
+            };
+            let mut prompt = Alert::new(AlertType::Prompt(default.clone()), title, message);
+            match prompt.show() {
+                AlertResponse::Prompt(res) => {
+                    let str = ctx.memory.strings.from_string(res);
+                    return Ok(Types::Pointer(str, PointerTypes::String));
+                }
+                _ => return Ok(Types::Null),
+            }
+        }
+        // confirm
+        81 => {
+            let args = m.args();
+            let arg1 = args[0];
+            let arg2 = args[1];
+            let title = match arg1 {
+                Types::Pointer(pos, PointerTypes::String) => &m.strings.pool[pos],
+                _ => Err(ErrTypes::InvalidType(
+                    arg1,
+                    Types::Pointer(0, PointerTypes::String),
+                ))?,
+            };
+            let message = match arg2 {
+                Types::Pointer(pos, PointerTypes::String) => &m.strings.pool[pos],
+                _ => Err(ErrTypes::InvalidType(
+                    arg2,
+                    Types::Pointer(0, PointerTypes::String),
+                ))?,
+            };
+            let mut confirm = Alert::new(AlertType::Confirm, title, message);
+            match confirm.show() {
+                AlertResponse::Confirm(ok) => return Ok(Types::Bool(ok)),
+                _ => return Ok(Types::Bool(false)),
+            }
+        }
         _ => unreachable!("Invalid function id, {}", id),
     }
     return Ok(runtime_types::Types::Void);
@@ -2040,6 +2127,13 @@ fn register() -> String {
         fun titlebar(self=reg.ptr): WinBuilder > 58i
         fun default(self=reg.ptr): WinBuilder > 59i
     }
+
+    fun alert(title=reg.g1: string, message=reg.g2: string): bool > 79i
+    fun prompt(title=reg.g1: string, message=reg.g2: string, default=reg.g3: string): string > 80i
+    fun confirm(title=reg.g1: string, message=reg.g2: string): bool > 81i
+    fun colorWheel(title=reg.g1: string, color=reg.g2: Color): Color > 82i
+    fun fileDrop(title=reg.g1: string, message=reg.g2: string): string > 83i
+
 
     userdata Event > 2i {
         fun code(self=reg.ptr): Events > 11i
@@ -2467,5 +2561,249 @@ impl UserData for WinFont {
     }
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
+    }
+}
+
+
+/// Blocking alert
+struct Alert {
+    alert_type: AlertType,
+    title: String,
+    message: String,
+}
+
+impl Alert {
+    fn new(alert_type: AlertType, title: &str, message: &str) -> Self {
+        Self {
+            alert_type,
+            title: title.to_string(),
+            message: message.to_string(),
+        }
+    }
+
+    fn show(&mut self) -> AlertResponse {
+        // sfml window
+        let window = &mut RenderWindow::new(
+            (400, 200),
+            &self.title,
+            window::Style::CLOSE,
+            &Default::default(),
+        );
+        window.set_vertical_sync_enabled(true);
+        // draw the window
+        let font = match unsafe { Font::from_memory(include_bytes!("../../sfml/fonts/Roboto-Regular.ttf")) } {
+                Some(font) => font,
+                None => {
+                    println!("Failed to load font");
+                    return AlertResponse::FontNotFound;
+                },
+            };
+        let mut text = Text::new(&self.message, &font, 20);
+        text.set_position((10.0, 10.0));
+        text.set_fill_color(Color::BLACK);
+        let mut input_field = match &self.alert_type {
+            AlertType::Prompt(txt) => Some(ImTextField::new(&txt, (10.0, 100.0), (380.0, 40.0))),
+            _ => None,
+        };
+        let mut focused = true;
+        while window.is_open() {
+            let mut mouse_pressed = false;
+            let mut character = None;
+            while let Some(event) = window.poll_event() {
+                match event {
+                    window::Event::Closed => {
+                        window.close();
+                        match self.alert_type {
+                            AlertType::Alert => return AlertResponse::Alert(false),
+                            AlertType::Prompt(_) => return AlertResponse::Prompt(String::new()),
+                            AlertType::Confirm => return AlertResponse::Confirm(false),
+                        }
+                    },
+                    window::Event::KeyPressed { code, .. } => {
+                        match code {
+                            window::Key::Escape => {
+                                window.close();
+                                match self.alert_type {
+                                    AlertType::Alert => return AlertResponse::Alert(false),
+                                    AlertType::Prompt(_) => return AlertResponse::Prompt(String::new()),
+                                    AlertType::Confirm => return AlertResponse::Confirm(false),
+                                }
+                            },
+                            window::Key::Enter => {
+                                window.close();
+                                match self.alert_type {
+                                    AlertType::Alert => return AlertResponse::Alert(true),
+                                    AlertType::Prompt(_) => return AlertResponse::Prompt(input_field.unwrap().text),
+                                    AlertType::Confirm => return AlertResponse::Confirm(true),
+                                }
+                            },
+                            window::Key::Backspace => {
+                                if let Some(input_field) = input_field.as_mut() {
+                                    input_field.text.pop();
+                                }
+                            },
+
+                            _ => (),
+                        }
+                    },
+                    window::Event::TextEntered { unicode, .. } => {
+                        // check if the character is valid
+                        if unicode.is_ascii_control() {
+                            continue;
+                        }
+                        character = Some(unicode as char);
+                    },
+                    window::Event::LostFocus => focused = false,
+                    window::Event::GainedFocus => focused = true,
+                    window::Event::MouseButtonPressed { button, .. } => {
+                        if button == window::mouse::Button::Left {
+                            mouse_pressed = true;
+                        }
+                    }
+                    _ => (),
+                }
+            }
+            window.clear(Color::WHITE);
+            window.draw(&text);
+            match self.alert_type {
+                AlertType::Alert => {
+                    if self.imbutton(window, "OK", (150.0, 150.0), &font, mouse_pressed) {
+                        window.close();
+                        return AlertResponse::Alert(true);
+                    }
+                }
+                AlertType::Prompt(_) => {
+                    if self.imbutton(window, "OK", (80.0, 150.0), &font, mouse_pressed) {
+                        window.close();
+                        return AlertResponse::Prompt(input_field.unwrap().text);
+                    }
+                    if self.imbutton(window, "Cancel", (220.0, 150.0), &font, mouse_pressed) {
+                        window.close();
+                        return AlertResponse::Prompt(String::new());
+                    }
+                    input_field.as_mut().unwrap().draw(window, &font, mouse_pressed, character);
+                }
+                AlertType::Confirm => {
+                    if self.imbutton(window, "OK", (80.0, 150.0), &font, mouse_pressed) {
+                        window.close();
+                        return AlertResponse::Confirm(true);
+                    }
+                    if self.imbutton(window, "Cancel", (220.0, 150.0), &font, mouse_pressed) {
+                        window.close();
+                        return AlertResponse::Confirm(false);
+                    }
+                }
+            }
+            window.display();
+        }
+        AlertResponse::Err
+    }
+
+    fn imbutton(&mut self, window: &mut RenderWindow, text: &str, pos: (f32, f32), font: &Font, mouse_pressed: bool) -> bool {
+        let mut button = RectangleShape::new();
+        button.set_size((100.0, 45.0));
+        button.set_position(pos);
+        button.set_fill_color(Color::BLACK);
+        window.draw(&button);
+        let mut text = Text::new(text, font, 20);
+        text.set_position((pos.0 + 10.0, pos.1 + 10.0));
+        text.set_fill_color(Color::WHITE);
+        window.draw(&text);
+        let mouse_pos = window.mouse_position();
+        let mouse_pos = (mouse_pos.x as f32, mouse_pos.y as f32);
+        if mouse_pos.0 > pos.0 && mouse_pos.0 < pos.0 + 100.0 && mouse_pos.1 > pos.1 && mouse_pos.1 < pos.1 + 50.0 {
+            if mouse_pressed {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+enum AlertType {
+    Prompt(String),
+    Confirm,
+    Alert,
+    ColorWheel,
+    FileDrop,
+}
+
+enum AlertResponse {
+    Prompt(String),
+    Confirm(bool),
+    Alert(bool),
+    FontNotFound,
+    Err,
+}
+
+struct ImTextField {
+    text: String,
+    selected: bool,
+    ghost_text: String,
+    pos: (f32, f32),
+    size: (f32, f32),
+    creation_time: std::time::Instant,
+}
+
+impl ImTextField {
+    fn new(text: &str, pos: (f32, f32), size: (f32, f32)) -> Self {
+        Self {
+            text: text.to_string(),
+            selected: true,
+            pos,
+            size,
+            ghost_text: text.to_string(),
+            creation_time: std::time::Instant::now(),
+        }
+    }
+
+    fn draw(&mut self, window: &mut RenderWindow, font: &Font, mouse_pressed: bool, character: Option<char>) -> bool {
+        let mut button = RectangleShape::new();
+        button.set_size(self.size);
+        button.set_position(self.pos);
+        button.set_fill_color(Color::BLACK);
+        window.draw(&button);
+        let mut text = Text::new(&self.text, font, 20);
+        text.set_position((self.pos.0 + 10.0, self.pos.1 + 10.0));
+        text.set_fill_color(Color::WHITE);
+        window.draw(&text);
+        // ghost text
+        if self.text.is_empty() {
+            let mut text = Text::new(&self.ghost_text, font, 20);
+            text.set_position((self.pos.0 + 10.0, self.pos.1 + 10.0));
+            text.set_fill_color(Color { r: 255, g: 255, b: 255, a: 100 });
+            window.draw(&text);
+        }
+        // flashing cursor based on time
+        let mut cursor = RectangleShape::new();
+        cursor.set_size((2.0, 20.0));
+        cursor.set_position((self.pos.0 + 10.0 + text.local_bounds().width + 2.0, self.pos.1 + 10.0));
+        cursor.set_fill_color(Color::WHITE);
+        if self.selected {
+            if self.creation_time.elapsed().as_millis() % 1000 < 500 {
+                window.draw(&cursor);
+            }
+        }
+        let mouse_pos = window.mouse_position();
+        let mouse_pos = (mouse_pos.x as f32, mouse_pos.y as f32);
+        if mouse_pos.0 > self.pos.0 && mouse_pos.0 < self.pos.0 + self.size.0 && mouse_pos.1 > self.pos.1 && mouse_pos.1 < self.pos.1 + self.size.1 {
+            if mouse_pressed {
+                self.selected = true;
+                // reset the creation time
+                self.creation_time = std::time::Instant::now();
+            }
+        } else {
+            if mouse_pressed {
+                self.selected = false;
+            }
+        }
+        if self.selected {
+            if let Some(character) = character {
+                self.text.push(character);
+                // reset the creation time
+                self.creation_time = std::time::Instant::now();
+            }
+        }
+        return false;
     }
 }
