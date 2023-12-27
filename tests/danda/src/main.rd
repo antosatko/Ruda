@@ -4,6 +4,11 @@ import "#string"
 import "#time"
 import "#window" as win
 
+
+    fun nullable(a: int?) {
+        io.println(a)
+    }
+
 fun main() {
     let ctx = win.WinBuilder()
         .width(800)
@@ -15,21 +20,26 @@ fun main() {
     let i = 0
 
 
-    io.println(win.alert("Title", "Message"))
-    io.println(win.prompt("Title", "Message", "Default"))
-    io.println(win.confirm("Title", "Message"))
+    nullable(null)
 
-    let t = time.Clock()
+
+    io.println(win.alert("Title", "555"))
+    io.println(win.prompt("Title", "Message", "Default"))
+    io.println(win.confirm("Title", "Message")) 
+    
+
 
 
     
     let style = win.DrawStyle()
-        .font(win.FontUbuntuMono())
+        .font(win.Font.ubuntuMono())
         .fontSize(20)
-        .color(win.ColorFrom(win.Colors.White))
-        .outlineColor(win.ColorFrom(win.Colors.Green))
+        .color(win.Color.From(win.Colors.Red))
+        .outlineColor(win.Color.From(win.Colors.Green))
         .outlineThickness(10)
+        .font(win.Font.ubuntuMono())
 
+    let t = time.Clock()
 
     loop "main_loop": {
         ctx.clear()
@@ -51,10 +61,10 @@ fun main() {
 
         ctx.save()
         ctx.drawRectangle(0, 0, 100, 100)
-        ctx.outlineColor(win.ColorFrom(win.Colors.Blue))
+        ctx.outlineColor(win.Color.From(win.Colors.Blue))
         ctx.outlineThickness(10)
         ctx.drawRectangle(200, 0, 100, 100)
-        ctx.color(win.ColorFrom(win.Colors.Red))
+        ctx.color(win.Color.From(win.Colors.Red))
         ctx.drawRectangle(100, 100, 100, 100)
         ctx.drawCircle(100, 0, 50)
         ctx.styledText(100, 100, "Hello World!"+'\n'+"Danda", style)

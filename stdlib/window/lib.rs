@@ -10,7 +10,6 @@
  */
 extern crate runtime;
 
-use std::os::windows::process;
 use std::sync::Arc;
 
 use runtime::runtime_error::ErrTypes;
@@ -19,8 +18,8 @@ use runtime::*;
 
 use runtime::user_data::UserData;
 use sfml::graphics::{
-    CircleShape, Color, Font, Image, Rect, RectangleShape, RenderTarget, RenderWindow, Shape, Text,
-    TextStyle, Transformable,
+    CircleShape, Color, Font, Image, RectangleShape, RenderTarget, RenderWindow, Shape, Text,
+    Transformable,
 };
 use sfml::window::Style;
 use sfml::*;
@@ -2131,9 +2130,6 @@ fn register() -> String {
     fun alert(title=reg.g1: string, message=reg.g2: string): bool > 79i
     fun prompt(title=reg.g1: string, message=reg.g2: string, default=reg.g3: string): string > 80i
     fun confirm(title=reg.g1: string, message=reg.g2: string): bool > 81i
-    fun colorWheel(title=reg.g1: string, color=reg.g2: Color): Color > 82i
-    fun fileDrop(title=reg.g1: string, message=reg.g2: string): string > 83i
-
 
     userdata Event > 2i {
         fun code(self=reg.ptr): Events > 11i
@@ -2180,18 +2176,18 @@ fn register() -> String {
         fun b(self=reg.ptr, set=reg.g1: uint?): uint > 31i
         fun a(self=reg.ptr, set=reg.g1: uint?): uint > 32i
 
+        fun FromHex(hex=reg.g1: string): Color > 33i
+        fun Copy(self=reg.ptr): Color > 34i
+        fun From(color=reg.g1: Colors): Color > 46i
     }
-    fun ColorFromHex(hex=reg.g1: string): Color > 33i
-    fun ColorCopy(self=reg.ptr): Color > 34i
-    fun ColorFrom(color=reg.g1: Colors): Color > 46i
 
     userdata Font > 5i {
         new (path=reg.g1: string) > 42i
 
+        fun default (name=reg.g1: string): Font > 43i
+        fun ubuntuMono (): Font > 44i
+        fun roboto (): Font > 45i
     }
-    fun FontDefault(name=reg.g1: string): Font > 43i
-    fun FontUbuntuMono(): Font > 44i
-    fun FontRoboto(): Font > 45i
 
     enum Events > 0i {
         Closed
@@ -2564,7 +2560,6 @@ impl UserData for WinFont {
     }
 }
 
-
 /// Blocking alert
 struct Alert {
     alert_type: AlertType,
@@ -2591,13 +2586,15 @@ impl Alert {
         );
         window.set_vertical_sync_enabled(true);
         // draw the window
-        let font = match unsafe { Font::from_memory(include_bytes!("../../sfml/fonts/Roboto-Regular.ttf")) } {
-                Some(font) => font,
-                None => {
-                    println!("Failed to load font");
-                    return AlertResponse::FontNotFound;
-                },
-            };
+        let font = match unsafe {
+            Font::from_memory(include_bytes!("../../sfml/fonts/Roboto-Regular.ttf"))
+        } {
+            Some(font) => font,
+            None => {
+                println!("Failed to load font");
+                return AlertResponse::FontNotFound;
+            }
+        };
         let mut text = Text::new(&self.message, &font, 20);
         text.set_position((10.0, 10.0));
         text.set_fill_color(Color::BLACK);
@@ -2618,33 +2615,33 @@ impl Alert {
                             AlertType::Prompt(_) => return AlertResponse::Prompt(String::new()),
                             AlertType::Confirm => return AlertResponse::Confirm(false),
                         }
-                    },
-                    window::Event::KeyPressed { code, .. } => {
-                        match code {
-                            window::Key::Escape => {
-                                window.close();
-                                match self.alert_type {
-                                    AlertType::Alert => return AlertResponse::Alert(false),
-                                    AlertType::Prompt(_) => return AlertResponse::Prompt(String::new()),
-                                    AlertType::Confirm => return AlertResponse::Confirm(false),
-                                }
-                            },
-                            window::Key::Enter => {
-                                window.close();
-                                match self.alert_type {
-                                    AlertType::Alert => return AlertResponse::Alert(true),
-                                    AlertType::Prompt(_) => return AlertResponse::Prompt(input_field.unwrap().text),
-                                    AlertType::Confirm => return AlertResponse::Confirm(true),
-                                }
-                            },
-                            window::Key::Backspace => {
-                                if let Some(input_field) = input_field.as_mut() {
-                                    input_field.text.pop();
-                                }
-                            },
-
-                            _ => (),
+                    }
+                    window::Event::KeyPressed { code, .. } => match code {
+                        window::Key::Escape => {
+                            window.close();
+                            match self.alert_type {
+                                AlertType::Alert => return AlertResponse::Alert(false),
+                                AlertType::Prompt(_) => return AlertResponse::Prompt(String::new()),
+                                AlertType::Confirm => return AlertResponse::Confirm(false),
+                            }
                         }
+                        window::Key::Enter => {
+                            window.close();
+                            match self.alert_type {
+                                AlertType::Alert => return AlertResponse::Alert(true),
+                                AlertType::Prompt(_) => {
+                                    return AlertResponse::Prompt(input_field.unwrap().text)
+                                }
+                                AlertType::Confirm => return AlertResponse::Confirm(true),
+                            }
+                        }
+                        window::Key::Backspace => {
+                            if let Some(input_field) = input_field.as_mut() {
+                                input_field.text.pop();
+                            }
+                        }
+
+                        _ => (),
                     },
                     window::Event::TextEntered { unicode, .. } => {
                         // check if the character is valid
@@ -2652,7 +2649,7 @@ impl Alert {
                             continue;
                         }
                         character = Some(unicode as char);
-                    },
+                    }
                     window::Event::LostFocus => focused = false,
                     window::Event::GainedFocus => focused = true,
                     window::Event::MouseButtonPressed { button, .. } => {
@@ -2681,7 +2678,10 @@ impl Alert {
                         window.close();
                         return AlertResponse::Prompt(String::new());
                     }
-                    input_field.as_mut().unwrap().draw(window, &font, mouse_pressed, character);
+                    input_field
+                        .as_mut()
+                        .unwrap()
+                        .draw(window, &font, mouse_pressed, character);
                 }
                 AlertType::Confirm => {
                     if self.imbutton(window, "OK", (80.0, 150.0), &font, mouse_pressed) {
@@ -2693,13 +2693,21 @@ impl Alert {
                         return AlertResponse::Confirm(false);
                     }
                 }
+                _ => todo!(),
             }
             window.display();
         }
         AlertResponse::Err
     }
 
-    fn imbutton(&mut self, window: &mut RenderWindow, text: &str, pos: (f32, f32), font: &Font, mouse_pressed: bool) -> bool {
+    fn imbutton(
+        &mut self,
+        window: &mut RenderWindow,
+        text: &str,
+        pos: (f32, f32),
+        font: &Font,
+        mouse_pressed: bool,
+    ) -> bool {
         let mut button = RectangleShape::new();
         button.set_size((100.0, 45.0));
         button.set_position(pos);
@@ -2711,7 +2719,11 @@ impl Alert {
         window.draw(&text);
         let mouse_pos = window.mouse_position();
         let mouse_pos = (mouse_pos.x as f32, mouse_pos.y as f32);
-        if mouse_pos.0 > pos.0 && mouse_pos.0 < pos.0 + 100.0 && mouse_pos.1 > pos.1 && mouse_pos.1 < pos.1 + 50.0 {
+        if mouse_pos.0 > pos.0
+            && mouse_pos.0 < pos.0 + 100.0
+            && mouse_pos.1 > pos.1
+            && mouse_pos.1 < pos.1 + 50.0
+        {
             if mouse_pressed {
                 return true;
             }
@@ -2724,8 +2736,6 @@ enum AlertType {
     Prompt(String),
     Confirm,
     Alert,
-    ColorWheel,
-    FileDrop,
 }
 
 enum AlertResponse {
@@ -2757,7 +2767,13 @@ impl ImTextField {
         }
     }
 
-    fn draw(&mut self, window: &mut RenderWindow, font: &Font, mouse_pressed: bool, character: Option<char>) -> bool {
+    fn draw(
+        &mut self,
+        window: &mut RenderWindow,
+        font: &Font,
+        mouse_pressed: bool,
+        character: Option<char>,
+    ) -> bool {
         let mut button = RectangleShape::new();
         button.set_size(self.size);
         button.set_position(self.pos);
@@ -2771,13 +2787,21 @@ impl ImTextField {
         if self.text.is_empty() {
             let mut text = Text::new(&self.ghost_text, font, 20);
             text.set_position((self.pos.0 + 10.0, self.pos.1 + 10.0));
-            text.set_fill_color(Color { r: 255, g: 255, b: 255, a: 100 });
+            text.set_fill_color(Color {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 100,
+            });
             window.draw(&text);
         }
         // flashing cursor based on time
         let mut cursor = RectangleShape::new();
         cursor.set_size((2.0, 20.0));
-        cursor.set_position((self.pos.0 + 10.0 + text.local_bounds().width + 2.0, self.pos.1 + 10.0));
+        cursor.set_position((
+            self.pos.0 + 10.0 + text.local_bounds().width + 2.0,
+            self.pos.1 + 10.0,
+        ));
         cursor.set_fill_color(Color::WHITE);
         if self.selected {
             if self.creation_time.elapsed().as_millis() % 1000 < 500 {
@@ -2786,7 +2810,11 @@ impl ImTextField {
         }
         let mouse_pos = window.mouse_position();
         let mouse_pos = (mouse_pos.x as f32, mouse_pos.y as f32);
-        if mouse_pos.0 > self.pos.0 && mouse_pos.0 < self.pos.0 + self.size.0 && mouse_pos.1 > self.pos.1 && mouse_pos.1 < self.pos.1 + self.size.1 {
+        if mouse_pos.0 > self.pos.0
+            && mouse_pos.0 < self.pos.0 + self.size.0
+            && mouse_pos.1 > self.pos.1
+            && mouse_pos.1 < self.pos.1 + self.size.1
+        {
             if mouse_pressed {
                 self.selected = true;
                 // reset the creation time

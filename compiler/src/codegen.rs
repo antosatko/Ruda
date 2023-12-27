@@ -1657,6 +1657,74 @@ fn traverse_tail(
                 }
                 Position::CompoundField(path, field, kind) => {
                     let structt = find_struct(objects, &path.ident, &path.file);
+                    match field {
+                        CompoundField::Field(ident) => {
+                            let (idx, (ident, kind)) = structt
+                                .unwrap()
+                                .1
+                                .fields
+                                .iter()
+                                .enumerate()
+                                .find(|f| &f.1.0 == ident)
+                                .unwrap()
+                                .clone();
+                            code.extend(&[IndexStatic(idx + 1), Move(POINTER_REG, GENERAL_REG1)]);
+                            return_kind = kind.clone();
+                            *return_kind.refs_mut() += 1;
+                            return traverse_tail(
+                                objects,
+                                tail,
+                                context,
+                                scopes,
+                                code,
+                                fun,
+                                Position::CompoundField(
+                                    InnerPath {
+                                        file: kind.file.clone().unwrap(),
+                                        block: Some(structt.unwrap().1.identifier.to_string()),
+                                        ident: path.ident.clone(),
+                                        kind: ImportKinds::Rd,
+                                    },
+                                    CompoundField::Field(ident.clone()),
+                                    kind.to_owned(),
+                                ),
+                                scope_len,
+                                generics,
+                            )
+                        }
+                        CompoundField::Method(method) => {
+                            let method = structt
+                                .unwrap()
+                                .1
+                                .functions
+                                .iter()
+                                .find(|f| f.identifier.as_ref().unwrap() == method)
+                                .unwrap();
+                            let path = InnerPath {
+                                file: kind.file.clone().unwrap(),
+                                block: Some(structt.unwrap().1.identifier.to_string()),
+                                ident: method.identifier.clone().unwrap(),
+                                kind: ImportKinds::Dll,
+                            };
+                            return traverse_tail(
+                                objects,
+                                tail,
+                                context,
+                                scopes,
+                                code,
+                                fun,
+                                Position::Function(
+                                    FunctionKind::Binary(path),
+                                    method.return_type.clone().unwrap(),
+                                    kind.clone(),
+                                ),
+                                scope_len,
+                                generics,
+                            );                            
+                        }
+                        CompoundField::OverloadedOperator(_) => todo!(),
+                        CompoundField::TraitMethod(_, _) => todo!(),
+                    }
                 }
                 Position::Function(_, _, _) => {
                     Err(CodegenError::CannotAttachMethodsToFunctions(node.1.clone()))?
@@ -1676,7 +1744,7 @@ fn traverse_tail(
                         &kind_main.first().unwrap(),
                         &_kind.file.as_ref().unwrap(),
                     ) {
-                        let field = match structt.fields.iter().find(|field| &field.0 == ident) {
+                        let (field, kind) = match structt.fields.iter().find(|field| &field.0 == ident) {
                             Some(field) => field,
                             None => Err(CodegenError::FieldNotInStruct(
                                 ident.clone(),
@@ -1724,6 +1792,36 @@ fn traverse_tail(
                             _kind.file.as_ref().unwrap().to_string(),
                             enumm.line.clone(),
                         )));
+                    }
+                    if let Some((_, userdata)) = find_userdata(
+                        objects,
+                        &kind_main.first().unwrap(),
+                        &_kind.file.as_ref().unwrap(),
+                    ) {
+                        let method = match userdata.methods.iter().find(|field| &field.name == ident) {
+                            Some(field) => field,
+                            None => Err(CodegenError::FieldNotInStruct(
+                                ident.clone(),
+                                node.1.clone(),
+                            ))?,
+                        };
+                        let path = InnerPath {
+                            file: _kind.file.as_ref().unwrap().to_string(),
+                            block: Some(kind_main.last().as_ref().unwrap().to_string()),
+                            ident: method.name.clone(),
+                            kind: ImportKinds::Dll,
+                        };
+                        return traverse_tail(
+                            objects,
+                            tail,
+                            context,
+                            scopes,
+                            code,
+                            fun,
+                            Position::Function(FunctionKind::Binary(path), method.return_type.clone(), _kind.clone()),
+                            scope_len,
+                            generics,
+                        );
                     }
                     todo!()
                 }
@@ -2256,7 +2354,7 @@ fn traverse_tail(
                 Position::CompoundField(path, field, _) => {
                     match field {
                         CompoundField::Method(ident) => ident,
-                        _ => todo!(),
+                        _ => todo!("trying to call a non-method field: {:?}", field),
                     };
                     code.push(Move(GENERAL_REG1, RETURN_REG));
                     let mut kind = call_whichever(
@@ -2390,7 +2488,7 @@ fn call_binary(
         .zip(called_fun.args.clone())
         .enumerate()
     {
-        let kind = match &arg.1 .1.body {
+        let kind = match &arg.1.1.body {
             TypeBody::Generic {
                 identifier,
                 constraints,
@@ -4114,7 +4212,6 @@ fn native_operand(
                     file: Some(fun.file.clone()),
                 });
             } else {
-                println!("{:?} == {:?}", left, right);
                 None?
             }
         }

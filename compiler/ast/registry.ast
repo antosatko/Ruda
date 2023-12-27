@@ -57,11 +57,12 @@ int
 int<float<[int; 50]>>
 etc..
 "
-type main generic ref arr
+type main generic ref arr optional
 	ref_type ? set="ref"
 	function_head ? set="main" end="false"
 	array_decl ? set="arr" end="false"
 	type_ident_null set="main"
+	? ? set="optional"
 	generic_expr ? set="generic";
 
 ref_type [refs

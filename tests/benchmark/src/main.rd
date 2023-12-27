@@ -1,4 +1,5 @@
 import "#io"
+import "#memory"
 
 fun factorial(n: int): int {
     if 0 == n {return 1}
@@ -22,6 +23,7 @@ fun fib(n: uint): uint {
 
 
 fun main() {
-    factorial(252)
-    fib(30)
+    loop {
+        "ahoj"
+    }
 }

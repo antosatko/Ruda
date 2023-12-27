@@ -42,6 +42,7 @@ impl Context {
                 strings: Strings {
                     pool: vec![],
                     garbage: vec![],
+                    static_strings: 0,
                 },
                 non_primitives: vec![],
                 gc: GarbageCollector {
@@ -1715,7 +1716,7 @@ pub mod runtime_types {
                 return;
             }
             for (i, mark) in marked.iter().enumerate() {
-                if i == self.heap.data.len() {
+                if i >= self.heap.data.len() {
                     return;
                 }
                 if *mark {
@@ -1740,7 +1741,7 @@ pub mod runtime_types {
             }
             // remove all strings that are marked
             for (i, mark) in marked.iter().enumerate() {
-                if i == self.strings.pool.len() {
+                if i >= self.strings.pool.len() {
                     continue;
                 }
                 if *mark {
@@ -1764,7 +1765,7 @@ pub mod runtime_types {
             }
             // remove all uds that are marked
             for (i, mark) in marked.iter().enumerate() {
-                if i == self.user_data.data.len() {
+                if i >= self.user_data.data.len() {
                     continue;
                 }
                 if *mark {
@@ -1779,6 +1780,9 @@ pub mod runtime_types {
         pub fn gc_mark_unoptimized(&mut self) -> (Vec<bool>, Vec<bool>, Vec<bool>) {
             let mut marked_obj = vec![true; self.heap.data.len()];
             let mut marked_str = vec![true; self.strings.pool.len()];
+            for i in 0..self.strings.static_strings {
+                marked_str[i] = false;
+            }
             let mut marked_ud = vec![true; self.user_data.data.len()];
             self.gc_mark_registers(&mut marked_obj, &mut marked_str, &mut marked_ud);
             self.gc_mark_range(
@@ -1815,6 +1819,7 @@ pub mod runtime_types {
             obj_idx: usize,
             marked: &mut Vec<bool>,
             marked_str: &mut Vec<bool>,
+            marked_ud: &mut Vec<bool>
         ) {
             if marked.len() == 0 {
                 return;
@@ -1826,11 +1831,13 @@ pub mod runtime_types {
             for idx in 0..self.heap.data[obj_idx].len() {
                 let member = self.heap.data[obj_idx][idx];
                 if let Types::Pointer(u_size, PointerTypes::Object) = member {
-                    self.gc_mark_obj(u_size, marked, marked_str);
+                    self.gc_mark_obj(u_size, marked, marked_str, marked_ud);
                 } else if let Types::Pointer(u_size, PointerTypes::Heap(_)) = member {
-                    self.gc_mark_obj(u_size, marked, marked_str);
+                    self.gc_mark_obj(u_size, marked, marked_str, marked_ud);
                 } else if let Types::Pointer(u_size, PointerTypes::String) = member {
                     self.gc_mark_string(u_size, marked_str)
+                } else if let Types::Pointer(u_size, PointerTypes::UserData) = member {
+                    self.gc_mark_ud(u_size, marked_ud);
                 }
             }
         }
@@ -1860,10 +1867,10 @@ pub mod runtime_types {
             for idx in range.0..range.1 {
                 match self.stack.data[idx] {
                     Types::Pointer(u_size, PointerTypes::Heap(_)) => {
-                        self.gc_mark_obj(u_size, marked_obj, marked_string);
+                        self.gc_mark_obj(u_size, marked_obj, marked_string, marked_ud);
                     }
                     Types::Pointer(u_size, PointerTypes::Object) => {
-                        self.gc_mark_obj(u_size, marked_obj, marked_string);
+                        self.gc_mark_obj(u_size, marked_obj, marked_string, marked_ud);
                     }
                     Types::Pointer(u_size, PointerTypes::String) => {
                         self.gc_mark_string(u_size, marked_string);
@@ -1887,10 +1894,10 @@ pub mod runtime_types {
             for reg in self.registers {
                 match reg {
                     Types::Pointer(u_size, PointerTypes::Heap(_)) => {
-                        self.gc_mark_obj(u_size, marked, marked_str);
+                        self.gc_mark_obj(u_size, marked, marked_str, marked_ud);
                     }
                     Types::Pointer(u_size, PointerTypes::Object) => {
-                        self.gc_mark_obj(u_size, marked, marked_str);
+                        self.gc_mark_obj(u_size, marked, marked_str, marked_ud);
                     }
                     Types::Pointer(u_size, PointerTypes::String) => {
                         self.gc_mark_string(u_size, marked_str);
@@ -1915,10 +1922,10 @@ pub mod runtime_types {
                 for arg in self.args.data[i] {
                     match arg {
                         Types::Pointer(u_size, PointerTypes::Heap(_)) => {
-                            self.gc_mark_obj(u_size, marked, marked_str);
+                            self.gc_mark_obj(u_size, marked, marked_str, marked_ud);
                         }
                         Types::Pointer(u_size, PointerTypes::Object) => {
-                            self.gc_mark_obj(u_size, marked, marked_str);
+                            self.gc_mark_obj(u_size, marked, marked_str, marked_ud);
                         }
                         Types::Pointer(u_size, PointerTypes::String) => {
                             self.gc_mark_string(u_size, marked_str);
@@ -1993,6 +2000,8 @@ pub mod runtime_types {
     pub struct Strings {
         pub pool: Vec<String>,
         pub garbage: Vec<usize>,
+        /// number of strings that will never be deleted
+        pub static_strings: usize,
     }
     #[allow(unused)]
     impl Strings {
@@ -2257,7 +2266,7 @@ pub mod runtime_types {
     }
     use std::{clone, collections::HashMap, fmt, hash::Hash, ops::Index, rc::Rc, sync::Arc};
 
-    use crate::user_data;
+    use crate::user_data::{self, UserData};
 
     use super::{
         runtime_error::{self, ErrTypes},

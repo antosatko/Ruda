@@ -63,6 +63,7 @@ fn main() {
                 ShLib { path: "core".to_string(), owns: stringify::LibOwner::Standard},
                 ShLib { path: "time".to_string(), owns: stringify::LibOwner::Standard},
                 ShLib { path: "window".to_string(), owns: stringify::LibOwner::Standard},
+                ShLib { path: "memory".to_string(), owns: stringify::LibOwner::Standard},
             ];
             let mut libs_read = Vec::new();
             for lib in libs.iter() {

@@ -1,5 +1,6 @@
 import "#io"
 import "#window" as win
+import "#memory"
 
 enum Side {
     Left
@@ -83,8 +84,13 @@ struct Ball {
         self.x += self.xspeed
         self.y += self.yspeed
 
-        if self.y < 0 || self.y > 600 - self.radius*2 {
+        if self.y > 600 - self.radius*2 {
             self.yspeed *= -1
+            self.y = 600 - self.radius*2
+        }
+        if self.y < 0 {
+            self.yspeed *= -1
+            self.y = 0
         }
     }
 
