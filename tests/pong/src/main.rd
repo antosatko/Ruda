@@ -277,6 +277,7 @@ fun main() {
             ctx.drawText(200, 300, "Press SPACE to play again...")
         }
 
+        memory.Gc.sweep()
         ctx.display()
     }
     io.println("Goodbye!")

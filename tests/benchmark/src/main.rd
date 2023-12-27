@@ -24,6 +24,6 @@ fun fib(n: uint): uint {
 
 fun main() {
     loop {
-        "ahoj"
+        "ahoj" + " " + "svete"
     }
 }
