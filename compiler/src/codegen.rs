@@ -1502,6 +1502,19 @@ fn traverse_tail(
                                                 ]);
                                                 return_kind = structt.fields[idx].1.clone();
                                                 *return_kind.refs_mut() += 1;
+                                                let pos = Position::CompoundField(
+                                                    InnerPath {
+                                                        file: kind.file.clone().unwrap(),
+                                                        block: Some(
+                                                            structt.identifier.to_string(),
+                                                        ),
+                                                        ident: main.first().unwrap().clone(),
+                                                        kind: ImportKinds::Rd,
+                                                    },
+                                                    CompoundField::Field(ident.clone()),
+                                                    kind,
+                                                );
+                                                println!("{:?}", pos);
                                                 let pos = traverse_tail(
                                                     objects,
                                                     tail,
@@ -1509,18 +1522,7 @@ fn traverse_tail(
                                                     scopes,
                                                     code,
                                                     fun,
-                                                    Position::CompoundField(
-                                                        InnerPath {
-                                                            file: kind.file.clone().unwrap(),
-                                                            block: Some(
-                                                                structt.identifier.to_string(),
-                                                            ),
-                                                            ident: main.first().unwrap().clone(),
-                                                            kind: ImportKinds::Rd,
-                                                        },
-                                                        CompoundField::Field(ident.clone()),
-                                                        kind,
-                                                    ),
+                                                    pos,
                                                     scope_len,
                                                     generics,
                                                 );
@@ -1659,6 +1661,7 @@ fn traverse_tail(
                     }*/
                 }
                 Position::CompoundField(path, field, kind) => {
+                    println!("a: {path:?}, {field:?}, {kind:?}", path = path, field = field, kind = kind);
                     let structt = find_struct(objects, &path.ident, &path.file);
                     match field {
                         CompoundField::Field(ident) => {
@@ -1674,6 +1677,18 @@ fn traverse_tail(
                             code.extend(&[IndexStatic(idx + 1), Move(POINTER_REG, GENERAL_REG1)]);
                             return_kind = kind.clone();
                             *return_kind.refs_mut() += 1;
+                            println!("{:?}", return_kind);
+                            let pos = Position::CompoundField(
+                                InnerPath {
+                                    file: kind.file.clone().unwrap(),
+                                    block: Some(structt.unwrap().1.identifier.to_string()),
+                                    ident: path.ident.clone(),
+                                    kind: ImportKinds::Rd,
+                                },
+                                CompoundField::Field(ident.clone()),
+                                kind.to_owned(),
+                            );
+                            println!("{:?}", pos);
                             return traverse_tail(
                                 objects,
                                 tail,
@@ -1681,16 +1696,7 @@ fn traverse_tail(
                                 scopes,
                                 code,
                                 fun,
-                                Position::CompoundField(
-                                    InnerPath {
-                                        file: kind.file.clone().unwrap(),
-                                        block: Some(structt.unwrap().1.identifier.to_string()),
-                                        ident: path.ident.clone(),
-                                        kind: ImportKinds::Rd,
-                                    },
-                                    CompoundField::Field(ident.clone()),
-                                    kind.to_owned(),
-                                ),
+                                pos,
                                 scope_len,
                                 generics,
                             )
@@ -2408,7 +2414,6 @@ fn traverse_tail(
                         };
                         match find_struct(objects, &path.ident, &path.file) {
                             Some(structt) => {
-                                println!("structt: {:?}", structt.1);
                                 let mut field = 0;
                                 let kind = loop {
                                     match structt.1.fields.get(field) {
@@ -4875,3 +4880,6 @@ pub enum CodeStops {
     Break(Option<String>),
     Continue(Option<String>),
 }
+
+
+// heya :D
