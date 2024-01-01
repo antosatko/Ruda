@@ -2397,6 +2397,45 @@ fn traverse_tail(
                         code.read(&pos_cloned, GENERAL_REG1);
                         var.kind.as_ref().unwrap()
                     }
+                    Position::CompoundField(path, field, kind) => {
+                        let ident = if let CompoundField::Field(ident) = field {
+                            ident
+                        } else {
+                            Err(CodegenError::CannotIndexNonArray(
+                                pos.clone(),
+                                node.1.clone(),
+                            ))?
+                        };
+                        match find_struct(objects, &path.ident, &path.file) {
+                            Some(structt) => {
+                                println!("structt: {:?}", structt.1);
+                                let mut field = 0;
+                                let kind = loop {
+                                    match structt.1.fields.get(field) {
+                                        Some((_ident, kind)) => {
+                                            if _ident == ident {
+                                                break kind;
+                                            }
+                                            field += 1;
+                                        }
+                                        None => Err(CodegenError::FieldNotInStruct(
+                                            ident.clone(),
+                                            node.1.clone(),
+                                        ))?,
+                                    }
+                                };
+                                code.extend(&[
+                                    IndexStatic(field + 1),
+                                    Move(POINTER_REG, GENERAL_REG1),
+                                ]);
+                                kind
+                            }
+                            None => Err(CodegenError::FieldNotInStruct(
+                                ident.clone(),
+                                node.1.clone(),
+                            ))?,
+                        }
+                    }
                     _ => Err(CodegenError::CannotTestNullable(node.1.clone()))?,
                 };
                 if !kind.get_nullable() {

@@ -7,6 +7,8 @@ use std::vec;
 use runtime_error::*;
 use runtime_types::*;
 
+use crate::user_data::Null;
+
 macro_rules! panic_msg {
     () => {
         std::panic::set_hook(Box::new(|info| {
@@ -1090,11 +1092,11 @@ impl Context {
                 self.memory.args.ptr -= 1;
                 self.next_line();
             }
-            Null => {
+            NullCheck => {
                 if let Types::Null = self.memory.registers[GENERAL_REG1] {
-                    self.memory.registers[GENERAL_REG1] = Types::Bool(true);
-                } else {
                     self.memory.registers[GENERAL_REG1] = Types::Bool(false);
+                } else {
+                    self.memory.registers[GENERAL_REG1] = Types::Bool(true);
                 }
                 self.next_line();
             }
@@ -2527,7 +2529,7 @@ pub mod runtime_types {
         OpenArgs,
         /// Close args: | closes arguments of function call
         CloseArgs,
-        /// Null | sets checks if reg(0) is null and sets reg(0) to bool
+        /// Null | sets reg(0) to reg(0) != null (used for null checks)
         NullCheck,
     }
     impl fmt::Display for Instructions {
