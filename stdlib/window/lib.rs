@@ -19,8 +19,9 @@ use runtime::*;
 use runtime::user_data::UserData;
 use sfml::graphics::{
     CircleShape, Color, Font, Image, RectangleShape, RenderTarget, RenderWindow, Shape, Text,
-    Transformable,
+    Transformable, Sprite, VertexBufferUsage,
 };
+use sfml::system::{Vector2, Vector2f};
 use sfml::window::Style;
 use sfml::*;
 
@@ -2028,6 +2029,129 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
                 _ => return Ok(Types::Bool(false)),
             }
         }
+        // Image::new
+        82 => {
+            let args = m.args();
+            let arg1 = args[0];
+            let path = match arg1 {
+                Types::Pointer(pos, PointerTypes::String) => &m.strings.pool[pos],
+                _ => Err(ErrTypes::InvalidType(
+                    arg1,
+                    Types::Pointer(0, PointerTypes::String),
+                ))?,
+            };
+            match WinImage::new(path) {
+                Some(image) => {
+                    let ud = ctx.memory.user_data.push(Box::new(image));
+                    return Ok(Types::Pointer(ud, PointerTypes::UserData));
+                }
+                None => return Err(ErrTypes::Message("Image::new: failed".to_string())),
+            }
+        }
+        // Image::width
+        83 => {
+            let args = m.args();
+            let arg1 = args[0];
+            let ud = match arg1 {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => Err(ErrTypes::InvalidType(
+                    arg1,
+                    Types::Pointer(0, PointerTypes::UserData),
+                ))?,
+            };
+            let image = m.user_data.data[ud].as_mut();
+            let image = image.as_any_mut().downcast_mut::<WinImage>().unwrap();
+            return Ok(Types::Uint(image.texture.size().x as usize));
+        }
+        // Image::height
+        84 => {
+            let args = m.args();
+            let arg1 = args[0];
+            let ud = match arg1 {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => Err(ErrTypes::InvalidType(
+                    arg1,
+                    Types::Pointer(0, PointerTypes::UserData),
+                ))?,
+            };
+            let image = m.user_data.data[ud].as_mut();
+            let image = image.as_any_mut().downcast_mut::<WinImage>().unwrap();
+            return Ok(Types::Uint(image.texture.size().y as usize));
+        }
+        // Window::drawImage
+        85 => {
+            let args = m.args();
+            let win = args[0];
+            let x = args[1];
+            let y = args[2];
+            let image = args[3];
+            let win_ud = match win {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => Err(ErrTypes::InvalidType(win, Types::Pointer(0, PointerTypes::UserData)))?,
+            };
+            let image_ud = match image {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => Err(ErrTypes::InvalidType(
+                    image,
+                    Types::Pointer(0, PointerTypes::UserData),
+                ))?,
+            };
+            let x = match x {
+                Types::Float(f) => f as f32,
+                _ => Err(ErrTypes::InvalidType(x, Types::Float(0.0)))?,
+            };
+            let y = match y {
+                Types::Float(f) => f as f32,
+                _ => Err(ErrTypes::InvalidType(y, Types::Float(0.0)))?,
+            };
+            
+            let image = m.user_data.data[image_ud].as_mut();
+            let image = image.as_any_mut().downcast_mut::<WinImage>().unwrap().texture.to_owned();
+            let window = m.user_data.data[win_ud].as_mut();
+            let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
+            let mut sprite = Sprite::with_texture(&image);
+            sprite.set_position((x, y));
+            window.window.draw(&sprite);
+        }
+        // Window::drawLine
+        86 => {
+            let args = m.args();
+            let win = args[0];
+            let x1 = args[1];
+            let y1 = args[2];
+            let x2 = args[3];
+            let y2 = args[4];
+            let win_ud = match win {
+                Types::Pointer(pos, PointerTypes::UserData) => pos,
+                _ => Err(ErrTypes::InvalidType(win, Types::Pointer(0, PointerTypes::UserData)))?,
+            };
+            let x1 = match x1 {
+                Types::Float(f) => f as f32,
+                _ => Err(ErrTypes::InvalidType(x1, Types::Float(0.0)))?,
+            };
+            let y1 = match y1 {
+                Types::Float(f) => f as f32,
+                _ => Err(ErrTypes::InvalidType(y1, Types::Float(0.0)))?,
+            };
+            let x2 = match x2 {
+                Types::Float(f) => f as f32,
+                _ => Err(ErrTypes::InvalidType(x2, Types::Float(0.0)))?,
+            };
+            let y2 = match y2 {
+                Types::Float(f) => f as f32,
+                _ => Err(ErrTypes::InvalidType(y2, Types::Float(0.0)))?,
+            };
+            let window = m.user_data.data[win_ud].as_mut();
+            let window = window.as_any_mut().downcast_mut::<Window>().unwrap();
+            use sfml::graphics::{VertexBuffer, Vertex, PrimitiveType};
+            let mut line = VertexBuffer::new(PrimitiveType::LINES, 2, VertexBufferUsage::STREAM);
+            let mut a = Vertex::with_pos(Vector2f::new(x1, y1));
+            a.color = window.style.color;
+            let mut b = Vertex::with_pos(Vector2f::new(x2, y2));
+            b.color = window.style.color;
+            line.update(&[a, b], 0);
+            window.window.draw(&line);
+        }
         _ => unreachable!("Invalid function id, {}", id),
     }
     return Ok(runtime_types::Types::Void);
@@ -2092,6 +2216,19 @@ fn register() -> String {
             text=reg.g3: string, 
             style=reg.g4: DrawStyle,
         ) > 73i
+        fun drawImage(
+            self=reg.ptr, 
+            x=reg.g1: float, 
+            y=reg.g2: float, 
+            image=reg.g3: Image,
+        ) > 85i
+        fun drawLine(
+            self=reg.ptr, 
+            x1=reg.g1: float, 
+            y1=reg.g2: float, 
+            x2=reg.g3: float, 
+            y2=reg.g4: float,
+        ) > 86i
 
         fun background(self=reg.ptr, color=reg.g1: Color) > 60i
         fun getStyle(self=reg.ptr): DrawStyle > 61i
@@ -2179,6 +2316,13 @@ fn register() -> String {
         fun FromHex(hex=reg.g1: string): Color > 33i
         fun Copy(self=reg.ptr): Color > 34i
         fun From(color=reg.g1: Colors): Color > 46i
+    }
+
+    userdata Image > 5i {
+        new (path=reg.g1: string) > 82i
+
+        fun width(self=reg.ptr): uint > 83i
+        fun height(self=reg.ptr): uint > 84i
     }
 
     userdata Font > 5i {
@@ -2541,6 +2685,51 @@ impl UserData for WinFont {
 
     fn id(&self) -> usize {
         4
+    }
+
+    fn lib_id(&self) -> usize {
+        self.lib_id
+    }
+
+    fn gc_method(&self) -> &user_data::GcMethod {
+        &user_data::GcMethod::Gc
+    }
+
+    fn cleanup(&mut self) {}
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+}
+
+#[derive(Clone)]
+struct WinImage {
+    texture: Arc<SfBox<sfml::graphics::Texture>>,
+    lib_id: usize,
+}
+
+impl WinImage {
+    fn new(path: &str) -> Option<Self> {
+        let texture = match sfml::graphics::Texture::from_file(path) {
+            sfml::LoadResult::Ok(texture) => Arc::new(texture),
+            sfml::LoadResult::Err(_) => return None,
+        };
+        Some(Self {
+                    texture,
+                    lib_id: 0,
+                })
+    }
+}
+
+impl UserData for WinImage {
+    fn label(&self) -> &str {
+        &"Image"
+    }
+
+    fn id(&self) -> usize {
+        5
     }
 
     fn lib_id(&self) -> usize {

@@ -1239,7 +1239,7 @@ fn identify_root(
                             code.read(&obj, GENERAL_REG1);
                             let return_kind = Kind {
                                 body: TypeBody::Array {
-                                    type_: Box::new(kind.clone().unwrap_or(Kind::void())),
+                                    type_: Box::new(correct_kind(objects, &kind.unwrap_or(Kind::void()), fun, line, generics)?),
                                     size: arr.len(),
                                     refs: 0,
                                     nullable: false,
@@ -1247,6 +1247,7 @@ fn identify_root(
                                 line: line.clone(),
                                 file: Some(file.to_string()),
                             };
+                            println!("{:?}", return_kind);
                             return Ok(Position::Value(return_kind));
                         } else {
                             unreachable!("array not handled properly by the compiler, please report this bug")
@@ -2495,6 +2496,9 @@ fn call_binary(
                 ..
             } => {
                 if let Some(kind) = generics_map.get(identifier) {
+                    let kind = correct_kind(objects, kind, fun, &line, &generics_map)?;
+                    println!("kind: {:?}", kind);
+                    println!("arg: {:?}", arg.1.1);
                     expression(
                         objects,
                         arg.0,
@@ -2507,7 +2511,7 @@ fn call_binary(
                         line.clone(),
                         &generics_map,
                     )?;
-                    kind.clone()
+                    kind
                 } else {
                     let kind = expression(
                         objects,
@@ -2533,7 +2537,7 @@ fn call_binary(
                 context,
                 &this,
                 scope_len,
-                Some(arg.1.clone().1),
+                Some(correct_kind(objects, &arg.1.1, fun, line, &generics_map)?),
                 line.clone(),
                 &generics_map,
             )?,
@@ -4702,6 +4706,8 @@ fn correct_kind(
             file.file = _kind.file.clone().unwrap_or(file.file);
             if main.len() == 1 {}
             for i in 0..main.len() - 1 {
+                println!("{:?}", main[i]);
+                println!("{:?}", file.file);
                 let import = match find_import(objects, &main[i], &file.file) {
                     Some(import) => import,
                     None => Err(CodegenError::ImportNotFound(main[i].clone(), line.clone()))?,

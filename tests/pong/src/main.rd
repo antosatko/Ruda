@@ -199,7 +199,7 @@ fun main() {
     loop "game": {
         loop "event": {
             event = ctx.poll()
-            if event {
+            if !event? {
                 break "event"
             }
             if event.code() as int == win.Events.Closed {
