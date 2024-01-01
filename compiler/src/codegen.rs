@@ -4632,17 +4632,6 @@ fn cast(
             generics,
         );
     }
-    if to.is_bool() && from.get_nullable() {
-        let null = new_const(context, &ConstValue::Null).ok()?;
-        if register != GENERAL_REG2 {
-            code.extend(&[Move(register, GENERAL_REG2)]);
-        }
-        code.extend(&[
-            ReadConst(null, GENERAL_REG1),
-            Equ(GENERAL_REG1, GENERAL_REG2, register),
-        ]);
-        return Some(());
-    }
     if to.is_array() && from.is_array() {
         return Some(());
     }
