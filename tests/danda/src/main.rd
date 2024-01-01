@@ -9,24 +9,17 @@ struct A {
     a: int
     b: int
     node: A?
-
     new(a: int, b: int) {
         self.a = a
         self.b = b
     }
-
     fun add(self, num: int) {
         self.a += num
         self.b += num
     }
-
-    fun append(self, node: A) {
-        self.node = node
-    }
-
-    fun print(self) {
-        io.println("A(" + self.a + ", " + self.b + ")")
-    }
+    fun append(self, node: A) { self.node = node }
+    fun print(self) { io.println("A(" + self.a + ", " + self.b + ")") }
+    fun this(self): A { return self }
 }
 
 
@@ -38,13 +31,12 @@ fun main() {
     io.println(a.b)
 
     a.append(A(3, 4))
-
-
     
     if a.node? {
         io.println("node exists")
         a.node.print()
         a.node.append(A(5, 6))
+        a.node.this().this().print()
         a.node.node.print()
     }else {
         io.println("node doesn't exist")

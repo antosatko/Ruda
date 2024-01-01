@@ -1249,7 +1249,6 @@ fn identify_root(
                                 line: line.clone(),
                                 file: Some(file.to_string()),
                             };
-                            println!("{:?}", return_kind);
                             return Ok(Position::Value(return_kind));
                         } else {
                             unreachable!("array not handled properly by the compiler, please report this bug")
@@ -1514,7 +1513,6 @@ fn traverse_tail(
                                                     CompoundField::Field(ident.clone()),
                                                     kind,
                                                 );
-                                                println!("{:?}", pos);
                                                 let pos = traverse_tail(
                                                     objects,
                                                     tail,
@@ -1663,7 +1661,6 @@ fn traverse_tail(
                 Position::CompoundField(path, field, kind) => {
                     // _ident is the field for this iteration
                     let _ident = ident;
-                    println!("path: {:?}, field: {:?}, kind: {:?}", path, field, kind);
                     let structt = find_struct(objects, &path.ident, &path.file);
                     match field {
                         // ident is the field from last iteration
@@ -1705,16 +1702,21 @@ fn traverse_tail(
                                     match (field, method) {
                                         (Some((idx, field)), None) => {
                                             code.extend(&[
-                                                ReadPtr(GENERAL_REG1),
+                                                ReadPtr(POINTER_REG),
                                                 IndexStatic(idx + 1),
                                                 Move(POINTER_REG, GENERAL_REG1),
-                                            ]);
+                                                ]);
                                             let path = InnerPath {
                                                 file: kind.file.clone().unwrap(),
                                                 block: Some(structt.1.identifier.to_string()),
-                                                ident: field.0.clone(),
+                                                ident: structt.1.identifier.to_string(),
                                                 kind: ImportKinds::Rd,
                                             };
+                                            let pos = Position::CompoundField(
+                                                path,
+                                                CompoundField::Field(field.0.clone()),
+                                                kind.clone(),
+                                            );
                                             return traverse_tail(
                                                 objects,
                                                 tail,
@@ -1722,11 +1724,7 @@ fn traverse_tail(
                                                 scopes,
                                                 code,
                                                 fun,
-                                                Position::CompoundField(
-                                                    path,
-                                                    CompoundField::Field(field.0.clone()),
-                                                    kind.clone(),
-                                                ),
+                                                pos,
                                                 scope_len,
                                                 generics,
                                             );
@@ -1734,7 +1732,6 @@ fn traverse_tail(
                                         (None, Some((idx, method))) => {
                                             code.extend(&[
                                                 ReadPtr(RETURN_REG),
-                                                Debug(RETURN_REG),
                                             ]);
                                             let path = InnerPath {
                                                 file: kind.file.clone().unwrap(),
@@ -2650,8 +2647,6 @@ fn call_binary(
             } => {
                 if let Some(kind) = generics_map.get(identifier) {
                     let kind = correct_kind(objects, kind, fun, &line, &generics_map)?;
-                    println!("kind: {:?}", kind);
-                    println!("arg: {:?}", arg.1.1);
                     expression(
                         objects,
                         arg.0,
@@ -4848,8 +4843,6 @@ fn correct_kind(
             file.file = _kind.file.clone().unwrap_or(file.file);
             if main.len() == 1 {}
             for i in 0..main.len() - 1 {
-                println!("{:?}", main[i]);
-                println!("{:?}", file.file);
                 let import = match find_import(objects, &main[i], &file.file) {
                     Some(import) => import,
                     None => Err(CodegenError::ImportNotFound(main[i].clone(), line.clone()))?,
