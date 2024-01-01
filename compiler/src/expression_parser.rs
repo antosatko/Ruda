@@ -410,21 +410,24 @@ pub fn get_tail(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> Vec<
                 tail.push((TailNodes::Index(expr), child.line));
                 continue;
             }
-            if txt == "nested" {
+            else if txt == "nested" {
                 tail.push((TailNodes::Nested(get_ident(&child)), child.line));
                 continue;
             }
-            if txt == "function_call" {
+            else if txt == "function_call" {
                 let generic = get_generics_expr(&child, errors, file_name);
                 let args = get_args(step_inside_val(&child, "parenthesis"), errors, file_name);
                 tail.push((TailNodes::Call(FunctionCall { generic, args }), child.line));
                 continue;
             }
-            if txt == "cast" {
+            else if txt == "cast" {
                 let kind = get_type(step_inside_val(&child, "type"), errors, file_name);
                 tail.push((TailNodes::Cast(kind), child.line));
                 break;
             }
+        }else if let Tokens::Optional = &child.name {
+            tail.push((TailNodes::Nullable, child.line));
+            continue;
         }
     }
     tail
@@ -661,5 +664,6 @@ pub enum TailNodes {
     Nested(String),
     Index(ValueType),
     Call(FunctionCall),
+    Nullable,
     Cast(Kind),
 }

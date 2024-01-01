@@ -286,6 +286,8 @@ pub enum CodegenError {
     IncorrectNumberOfGenerics(usize, usize, Line),
     UnresolvedInstructionStops(Vec<CodeStop>),
     CannotCast(Kind, Position, Line),
+    CannotTestNullable(Line),
+    CannotTestNonNullable(Kind, Line),
 }
 
 pub fn stringify(
@@ -2378,7 +2380,44 @@ fn traverse_tail(
                 }
                 _ => Err(CodegenError::CanCallOnlyFunctions(node.1.clone()))?,
             },
-            expression_parser::TailNodes::Cast(_) => (), // cast is always the last node and will be handled by the caller
+            expression_parser::TailNodes::Cast(_) => (), // this will be handled later
+            TailNodes::Nullable => {
+                let kind = match &pos {
+                    Position::Value(kind) => kind,
+                    Position::Pointer(kind) => {
+                        code.push(ReadPtr(GENERAL_REG1));
+                        kind
+                    }
+                    Position::Variable(var, _) => {
+                        let var = match find_var(scopes, &var) {
+                            Some(var) => var,
+                            None => Err(CodegenError::VariableNotFound(var.clone(), node.1.clone()))?,
+                        };
+                        let pos_cloned = var.pos.clone();
+                        code.read(&pos_cloned, GENERAL_REG1);
+                        var.kind.as_ref().unwrap()
+                    }
+                    _ => Err(CodegenError::CannotTestNullable(node.1.clone()))?,
+                };
+                if !kind.get_nullable() {
+                    Err(CodegenError::CannotTestNonNullable(kind.clone(), node.1.clone()))?;
+                }
+                code.push(Instructions::NullCheck);
+                let pos = Position::Value(Kind{
+                    body: TypeBody::Type {
+                        refs: 0,
+                        main: vec!["bool".to_string()],
+                        generics: vec![],
+                        nullable: false,
+                        kind: dictionary::KindType::Primitive,
+                    },
+                    line: node.1.clone(),
+                    file: Some(fun.file.clone()),
+                });
+                return traverse_tail(
+                    objects, tail, context, scopes, code, fun, pos, scope_len, generics,
+                );
+            },
         },
         None => {
             // finish the sequence

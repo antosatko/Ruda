@@ -1090,6 +1090,14 @@ impl Context {
                 self.memory.args.ptr -= 1;
                 self.next_line();
             }
+            Null => {
+                if let Types::Null = self.memory.registers[GENERAL_REG1] {
+                    self.memory.registers[GENERAL_REG1] = Types::Bool(true);
+                } else {
+                    self.memory.registers[GENERAL_REG1] = Types::Bool(false);
+                }
+                self.next_line();
+            }
         }
         return true;
     }
@@ -1404,6 +1412,7 @@ impl Context {
             Instructions::CloseArgs => {
                 format!("args: {:?}", self.memory.args.data[self.memory.args.ptr])
             }
+            Instructions::NullCheck => format!("register0: {}", self.memory.registers[0]),
         };
         prepend.push_str(&val);
         prepend
@@ -2518,6 +2527,8 @@ pub mod runtime_types {
         OpenArgs,
         /// Close args: | closes arguments of function call
         CloseArgs,
+        /// Null | sets checks if reg(0) is null and sets reg(0) to bool
+        NullCheck,
     }
     impl fmt::Display for Instructions {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -2582,6 +2593,7 @@ pub mod runtime_types {
                 Instructions::ReadArg(_, _) => "ReadArgument",
                 Instructions::OpenArgs => "OpenArguments",
                 Instructions::CloseArgs => "CloseArguments",
+                Instructions::NullCheck => "NullCheck",
             };
             write!(f, "{str}")
         }

@@ -521,6 +521,7 @@ pub fn byte_into_string(byte: Instructions, str: &mut String) {
         }
         Instructions::OpenArgs => s(58),
         Instructions::CloseArgs => s(59),
+        Instructions::NullCheck => s(60),
     };
     str.push_str(&append);
 }
@@ -640,6 +641,7 @@ pub fn str_into_byte(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> In
         57 => Instructions::ReadArg(read_number(chars, 1), read_number(chars, 1)),
         58 => Instructions::OpenArgs,
         59 => Instructions::CloseArgs,
+        60 => Instructions::NullCheck,
         _ => panic!("Unknown instruction"),
     };
     byte
