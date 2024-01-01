@@ -44,6 +44,8 @@ fun main() {
     if a.node? {
         io.println("node exists")
         a.node.print()
+        a.node.append(A(5, 6))
+        a.node.node.print()
     }else {
         io.println("node doesn't exist")
         io.println(null)

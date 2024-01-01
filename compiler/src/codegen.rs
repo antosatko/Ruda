@@ -1661,45 +1661,115 @@ fn traverse_tail(
                     }*/
                 }
                 Position::CompoundField(path, field, kind) => {
-                    println!("a: {path:?}, {field:?}, {kind:?}", path = path, field = field, kind = kind);
+                    // _ident is the field for this iteration
+                    let _ident = ident;
+                    println!("path: {:?}, field: {:?}, kind: {:?}", path, field, kind);
                     let structt = find_struct(objects, &path.ident, &path.file);
                     match field {
+                        // ident is the field from last iteration
                         CompoundField::Field(ident) => {
-                            let (idx, (ident, kind)) = structt
+                            let field = structt
                                 .unwrap()
                                 .1
                                 .fields
                                 .iter()
-                                .enumerate()
-                                .find(|f| &f.1.0 == ident)
-                                .unwrap()
-                                .clone();
-                            code.extend(&[IndexStatic(idx + 1), Move(POINTER_REG, GENERAL_REG1)]);
-                            return_kind = kind.clone();
-                            *return_kind.refs_mut() += 1;
-                            println!("{:?}", return_kind);
-                            let pos = Position::CompoundField(
-                                InnerPath {
-                                    file: kind.file.clone().unwrap(),
-                                    block: Some(structt.unwrap().1.identifier.to_string()),
-                                    ident: path.ident.clone(),
-                                    kind: ImportKinds::Rd,
-                                },
-                                CompoundField::Field(ident.clone()),
-                                kind.to_owned(),
-                            );
-                            println!("{:?}", pos);
-                            return traverse_tail(
+                                .find(|f| &f.0 == ident)
+                                .unwrap();
+                            let kind = field.1.clone();
+                            let main = match &kind.body {
+                                TypeBody::Type { main, .. } => main,
+                                _ => Err(CodegenError::FieldNotInStruct(
+                                    ident.clone(),
+                                    node.1.clone(),
+                                ))?,
+                            };
+                            let field_struct = find_struct(
                                 objects,
-                                tail,
-                                context,
-                                scopes,
-                                code,
-                                fun,
-                                pos,
-                                scope_len,
-                                generics,
-                            )
+                                &main.last().unwrap(),
+                                &kind.file.as_ref().unwrap(),
+                            );
+                            match field_struct {
+                                Some(structt) => {
+                                    let field = structt
+                                        .1
+                                        .fields
+                                        .iter()
+                                        .enumerate()
+                                        .find(|f| &f.1.0 == _ident);
+                                    let method = structt
+                                        .1
+                                        .functions
+                                        .iter()
+                                        .enumerate()
+                                        .find(|f| f.1.identifier.as_ref().unwrap() == _ident);
+                                    match (field, method) {
+                                        (Some((idx, field)), None) => {
+                                            code.extend(&[
+                                                ReadPtr(GENERAL_REG1),
+                                                IndexStatic(idx + 1),
+                                                Move(POINTER_REG, GENERAL_REG1),
+                                            ]);
+                                            let path = InnerPath {
+                                                file: kind.file.clone().unwrap(),
+                                                block: Some(structt.1.identifier.to_string()),
+                                                ident: field.0.clone(),
+                                                kind: ImportKinds::Rd,
+                                            };
+                                            return traverse_tail(
+                                                objects,
+                                                tail,
+                                                context,
+                                                scopes,
+                                                code,
+                                                fun,
+                                                Position::CompoundField(
+                                                    path,
+                                                    CompoundField::Field(field.0.clone()),
+                                                    kind.clone(),
+                                                ),
+                                                scope_len,
+                                                generics,
+                                            );
+                                        }
+                                        (None, Some((idx, method))) => {
+                                            code.extend(&[
+                                                ReadPtr(RETURN_REG),
+                                                Debug(RETURN_REG),
+                                            ]);
+                                            let path = InnerPath {
+                                                file: kind.file.clone().unwrap(),
+                                                block: Some(structt.1.identifier.to_string()),
+                                                ident: method.identifier.clone().unwrap(),
+                                                kind: ImportKinds::Rd,
+                                            };
+                                            return traverse_tail(
+                                                objects,
+                                                tail,
+                                                context,
+                                                scopes,
+                                                code,
+                                                fun,
+                                                Position::Function(
+                                                    FunctionKind::Fun(path),
+                                                    method.return_type.clone().unwrap_or(Kind::void()),
+                                                    kind.clone(),
+                                                ),
+                                                scope_len,
+                                                generics,
+                                            );
+                                        }
+                                        _ => {
+                                            Err(CodegenError::FieldNotInStruct(
+                                                ident.clone(),
+                                                node.1.clone(),
+                                            ))?
+                                        }
+                                    }
+                                }
+                                None => {
+
+                                }
+                            }
                         }
                         CompoundField::Method(method) => {
                             let method = structt
