@@ -78,6 +78,8 @@ impl Context {
             exit_code: ExitCodes::End,
 
             libs,
+
+            debug: None,
         }
     }
     /// runs the context
@@ -1202,9 +1204,31 @@ impl Context {
             return true;
         }
         self.break_code = Some(self.code.ptr);
-        println!("{}", get_message(&kind, Some((self.code.ptr, 0))));
+        println!("{}", get_message(&kind, None));
+        match &self.debug {
+            Some(debug) => {
+                let debug = self.find_debug(self.code.ptr).unwrap();
+                println!("in file: {}, line: {}, column: {}", debug.file, debug.line, debug.column);
+            }
+            None => {}
+        }
         self.exit_code = ExitCodes::Internal(kind);
         false
+    }
+    /// This function will find the line in the debug info that is closest to the given position.
+    /// It will return None if the position is out of bounds.
+    fn find_debug(&self, pos: usize) -> Option<&Line> {
+        let debug = match &self.debug {
+            Some(debug) => debug,
+            None => return None,
+        };
+        // iterate from back to front to find the first line that is smaller than pos
+        for i in (0..debug.lines.len()).rev() {
+            if debug.lines[i].pos <= pos {
+                return Some(&debug.lines[i]);
+            }
+        }
+        None
     }
     /// This function is called when an exception is thrown. It will search for a catch block
     /// that matches the exception type. If it finds one, it will set the code pointer to the
@@ -1445,6 +1469,20 @@ pub mod runtime_types {
         pub catches: Catches,
         pub exit_code: ExitCodes,
         pub(crate) libs: Libs,
+        /// debug info will be genereated if the source code is compiled with the debug flag
+        pub debug: Option<Debug>,
+    }
+    pub struct Debug {
+        pub lines: Vec<Line>,
+        pub files: Vec<String>,
+    }
+    #[derive(Debug, Clone)]
+    pub struct Line {
+        pub line: usize,
+        pub column: usize,
+        pub file: usize,
+        /// The index of the instruction in the code
+        pub pos: usize,
     }
     pub struct Memory {
         pub stack: Stack,

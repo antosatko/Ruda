@@ -13,6 +13,9 @@ libloading = "0.7.0"
 clap = { version = "4.3.19", features = ["derive"] }
 stringify = {path = "./stringify"}
 
+[build-dependencies]
+winres = "0.1"
+
 
 [profile.dev]
 opt-level = 3

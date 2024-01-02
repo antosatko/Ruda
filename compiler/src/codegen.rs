@@ -1,6 +1,7 @@
 use intermediate::dictionary::ImportKinds;
 use libloading::Library;
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::{path, vec};
 
 use runtime::runtime_types::{
@@ -16,6 +17,7 @@ use crate::intermediate::dictionary::{
 };
 use crate::intermediate::{Kind, TypeBody};
 use crate::lexer::tokenizer::{self, Operators};
+use crate::rdasm_opt;
 use crate::tree_walker::tree_walker::Line;
 use crate::{intermediate, prep_objects::Context};
 
@@ -45,6 +47,10 @@ pub fn gen(
         .stack
         .data
         .extend(consts.iter().map(|c| c.to_runtime()));
+    vm_context.debug = Some(runtime_types::Debug { 
+        lines: Vec::new(),
+        files: objects.0.keys().map(|s| s.clone()).collect::<Vec<_>>(),
+    });
     let main_path = InnerPath::main();
     let fun_locs = gen_all_fun_ids(objects)?;
     gen_all_funs(objects, &mut vm_context)?;
@@ -359,6 +365,7 @@ fn gen_fun<'a>(
         );
     }
     let mut code = Code::new();
+    code.add_debug(this_fun.line, fun.file.clone());
     let mut args_scope_len = 0;
     let mut scopes = vec![ScopeCached {
         variables: HashMap::new(),
@@ -468,6 +475,7 @@ fn gen_fun<'a>(
     let mut args_code = Code {
         code: vec![Instructions::ReserveStack(scope_len, 0)],
         stops: vec![],
+        debug: vec![],
     };
     for (idx, _) in scopes[0].variables.iter().enumerate() {
         args_code.extend(&[
@@ -482,10 +490,30 @@ fn gen_fun<'a>(
     let mut temp = Code::new();
     merge_code(&mut temp, &args_code, scope_len);
     merge_code(&mut temp, &code, scope_len);
+    rdasm_opt::optimize(&mut temp, context)?;
     let pos = merge_buffer(&mut context.code.data, &temp.code, &mut scope_len);
     if temp.unresolved() {
         Err(CodegenError::UnresolvedInstructionStops(temp.stops))?;
     }
+    match context.debug.as_mut() {
+        Some(debug) => {
+            let len = context.code.data.len();
+            debug.lines.reserve_exact(temp.debug.len());
+            
+            for mut line in temp.debug {
+                line.pos += len;
+                debug.lines.push(runtime_types::Line { 
+                    line: line.line.line,
+                    column: line.line.column,
+                    file: debug.files.iter().position(|s| s == &fun.file).unwrap(),
+                    pos: line.pos + len,
+                });
+            }
+            println!("{:?}", len);
+            println!("{:?}", debug.lines);
+        }
+        None => (),
+    };
     let this_fun = fun.get_mut(objects)?;
     this_fun.location = pos.0;
     this_fun.instrs_end = pos.1;
@@ -3734,6 +3762,15 @@ fn merge_code(buffer: &mut Code, new_code: &Code, _scope_len: usize) -> (usize, 
         };
         buffer.push(instr);
     }
+    for debug in &new_code.debug {
+        let debug = DebugInfo {
+            line: debug.line,
+            file: debug.file.clone(),
+            kind: debug.kind.clone(),
+            pos: debug.pos + instrs,
+        };
+        buffer.debug.push(debug);
+    }
     (start, buffer.code.len())
 }
 
@@ -3857,9 +3894,11 @@ struct Variable {
     line: Line,
 }
 
-struct Code {
+#[derive(Debug, Clone)]
+pub struct Code {
     pub code: Vec<Instructions>,
     pub stops: Vec<CodeStop>,
+    pub debug: Vec<DebugInfo>,
 }
 
 impl Code {
@@ -3867,6 +3906,7 @@ impl Code {
         Code {
             code: Vec::new(),
             stops: Vec::new(),
+            debug: Vec::new(),
         }
     }
     pub fn unresolved(&self) -> bool {
@@ -3926,6 +3966,9 @@ impl Code {
     }
     pub fn push(&mut self, instr: Instructions) {
         self.code.push(instr)
+    }
+    pub fn add_debug(&mut self, line: Line, file: String) {
+        self.debug.push(DebugInfo { line, file, pos: self.code.len(), kind: DebugInfoKind::None });
     }
 }
 
@@ -4942,6 +4985,30 @@ pub struct CodeStop {
 pub enum CodeStops {
     Break(Option<String>),
     Continue(Option<String>),
+}
+
+#[derive(Debug, Clone)]
+pub struct DebugInfo {
+    pub line: Line,
+    pub file: String,
+    pub pos: usize,
+    pub kind: DebugInfoKind,
+}
+
+impl DebugInfo {
+    pub fn new(line: Line, file: String, pos: usize) -> Self {
+        DebugInfo {
+            line,
+            file,
+            pos,
+            kind: DebugInfoKind::None,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum DebugInfoKind {
+    None,
 }
 
 
