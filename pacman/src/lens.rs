@@ -72,7 +72,9 @@ use iced::{
     overlay::menu::State,
     theme::Text,
     widget::text,
-    widget::{container, pick_list, scrollable, text_editor, Button, Column, PickList, Row},
+    widget::{
+        button, container, pick_list, scrollable, text_editor, Button, Column, PickList, Row,
+    },
     window::Settings as WindowSettings,
     Application, Command, Element, Settings,
 };
@@ -399,11 +401,216 @@ impl Application for Lens {
                     .width(iced::Length::Fill);
                 scrollable.into()
             }
-            States::Struct { file, ident } => todo!(),
-            States::Function { file, block, ident } => todo!(),
-            States::Trait { file, ident } => todo!(),
+            States::Struct { file, ident } => {
+                let (fields, methods) = match file.file_type {
+                    FileType::Rd => {
+                        let dict = self.objects.0.get(&file.name).unwrap();
+                        let struct_ = dict
+                            .structs
+                            .iter()
+                            .find(|struct_| struct_.identifier == *ident)
+                            .unwrap();
+                        let mut fields = Column::new().spacing(10).push(text("Fields:"));
+                        for field in &struct_.fields {
+                            fields = fields.push(text(format!("{}: {:?}", field.0, field.1)));
+                        }
+                        let mut methods = Column::new().spacing(10).push(text("Methods:"));
+                        for method in &struct_.functions {
+                            methods = methods.push(
+                                Button::new(text::Text::new(method.identifier.as_ref().unwrap()))
+                                    .on_press(Message::Page(States::Function {
+                                        file: file.clone(),
+                                        block: Some(ident.clone()),
+                                        ident: method.identifier.clone().unwrap(),
+                                    })),
+                            );
+                        }
+                        (fields, methods)
+                    }
+                    FileType::Dll => {
+                        let dict = self.objects.1.get(&file.name).unwrap();
+                        let struct_ = dict
+                            .structs
+                            .iter()
+                            .find(|struct_| struct_.name == *ident)
+                            .unwrap();
+                        let mut fields = Column::new().spacing(10).push(text("Fields:"));
+                        for field in &struct_.fields {
+                            fields = fields.push(text(format!("{}: {:?}", field.0, field.1)));
+                        }
+                        let mut methods = Column::new().spacing(10).push(text("Methods:"));
+                        for method in &struct_.methods {
+                            methods =
+                                methods.push(Button::new(text::Text::new(&method.name)).on_press(
+                                    Message::Page(States::Function {
+                                        file: file.clone(),
+                                        block: Some(ident.clone()),
+                                        ident: method.name.clone(),
+                                    }),
+                                ));
+                        }
+                        (fields, methods)
+                    }
+                };
+                let mut config = Column::new().spacing(10).push(navigation);
+
+                config = config.push(fields);
+                config = config.push(methods);
+
+                let scrollable = scrollable::Scrollable::new(config)
+                    .height(iced::Length::Fill)
+                    .width(iced::Length::Fill);
+                scrollable.into()
+            }
+            States::Function { file, block, ident } => {
+                let mut kind = String::from("Function");
+                let (params, returns) = match file.file_type {
+                    FileType::Rd => {
+                        let fun = match block {
+                            Some(block) => {
+                                let dict = self.objects.0.get(&file.name).unwrap();
+                                let struct_ = dict
+                                    .structs
+                                    .iter()
+                                    .find(|struct_| struct_.identifier == *block)
+                                    .unwrap();
+                                let fun = struct_
+                                    .functions
+                                    .iter()
+                                    .find(|fun| fun.identifier == Some(ident.clone()))
+                                    .unwrap();
+                                kind = match fun.takes_self {
+                                    true => "Method".to_string(),
+                                    false => "Static method".to_string(),
+                                };
+                                if ident == block {
+                                    kind = "*Constructor*".to_string();
+                                }
+                                fun
+                            }
+                            None => {
+                                let dict = self.objects.0.get(&file.name).unwrap();
+                                dict.functions
+                                    .iter()
+                                    .find(|fun| fun.identifier == Some(ident.clone()))
+                                    .unwrap()
+                            }
+                        };
+                        let mut params = Column::new().spacing(10).push(text("Params:"));
+                        for param in &fun.args {
+                            params = params
+                                .push(text(format!("{}: {:?}", param.identifier, param.kind)));
+                        }
+                        let returns = text(format!("Returns: {:?}", fun.return_type));
+                        (params, returns)
+                    }
+                    FileType::Dll => {
+                        let fun = match block {
+                            Some(block) => {
+                                let dict = self.objects.1.get(&file.name).unwrap();
+                                let ud =
+                                    dict.user_data.iter().find(|ud| ud.name == *block).unwrap();
+                                let fun = ud
+                                    .methods
+                                    .iter()
+                                    .find(|fun| fun.name == ident.clone())
+                                    .unwrap();
+                                kind = match fun.takes_self {
+                                    true => "Method".to_string(),
+                                    false => "Static method".to_string(),
+                                };
+                                if ident == block {
+                                    kind = "*Constructor*".to_string();
+                                }
+                                fun
+                            }
+                            None => {
+                                let dict = self.objects.1.get(&file.name).unwrap();
+                                dict.functions
+                                    .iter()
+                                    .find(|fun| fun.name == ident.clone())
+                                    .unwrap()
+                            }
+                        };
+                        let mut params = Column::new().spacing(10).push(text("Params:"));
+                        for param in &fun.args {
+                            params = params.push(text(format!("{}: {:?}", param.0, param.1)));
+                        }
+                        let returns = text(format!("Returns: {:?}", fun.return_type));
+                        (params, returns)
+                    }
+                };
+                let mut config = Column::new()
+                    .spacing(10)
+                    .push(navigation)
+                    .push(text(format!("{}: {}", kind, ident)));
+
+                config = config.push(params);
+                config = config.push(returns);
+
+                let scrollable = scrollable::Scrollable::new(config)
+                    .height(iced::Length::Fill)
+                    .width(iced::Length::Fill);
+                scrollable.into()
+            }
+            States::Trait { file, ident } => {
+                let trait_ = match file.file_type {
+                    FileType::Rd => {
+                        let dict = self.objects.0.get(&file.name).unwrap();
+                        dict.traits
+                            .iter()
+                            .find(|trait_| trait_.identifier == *ident)
+                            .unwrap()
+                    }
+                    FileType::Dll => todo!(),
+                };
+                let mut config = Column::new().spacing(10);
+                for method in &trait_.methods {
+                    config = config.push(
+                        Button::new(text::Text::new(method.identifier.as_ref().unwrap())).on_press(
+                            Message::Page(States::Function {
+                                file: file.clone(),
+                                block: Some(ident.clone()),
+                                ident: method.identifier.clone().unwrap(),
+                            }),
+                        ),
+                    );
+                }
+                let scrollable = scrollable::Scrollable::new(config)
+                    .height(iced::Length::Fill)
+                    .width(iced::Length::Fill);
+                scrollable.into()
+            }
+            States::UserData { file, ident } => {
+                let ud = self
+                    .objects
+                    .1
+                    .get(&file.name)
+                    .unwrap()
+                    .user_data
+                    .iter()
+                    .find(|ud| ud.name == *ident)
+                    .unwrap();
+                let mut config = Column::new().spacing(10).push(navigation);
+
+                let mut methods = Column::new().spacing(10).push(text("Methods:"));
+                for method in &ud.methods {
+                    methods = methods.push(Button::new(text::Text::new(&method.name)).on_press(
+                        Message::Page(States::Function {
+                            file: file.clone(),
+                            block: Some(ident.clone()),
+                            ident: method.name.clone(),
+                        }),
+                    ));
+                }
+                config = config.push(methods);
+
+                let scrollable = scrollable::Scrollable::new(config)
+                    .height(iced::Length::Fill)
+                    .width(iced::Length::Fill);
+                scrollable.into()
+            }
             States::Error { file, ident } => todo!(),
-            States::UserData { file, ident } => todo!(),
         }
     }
 
@@ -487,7 +694,7 @@ impl States {
                 } else {
                     format!("{}:/{}/{}", main, file.name, ident)
                 }
-            },
+            }
             States::Trait { file, ident } => format!("{}:/{}/{}", main, file.name, ident),
             States::Error { file, ident } => format!("{}:/{}/{}", main, file.name, ident),
             States::UserData { file, ident } => format!("{}:/{}/{}", main, file.name, ident),
