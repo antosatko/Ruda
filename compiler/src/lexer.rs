@@ -107,6 +107,14 @@ pub mod tokenizer {
             Tokens::Operator(Operators::Ampersant) => "&".to_string(),
             Tokens::Operator(Operators::Pipe) => "|".to_string(),
             Tokens::Operator(Operators::Not) => "!".to_string(),
+            Tokens::Operator(Operators::AddEq) => "+=".to_string(),
+            Tokens::Operator(Operators::SubEq) => "-=".to_string(),
+            Tokens::Operator(Operators::MulEq) => "*=".to_string(),
+            Tokens::Operator(Operators::DivEq) => "/=".to_string(),
+            Tokens::Operator(Operators::DoubleEq) => "==".to_string(),
+            Tokens::Operator(Operators::NotEqual) => "!=".to_string(),
+            Tokens::Operator(Operators::LessEq) => "<=".to_string(),
+            Tokens::Operator(Operators::MoreEq) => ">=".to_string(),
             Tokens::Optional => "?".to_string(),
             Tokens::Semicolon => ";".to_string(),
             Tokens::Colon => ":".to_string(),
@@ -125,8 +133,33 @@ pub mod tokenizer {
             Tokens::Space => " ".to_string(),
             Tokens::Text(string) => string.to_string(),
             Tokens::DoubleColon => "::".to_string(),
-            Tokens::Number(_, _) => todo!(),
-            _ => "".to_string(),
+            Tokens::Number(num, t) => {
+                let mut res = num.to_string();
+                res.push(*t);
+                res
+            }
+            Tokens::String(string) => {
+                let mut res = "\"".to_string();
+                res.push_str(string);
+                res.push('"');
+                res
+            },
+            Tokens::Char(char) => {
+                let mut res = "'".to_string();
+                res.push(*char);
+                res.push('\'');
+                res
+            },
+            Tokens::Whitespace(string) => string.to_string(),
+            Tokens::Tab => "\t".to_string(),
+            Tokens::Deleted => unreachable!("deleted token"),
+            Tokens::DocComment(string) => {
+                let mut res = "///".to_string();
+                res.push_str(string);
+                res   
+            }
+            Tokens::EndOfFile => unreachable!("end of file token"),
+            
         }
     }
     pub fn find_ws_str(expression: &[u8], tokens_str: &str) -> usize {
@@ -168,6 +201,7 @@ pub mod tokenizer {
         Number(f64, char),
         Tab,
         Deleted,
+        DocComment(String),
         EndOfFile,
     }
     impl std::fmt::Display for Tokens {

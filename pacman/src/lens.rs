@@ -375,7 +375,7 @@ impl Application for Lens {
                         if dict.structs.len() > 0 {
                             config = config.push(text(format!("Structs: {}", dict.structs.len())));
                             for obj in &dict.structs {
-                                config = config.push(
+                                let mut row = Row::new().spacing(10).push(
                                     Button::new(text::Text::new(&obj.identifier)).on_press(
                                         Message::Page(States::Struct {
                                             file: file.clone(),
@@ -383,12 +383,19 @@ impl Application for Lens {
                                         }),
                                     ),
                                 );
+                                match &obj.docs {
+                                    Some(docs) => {
+                                        row = row.push(text(docs.lines().nth(0).unwrap()));
+                                    }
+                                    None => {}
+                                }
+                                config = config.push(row);
                             }
                         }
                         if dict.enums.len() > 0 {
                             config = config.push(text(format!("Enums: {}", dict.enums.len())));
                             for obj in &dict.enums {
-                                config = config.push(
+                                let mut row = Row::new().spacing(10).push(
                                     Button::new(text::Text::new(&obj.identifier)).on_press(
                                         Message::Page(States::Enum {
                                             file: file.clone(),
@@ -396,34 +403,40 @@ impl Application for Lens {
                                         }),
                                     ),
                                 );
+                                match &obj.docs {
+                                    Some(docs) => {
+                                        row = row.push(text(docs.lines().nth(0).unwrap()));
+                                    }
+                                    None => {}
+                                }
+                                config = config.push(row);
                             }
                         }
                         if dict.functions.len() > 0 {
                             config =
                                 config.push(text(format!("Functions: {}", dict.functions.len())));
                             for obj in &dict.functions {
-                                config = config.push(
-                                    Button::new(text::Text::new(
-                                        obj.identifier.clone().unwrap_or("Anoymous".to_string()),
-                                    ))
-                                    .on_press(Message::Page(
-                                        States::Function {
+                                let mut row = Row::new().spacing(10).push(
+                                    Button::new(text::Text::new(obj.identifier.as_ref().unwrap()))
+                                        .on_press(Message::Page(States::Function {
                                             file: file.clone(),
-                                            ident: obj
-                                                .identifier
-                                                .clone()
-                                                .unwrap_or("Anoymous".to_string())
-                                                .clone(),
                                             block: None,
-                                        },
-                                    )),
+                                            ident: obj.identifier.clone().unwrap(),
+                                        })),
                                 );
+                                match &obj.docs {
+                                    Some(docs) => {
+                                        row = row.push(text(docs.lines().nth(0).unwrap()));
+                                    }
+                                    None => {}
+                                }
+                                config = config.push(row);
                             }
                         }
                         if dict.traits.len() > 0 {
                             config = config.push(text(format!("Traits: {}", dict.traits.len())));
                             for obj in &dict.traits {
-                                config = config.push(
+                                let mut row = Row::new().spacing(10).push(
                                     Button::new(text::Text::new(&obj.identifier)).on_press(
                                         Message::Page(States::Trait {
                                             file: file.clone(),
@@ -431,12 +444,19 @@ impl Application for Lens {
                                         }),
                                     ),
                                 );
+                                match &obj.docs {
+                                    Some(docs) => {
+                                        row = row.push(text(docs.lines().nth(0).unwrap()));
+                                    }
+                                    None => {}
+                                }
+                                config = config.push(row);
                             }
                         }
                         if dict.errors.len() > 0 {
                             config = config.push(text(format!("Errors: {}", dict.errors.len())));
                             for obj in &dict.errors {
-                                config = config.push(
+                                let mut row = Row::new().spacing(10).push(
                                     Button::new(text::Text::new(&obj.identifier)).on_press(
                                         Message::Page(States::Error {
                                             file: file.clone(),
@@ -444,12 +464,19 @@ impl Application for Lens {
                                         }),
                                     ),
                                 );
+                                match &obj.docs {
+                                    Some(docs) => {
+                                        row = row.push(text(docs.lines().nth(0).unwrap()));
+                                    }
+                                    None => {}
+                                }
+                                config = config.push(row);
                             }
                         }
                         if dict.constants.len() > 0 {
                             config = config.push(text(format!("Consts: {}", dict.constants.len())));
                             for obj in &dict.constants {
-                                config = config.push(
+                                let mut row = Row::new().spacing(10).push(
                                     Button::new(text::Text::new(&obj.identifier)).on_press(
                                         Message::Page(States::Error {
                                             file: file.clone(),
@@ -457,6 +484,13 @@ impl Application for Lens {
                                         }),
                                     ),
                                 );
+                                match &obj.docs {
+                                    Some(docs) => {
+                                        row = row.push(text(docs.lines().nth(0).unwrap()));
+                                    }
+                                    None => {}
+                                }
+                                config = config.push(row);
                             }
                         }
                     }
@@ -466,65 +500,106 @@ impl Application for Lens {
                             config =
                                 config.push(text(format!("Userdata: {}", dict.user_data.len())));
                             for obj in &dict.user_data {
-                                config =
-                                    config.push(Button::new(text::Text::new(&obj.name)).on_press(
+                                let mut row = Row::new().spacing(10).push(
+                                    Button::new(text::Text::new(&obj.name)).on_press(
                                         Message::Page(States::UserData {
                                             file: file.clone(),
                                             ident: obj.name.clone(),
                                         }),
-                                    ));
+                                    ),
+                                );
+                                match &obj.docs {
+                                    Some(docs) => {
+                                        row = row.push(text(docs.lines().nth(0).unwrap()));
+                                    }
+                                    None => {}
+                                }
+                                config = config.push(row);
                             }
                         }
                         if dict.functions.len() > 0 {
                             config =
                                 config.push(text(format!("Functions: {}", dict.functions.len())));
                             for obj in &dict.functions {
-                                config =
-                                    config.push(Button::new(text::Text::new(&obj.name)).on_press(
+                                let mut row = Row::new().spacing(10).push(
+                                    Button::new(text::Text::new(&obj.name)).on_press(
                                         Message::Page(States::Function {
                                             file: file.clone(),
-                                            ident: obj.name.clone(),
                                             block: None,
+                                            ident: obj.name.clone(),
                                         }),
-                                    ));
+                                    ),
+                                );
+                                match &obj.docs {
+                                    Some(docs) => {
+                                        row = row.push(text(docs.lines().nth(0).unwrap()));
+                                    }
+                                    None => {}
+                                }
+                                config = config.push(row);
                             }
                         }
                         if dict.enums.len() > 0 {
                             config = config.push(text(format!("Enums: {}", dict.enums.len())));
                             for obj in &dict.enums {
-                                config =
-                                    config.push(Button::new(text::Text::new(&obj.name)).on_press(
+                                let mut row = Row::new().spacing(10).push(
+                                    Button::new(text::Text::new(&obj.name)).on_press(
                                         Message::Page(States::Enum {
                                             file: file.clone(),
                                             ident: obj.name.clone(),
                                         }),
-                                    ));
+                                    ),
+                                );
+                                match &obj.docs {
+                                    Some(docs) => {
+                                        row = row.push(text(docs.lines().nth(0).unwrap()));
+                                    }
+                                    None => {}
+                                }
+                                config = config.push(row);
                             }
                         }
                         if dict.traits.len() > 0 {
                             config = config.push(text(format!("Traits: {}", dict.traits.len())));
                             for obj in &dict.traits {
-                                config =
-                                    config.push(Button::new(text::Text::new(&obj.name)).on_press(
+                                let mut row = Row::new().spacing(10).push(
+                                    Button::new(text::Text::new(&obj.name)).on_press(
                                         Message::Page(States::Trait {
                                             file: file.clone(),
                                             ident: obj.name.clone(),
                                         }),
-                                    ));
+                                    ),
+                                );
+                                match &obj.docs {
+                                    Some(docs) => {
+                                        row = row.push(text(docs.lines().nth(0).unwrap()));
+                                    }
+                                    None => {}
+                                }
+                                config = config.push(row);
                             }
                         }
-                        if dict.consts.len() > 0 {
+                        /*if dict.consts.len() > 0 {
                             config = config.push(text(format!("Consts: {}", dict.consts.len())));
                             for obj in &dict.consts {
-                                config =
-                                    config.push(Button::new(text::Text::new(&obj.name)).on_press(
-                                        Message::Page(States::Error {
+                                let mut row = Row::new().spacing(10)
+                                    .push(
+                                    Button::new(text::Text::new(&obj.name)).on_press(
+                                        Message::Page(States::Const {
                                             file: file.clone(),
                                             ident: obj.name.clone(),
                                         }),
-                                    ));
+                                    ),
+                                );
+                                match &obj.docs {
+                                    Some(docs) => {
+                                        row = row.push(text(docs.lines().nth(0).unwrap()));
+                                    }
+                                    None => {}
+                                }
+                                config = config.push(row);
                             }
-                        }
+                        }*/
                     }
                 };
                 let scrollable = scrollable::Scrollable::new(config)
@@ -533,7 +608,7 @@ impl Application for Lens {
                 scrollable.into()
             }
             States::Enum { file, ident } => {
-                let variants = match file.file_type {
+                let (variants, docs) = match file.file_type {
                     FileType::Rd => {
                         let dict = self.objects.0.get(&file.name).unwrap();
                         let enum_ = dict
@@ -545,7 +620,11 @@ impl Application for Lens {
                         for variant in &enum_.keys {
                             config = config.push(text(format!("{} = {}", variant.0, variant.1)));
                         }
-                        config
+                        let docs = match &enum_.docs {
+                            Some(docs) => text(docs.clone()),
+                            None => text(""),
+                        };
+                        (config, docs)
                     }
                     FileType::Dll => {
                         let dict = self.objects.1.get(&file.name).unwrap();
@@ -558,7 +637,11 @@ impl Application for Lens {
                         for variant in &enum_.variants {
                             config = config.push(text(format!("{} = {}", variant.0, variant.1)));
                         }
-                        config
+                        let docs = match &enum_.docs {
+                            Some(docs) => text(docs.clone()),
+                            None => text(""),
+                        };
+                        (config, docs)
                     }
                 };
                 let title = text(format!("Enum: {}", ident));
@@ -566,6 +649,7 @@ impl Application for Lens {
                     .spacing(10)
                     .push(navigation)
                     .push(title)
+                    .push(docs)
                     .push(variants);
                 let scrollable = scrollable::Scrollable::new(config)
                     .height(iced::Length::Fill)
@@ -573,7 +657,7 @@ impl Application for Lens {
                 scrollable.into()
             }
             States::Struct { file, ident } => {
-                let (fields, methods) = match file.file_type {
+                let (fields, methods, docs) = match file.file_type {
                     FileType::Rd => {
                         let dict = self.objects.0.get(&file.name).unwrap();
                         let struct_ = dict
@@ -596,7 +680,11 @@ impl Application for Lens {
                                     })),
                             );
                         }
-                        (fields, methods)
+                        let docs = match &struct_.docs {
+                            Some(docs) => text(docs.clone()),
+                            None => text(""),
+                        };
+                        (fields, methods, docs)
                     }
                     FileType::Dll => {
                         let dict = self.objects.1.get(&file.name).unwrap();
@@ -620,11 +708,17 @@ impl Application for Lens {
                                     }),
                                 ));
                         }
-                        (fields, methods)
+                        let docs = match &struct_.docs {
+                            Some(docs) => text(docs.clone()),
+                            None => text(""),
+                        };
+                        (fields, methods, docs)
                     }
                 };
                 let mut config = Column::new().spacing(10).push(navigation);
 
+                config = config.push(text(format!("Struct: {}", ident)));
+                config = config.push(docs);
                 config = config.push(fields);
                 config = config.push(methods);
 
@@ -635,7 +729,7 @@ impl Application for Lens {
             }
             States::Function { file, block, ident } => {
                 let mut kind = String::from("Function");
-                let (params, returns) = match file.file_type {
+                let (params, returns, docs) = match file.file_type {
                     FileType::Rd => {
                         let fun = match block {
                             Some(block) => {
@@ -676,7 +770,11 @@ impl Application for Lens {
                             Some(return_type) => text(format!("Returns: {:?}", return_type)),
                             None => text("Returns: *void*"),
                         };
-                        (params, returns)
+                        let docs = match &fun.docs {
+                            Some(docs) => text(docs.clone()),
+                            None => text(""),
+                        };
+                        (params, returns, docs)
                     }
                     FileType::Dll => {
                         let fun = match block {
@@ -711,7 +809,11 @@ impl Application for Lens {
                             params = params.push(text(format!("{}: {:?}", param.0, param.1)));
                         }
                         let returns = text(format!("Returns: {:?}", fun.return_type));
-                        (params, returns)
+                        let docs = match &fun.docs {
+                            Some(docs) => text(docs.clone()),
+                            None => text(""),
+                        };
+                        (params, returns, docs)
                     }
                 };
                 let mut config = Column::new()
@@ -719,6 +821,7 @@ impl Application for Lens {
                     .push(navigation)
                     .push(text(format!("{}: {}", kind, ident)));
 
+                config = config.push(docs);
                 config = config.push(params);
                 config = config.push(returns);
 
@@ -740,15 +843,23 @@ impl Application for Lens {
                 };
                 let mut config = Column::new().spacing(10);
                 for method in &trait_.methods {
-                    config = config.push(
+                    let row = Row::new().spacing(10).push(
                         Button::new(text::Text::new(method.identifier.as_ref().unwrap())).on_press(
                             Message::Page(States::Function {
                                 file: file.clone(),
-                                block: Some(ident.clone()),
+                                block: None,
                                 ident: method.identifier.clone().unwrap(),
                             }),
                         ),
                     );
+                    match &method.docs {
+                        Some(docs) => {
+                            config = config.push(row.push(text(docs.lines().nth(0).unwrap())));
+                        }
+                        None => {
+                            config = config.push(row);
+                        }
+                    }
                 }
                 let scrollable = scrollable::Scrollable::new(config)
                     .height(iced::Length::Fill)
@@ -769,13 +880,23 @@ impl Application for Lens {
 
                 let mut methods = Column::new().spacing(10).push(text("Methods:"));
                 for method in &ud.methods {
-                    methods = methods.push(Button::new(text::Text::new(&method.name)).on_press(
-                        Message::Page(States::Function {
-                            file: file.clone(),
-                            block: Some(ident.clone()),
-                            ident: method.name.clone(),
-                        }),
-                    ));
+                    let row = Row::new().spacing(10).push(
+                        Button::new(text::Text::new(&method.name)).on_press(Message::Page(
+                            States::Function {
+                                file: file.clone(),
+                                block: Some(ident.clone()),
+                                ident: method.name.clone(),
+                            },
+                        )),
+                    );
+                    match &method.docs {
+                        Some(docs) => {
+                            methods = methods.push(row.push(text(docs.lines().nth(0).unwrap())));
+                        }
+                        None => {
+                            methods = methods.push(row);
+                        }
+                    }
                 }
                 config = config.push(methods);
 

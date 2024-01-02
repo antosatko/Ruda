@@ -201,6 +201,7 @@ pub mod dictionary {
                     methods: vec![],
                     overloads: vec![],
                     line: node.line,
+                    docs: get_docs(&node),
                 };
                 for enum_value in step_inside_arr(&node, "values") {
                     let n = if let Tokens::Number(n, 'i') = get_token(&enum_value, "default") {
@@ -245,6 +246,7 @@ pub mod dictionary {
                         methods: vec![],
                         public: public(&node),
                         line: node.line,
+                        docs: get_docs(&node),
                     })
                 } else {
                     errors.push(ErrType::ConflictingNames(name.to_string(), node.line))
@@ -341,6 +343,7 @@ pub mod dictionary {
                                     pointers: None,
                                     id: 0,
                                     takes_self: false,
+                                    docs: get_docs(&node),
                                 });
                                 Some(functions.len() - 1)
                             } else {
@@ -365,6 +368,7 @@ pub mod dictionary {
                     overloads,
                     impls,
                     constructor,
+                    docs: get_docs(&node),
                 };
                 for key in step_inside_arr(node, "keys") {
                     let ident = get_ident(&key);
@@ -491,6 +495,7 @@ pub mod dictionary {
                         ),
                         real_value: None,
                         line: node.line,
+                        docs: get_docs(&node),
                     })
                 } else {
                     errors.push(ErrType::ConflictingNames(identifier.to_string(), node.line))
@@ -550,6 +555,7 @@ pub mod dictionary {
                         traits,
                         public: is_pub,
                         line: node.line,
+                        docs: get_docs(&node),
                     })
                 } else {
                     errors.push(ErrType::ConflictingNames(identifier.to_string(), node.line))
@@ -595,6 +601,7 @@ pub mod dictionary {
                         fields,
                         src_loc: 0,
                         line: node.line,
+                        docs: get_docs(&node),
                     })
                 } else {
                     errors.push(ErrType::ConflictingNames(ident.to_string(), node.line))
@@ -676,6 +683,7 @@ pub mod dictionary {
             public: public(&node),
             code,
             line: node.line,
+            docs: get_docs(&node),
         }
     }
     pub fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -> Function {
@@ -792,6 +800,7 @@ pub mod dictionary {
             pointers: None,
             id: 0,
             takes_self,
+            docs: get_docs(&node),
         }
     }
     pub fn public(node: &Node) -> bool {
@@ -932,6 +941,23 @@ pub mod dictionary {
         }
         generics
     }
+    pub fn get_docs(node: &Node) -> Option<String> {
+        if let Some(docs) = try_step_inside_val(node, "docs") {
+            let arr = step_inside_arr(docs, "docs");
+            if arr.len() == 0 {
+                return None;
+            }
+            let mut result = String::new();
+            for doc in arr {
+                if let Tokens::DocComment(txt) = &doc.name {
+                    result += txt;
+                    result += "\n";
+                }
+            }
+            return Some(result);
+        }
+        None
+    }
     pub fn get_token<'a>(node: &'a Node, ident: &'a str) -> &'a Tokens {
         return &step_inside_val(&node, ident).name;
     }
@@ -1023,6 +1049,7 @@ pub mod dictionary {
         pub traits: Vec<NestedIdent>,
         pub public: bool,
         pub line: Line,
+        pub docs: Option<String>,
     }
     #[derive(Debug, Clone)]
     pub enum IdentifierKinds {
@@ -1058,6 +1085,7 @@ pub mod dictionary {
         pub overloads: Vec<Overload>,
         pub methods: Vec<Function>,
         pub line: Line,
+        pub docs: Option<String>,
     }
     #[derive(Debug, Clone)]
     pub struct GenericDecl {
@@ -1072,6 +1100,7 @@ pub mod dictionary {
         pub fields: Vec<(String, ErrorField)>,
         pub args: Vec<Arg>,
         pub line: Line,
+        pub docs: Option<String>,
     }
     #[derive(Debug)]
     pub enum ErrorField {
@@ -1131,6 +1160,7 @@ pub mod dictionary {
         pub pointers: Option<usize>,
         pub id: usize,
         pub takes_self: bool,
+        pub docs: Option<String>,
     }
     /// used to correct function calls
     #[derive(Debug, Clone)]
@@ -1152,6 +1182,7 @@ pub mod dictionary {
         pub public: bool,
         pub code: Vec<codeblock_parser::Nodes>,
         pub line: Line,
+        pub docs: Option<String>,
     }
     #[derive(Debug)]
     pub struct Enum {
@@ -1162,6 +1193,7 @@ pub mod dictionary {
         pub methods: Vec<Function>,
         pub overloads: Vec<Overload>,
         pub line: Line,
+        pub docs: Option<String>,
     }
     pub type NestedIdent = Vec<String>;
     #[derive(Debug)]
@@ -1180,6 +1212,7 @@ pub mod dictionary {
         pub overloads: Vec<Overload>,
         /// index of function that is a constructor
         pub constructor: Option<usize>,
+        pub docs: Option<String>,
     }
     impl Struct {
         pub fn get_field(&self, name: &str) -> Option<(crate::codegen::CompoundField, usize)> {
@@ -1239,6 +1272,7 @@ pub mod dictionary {
         pub value: expression_parser::ValueType,
         pub real_value: Option<ConstValue>,
         pub line: Line,
+        pub docs: Option<String>,
     }
     #[derive(Debug, Clone)]
     pub enum ConstValue {

@@ -2207,8 +2207,6 @@ fn register() -> String {
             radius=reg.g3: float, 
             style=reg.g4: DrawStyle,
         ) > 51i
-        /// Draws text with a style
-        /// Use only if you can't set the style of the window
         fun styledText(
             self=reg.ptr, 
             x=reg.g1: float, 
@@ -2244,8 +2242,6 @@ fn register() -> String {
         fun characterSpacing(self=reg.ptr, characterSpacing=reg.g1: float) > 71i
         fun lineSpacing(self=reg.ptr, lineSpacing=reg.g1: float) > 72i
 
-        /// Saves the current style
-        /// This does not affect saved font, since fonts are expensive to copy
         fun save(self=reg.ptr) > 74i
         fun restore(self=reg.ptr) > 75i
     }

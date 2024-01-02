@@ -101,6 +101,7 @@ pub fn load(
                             assign: con.3,
                             takes_self: false,
                             generics: get_generics_decl(&node, &mut errors),
+                            docs: get_docs(&node),
                         });
                     };
                     dictionary.structs.push(Struct {
@@ -111,6 +112,7 @@ pub fn load(
                         methods,
                         overloads,
                         traits,
+                        docs: get_docs(&node),
                     });
                 }
                 "KWType" => {
@@ -127,6 +129,7 @@ pub fn load(
                         name: ident,
                         kind,
                         assign,
+                        docs: get_docs(&node),
                     });
                 }
                 "KWEnum" => {
@@ -165,6 +168,7 @@ pub fn load(
                         variants,
                         assign,
                         line: node.line,
+                        docs: get_docs(&node),
                     });
                 }
                 "KWFun" => {
@@ -236,7 +240,7 @@ pub fn load(
                             errors.push(ErrType::ConflictingNames(ident.to_string(), node.line))
                         }
                     }
-                    dictionary.consts.push(Const { name: ident, value });
+                    dictionary.consts.push(Const { name: ident, value, docs: get_docs(&node) });
                 }
                 "KWUserdata" => {
                     let ident = get_ident(&node);
@@ -297,6 +301,7 @@ pub fn load(
                             assign: con.3,
                             takes_self: false,
                             generics: get_generics_decl(&node, &mut errors),
+                            docs: get_docs(&node),
                         });
                     };
                     dictionary.user_data.push(UserData {
@@ -307,6 +312,7 @@ pub fn load(
                         overloads,
                         impls,
                         line: node.line,
+                        docs: get_docs(&node),
                     });
                 }
                 _ => {}
@@ -429,6 +435,7 @@ fn get_fun_siginifier(node: &Node, errors: &mut Vec<ErrType>, file_name: &str) -
         assign: get_assign(node),
         takes_self,
         generics,
+        docs: get_docs(&node),
     }
 }
 
@@ -555,6 +562,7 @@ pub struct UserData {
     pub overloads: Vec<Overload>,
     pub impls: Vec<Implementation>,
     pub line: Line,
+    pub docs: Option<String>,
 }
 
 impl UserData {
@@ -585,6 +593,7 @@ pub struct Function {
     pub assign: usize,
     pub takes_self: bool,
     pub generics: Vec<GenericDecl>,
+    pub docs: Option<String>,
 }
 
 #[derive(Debug)]
@@ -596,6 +605,7 @@ pub struct Struct {
     pub methods: Vec<Function>,
     pub overloads: Vec<Overload>,
     pub traits: Vec<Implementation>,
+    pub docs: Option<String>,
 }
 
 #[derive(Debug)]
@@ -604,6 +614,7 @@ pub struct Enum {
     pub variants: Vec<(String, usize)>,
     pub assign: usize,
     pub line: Line,
+    pub docs: Option<String>,
 }
 
 #[derive(Debug)]
@@ -611,12 +622,14 @@ pub struct Type {
     pub name: String,
     pub kind: Kind,
     pub assign: usize,
+    pub docs: Option<String>,
 }
 
 #[derive(Debug)]
 pub struct Const {
     pub name: String,
     pub value: ConstValue,
+    pub docs: Option<String>,
 }
 
 #[derive(Debug)]
@@ -631,4 +644,5 @@ pub struct Trait {
     pub name: String,
     pub functions: Vec<Function>,
     pub assign: usize,
+    pub docs: Option<String>,
 }

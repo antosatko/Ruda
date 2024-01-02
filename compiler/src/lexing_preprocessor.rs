@@ -196,6 +196,27 @@ pub mod lexing_preprocessor {
                         tokens[idx] = Tokens::Operator(Operators::DivEq);
                         remove(tokens, idx + 1);
                     } else if let Tokens::Operator(Operators::Slash) = tokens[idx + 1] {
+                        // doc comment
+                        if let Tokens::Operator(Operators::Slash) = tokens[idx + 2] {
+                            let mut doc_string = String::new();
+                            let mut i = idx + 3;
+                            loop {
+                                if let Tokens::Whitespace(str) = &tokens[i] {
+                                    if str == "\n" {
+                                        break;
+                                    }
+                                } else if let Tokens::EndOfFile = &tokens[i] {
+                                    break;
+                                }
+                                doc_string.push_str(&deparse_token(&tokens[i]));
+                                remove(tokens, i);
+                                i += 1;
+                            }
+                            tokens[idx] = Tokens::DocComment(doc_string.trim().to_string());
+                            remove(tokens, idx + 1);
+                            remove(tokens, idx + 2);
+                            return i - idx;
+                        }
                         let mut i = idx + 1;
                         loop {
                             if let Tokens::Whitespace(str) = &tokens[i] {

@@ -7,6 +7,7 @@ enum Side {
     Right
 }
 
+/// Object that holds the state of the keys
 struct Keys {
     P1Up: bool
     P1Down: bool
@@ -21,6 +22,7 @@ struct Keys {
     }
 }
 
+/// Paddle object
 struct Paddle {
     x: float
     y: float
@@ -57,6 +59,9 @@ struct Paddle {
     }
 }
 
+/// Ball object
+///
+/// The ball is a circle that moves around the screen and bounces off the paddles
 struct Ball {
     x: float
     y: float
@@ -72,6 +77,7 @@ struct Ball {
         self.yspeed = -5
     }
 
+    /// Draw the ball
     fun draw(self, ctx: win.Window) {
         let b = (self.x / 800) * 255
         let r = 255 - b
@@ -80,6 +86,7 @@ struct Ball {
         ctx.drawCircle(self.x, self.y, self.radius)
     }
 
+    /// Move the ball
     fun move(self) {
         self.x += self.xspeed
         self.y += self.yspeed
@@ -94,6 +101,7 @@ struct Ball {
         }
     }
 
+    /// Check for collision with paddle
     fun collision(self, paddle: Paddle) {
         // paddle left side
         if self.xspeed > 0 && self.x > paddle.x - self.radius*2 && self.x < paddle.x + paddle.width {
@@ -125,6 +133,7 @@ struct Ball {
         }
     }
 
+    /// Check for scoring
     fun scoring(self, left: Paddle, right: Paddle) {
         if self.x < -self.radius*2 {
             right.score += 1
@@ -141,6 +150,7 @@ struct Ball {
     }
 }
 
+/// Handle controls
 fun controlsHandler(keys: Keys, left: Paddle, right: Paddle) {
     if keys.P1Up {
         left.y -= 15
@@ -168,6 +178,7 @@ fun controlsHandler(keys: Keys, left: Paddle, right: Paddle) {
     }
 }
 
+/// Draw UI
 fun drawUi(ctx: win.Window, left: Paddle, right: Paddle) {
     ctx.fontSize(50)
     ctx.color(win.Color(255, 0, 0, 255))
@@ -183,6 +194,8 @@ fun drawUi(ctx: win.Window, left: Paddle, right: Paddle) {
     }
 }
 
+/// Main function
+/// Create window, paddles, ball and keys
 fun main() {
     let ctx = win.WinBuilder().title("Pong").default().width(800).height(600).build()
     let left = Paddle(Side.Left)

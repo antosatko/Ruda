@@ -56,7 +56,8 @@ error BadID(id: int, maxId: int) {
 }
 "
 
-KWError identifier [args [fields
+KWError identifier [args [fields docs
+	docstr ? set="docs"
 	"error" harderr="true"
 	ident set="identifier"
 	( ?
@@ -97,7 +98,8 @@ KWLet identifier type expression
 "
 const DANDA: int = 50;
 "
-KWConst identifier type expression public
+KWConst identifier type expression public docs
+	docstr ? set="docs"
 	"pub" ? set="public"
 	"const" harderr="true"
 	ident set="identifier"
@@ -155,7 +157,8 @@ array_decl type
 "
 type danda = int;
 "
-KWType identifier type generic public
+KWType identifier type generic public docs
+	docstr ? set="docs"
 	"pub" ? set="public"
 	"type" harderr="true"
 	ident set="identifier"
@@ -332,7 +335,8 @@ enum {
 	Five = 5
 }
 "
-KWEnum identifier [values public
+KWEnum identifier [values public docs
+	docstr ? set="docs"
 	"pub" ? set="public"
 	"enum" harderr="true"
 	ident set="identifier"
@@ -360,7 +364,8 @@ struct Danda <T> {
 	things: [T, 50],
 }
 "
-KWStruct identifier [keys generic public [methods [impls constructor
+KWStruct identifier [keys generic public [methods [impls constructor docs
+	docstr ? set="docs"
 	"pub" ? set="public"
 	"struct" harderr="true"
 	ident set="identifier"
@@ -374,7 +379,8 @@ KWStruct identifier [keys generic public [methods [impls constructor
 	};
 
 
-KWConstructor [arguments generic errorable code
+KWConstructor [arguments generic errorable code docs
+	docstr ? set="docs"
 	"new" harderr="true"
 	generic_decl ? set="generic"
 	(
@@ -409,7 +415,8 @@ trait Rusty (Danda){
 	}
 }
 "
-KWTrait identifier [traits [methods public
+KWTrait identifier [traits [methods public docs
+	docstr ? set="docs"
 	"pub" ? set="public"
 	"trait" harderr="true"
 	ident set="identifier"
@@ -433,7 +440,8 @@ fun danda() {}
 fun danda(&self) {}
 fun danda(self) {}
 "
-KWFun identifier generic [arguments type code errorable public
+KWFun identifier generic [arguments type code errorable public docs
+	docstr ? set="docs"
 	"pub" ? set="public"
 	"fun" harderr="true"
 	ident set="identifier"
@@ -480,7 +488,8 @@ impl Vec2 {
 	}
 }
 "
-KWOverload op arg type code generic errorable public
+KWOverload op arg type code generic errorable public docs
+	docstr ? set="docs"
 	"pub" ? set="public"
 	"overload" harderr="true"
 	overloadable_op set="op"
@@ -738,6 +747,9 @@ RESERVED
 	"switch" ? end="false"
 	"error" ? end="false"
 	"'any" err="v poradku";
+
+docstr [docs
+	"'doc" ? set="docs" back="0";
 
 value_mod kw 
 	"new" ? set="kw" end="true"

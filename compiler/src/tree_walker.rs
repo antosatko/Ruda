@@ -588,6 +588,12 @@ pub mod tree_walker {
                     return CompareResult::NotEq;
                 }
                 "'any" => CompareResult::Eq,
+                "'doc" => {
+                    if let Tokens::DocComment(_) = source_token {
+                        return CompareResult::Eq;
+                    }
+                    return CompareResult::NotEq;
+                }
                 _ => {
                     if let Tokens::Text(str) = source_token {
                         if str == txt {
