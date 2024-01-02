@@ -119,7 +119,6 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) -> bool{
     for _ in 0..names.len() {
         binaries.insert(names.remove(0), dicts.remove(0));
     }
-    // println!("{:?}", binaries.keys());
     for (_, libname) in lib_names.iter().enumerate() {
         binaries.insert(libname.to_string(), dicts.remove(0));
     }

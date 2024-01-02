@@ -117,6 +117,16 @@ pub enum Task {
         #[clap(name = "args", last = true)]
         args: Vec<String>,
     },
+    /// Get an insight of the project with graphical representation
+    Lens {
+        /// Target to lens
+        #[clap(name = "target", short, long)]
+        target: LensTarget,
+
+        /// Path to project
+        #[clap(name = "path", default_value = ".")]
+        path: String,
+    }
 }
 
 #[derive(Debug, ValueEnum, Clone)]
@@ -125,4 +135,14 @@ pub enum ProjectKind {
     Lib,
     /// An executable
     Bin,
+}
+
+#[derive(Debug, ValueEnum, Clone)]
+pub enum LensTarget {
+    /// A library
+    Lib,
+    /// An executable
+    Bin,
+    /// Standard library
+    Std,
 }

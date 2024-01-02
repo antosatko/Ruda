@@ -119,16 +119,13 @@ fun cube(): WireFrame {
 }
 
 fun project(camera: Camera, verticle: Verticle): Verticle {
-    let camPos = camera.pos
-    let x = verticle.x - camPos.x
-    let y = verticle.y - camPos.y
-    let z = verticle.z - camPos.z
+    let x = verticle.x - camera.pos.x
+    let y = verticle.y - camera.pos.y
+    let z = verticle.z - camera.pos.z
 
-    let rot = camera.rot
-
-    let xrot = x * math.cos(rot.x) - z * math.sin(rot.x)
-    let yrot = y * math.cos(rot.y) - z * math.sin(rot.y)
-    let zrot = z * math.cos(rot.z) - z * math.sin(rot.z)
+    let xrot = x * math.cos(camera.rot.x) - z * math.sin(camera.rot.x)
+    let yrot = y * math.cos(camera.rot.y) - z * math.sin(camera.rot.y)
+    let zrot = z * math.cos(camera.rot.z) - z * math.sin(camera.rot.z)
 
     let xfov = xrot * camera.fov / zrot
     let yfov = yrot * camera.fov / zrot
@@ -183,8 +180,7 @@ fun main() {
     // make the camera look at the cube
     let i = 0
     while i < cameras.len() {
-        let camera = cameras[i]
-        camera.lookAt(0.0, 0.0, 0.0)
+        cameras[i].lookAt(0.0, 0.0, 0.0)
         i += 1
     }
 
@@ -194,7 +190,7 @@ fun main() {
     loop "main": {
         loop "event": {
             event = ctx.poll()
-            if event {
+            if !event? {
                 break "event"
             }
             if event.code() as int == win.Events.Closed {

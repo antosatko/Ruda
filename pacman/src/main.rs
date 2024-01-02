@@ -6,6 +6,7 @@ mod init;
 mod remote;
 mod sum;
 mod run;
+mod lens;
 
 use args::Task;
 use clap::Parser;
@@ -58,6 +59,13 @@ fn main() {
             debug,
         } => {
             build::restore(&path, profile, *compile, *run, args.clone(), *debug);
+        }
+        Task::Lens { path, target } => {
+            match target {
+                args::LensTarget::Lib => todo!("unfortunately, this is not implemented yet"),
+                args::LensTarget::Bin => lens::bin(&path),
+                args::LensTarget::Std => lens::std(),
+            }
         }
     }
 }

@@ -509,8 +509,6 @@ fn gen_fun<'a>(
                     pos: line.pos + len,
                 });
             }
-            println!("{:?}", len);
-            println!("{:?}", debug.lines);
         }
         None => (),
     };
@@ -1834,7 +1832,196 @@ fn traverse_tail(
                     Err(CodegenError::CannotAttachMethodsToFunctions(node.1.clone()))?
                 }
                 Position::Pointer(ptr) => {
-                    todo!()
+                    let kind = ptr.clone();
+                    code.extend(&[ReadPtr(GENERAL_REG1)]);
+                    let kind = correct_kind(objects, &kind, fun, &node.1, generics)?;
+                    match &kind.body {
+                        TypeBody::Array { type_, .. } => {
+                            let path = find_array_method(objects, &ident, &node.1)?;
+                            let return_kind = path.get_bin(objects)?.return_type.clone();
+                            code.push(Move(GENERAL_REG1, RETURN_REG));
+                            return traverse_tail(
+                                objects,
+                                tail,
+                                context,
+                                scopes,
+                                code,
+                                fun,
+                                Position::Function(
+                                    FunctionKind::Binary(path),
+                                    return_kind,
+                                    *type_.clone(),
+                                ),
+                                scope_len,
+                                generics,
+                            );
+                        }
+                        TypeBody::Type {
+                            main,
+                            kind: kind_kind,
+                            ..
+                        } => {
+                            let _kind_main = match &kind.body {
+                                TypeBody::Type { main, .. } => main,
+                                _ => unreachable!("kind not handled properly by the compiler, please report this bug"),
+                            };
+                            match kind_kind {
+                                dictionary::KindType::Struct => {
+                                    let structt = find_struct(
+                                        objects,
+                                        &_kind_main.first().unwrap(),
+                                        &kind.file.as_ref().unwrap(),
+                                    )
+                                    .unwrap()
+                                    .1;
+                                    match structt.get_field(&ident) {
+                                        Some((field, idx)) => match field {
+                                            CompoundField::Field(ident) => {
+                                                code.extend(&[
+                                                    IndexStatic(idx + 1),
+                                                    Move(POINTER_REG, GENERAL_REG1),
+                                                ]);
+                                                return_kind = structt.fields[idx].1.clone();
+                                                *return_kind.refs_mut() += 1;
+                                                let pos = traverse_tail(
+                                                    objects,
+                                                    tail,
+                                                    context,
+                                                    scopes,
+                                                    code,
+                                                    fun,
+                                                    Position::CompoundField(
+                                                        InnerPath {
+                                                            file: kind.file.clone().unwrap(),
+                                                            block: Some(
+                                                                structt.identifier.to_string(),
+                                                            ),
+                                                            ident: main.first().unwrap().clone(),
+                                                            kind: ImportKinds::Rd,
+                                                        },
+                                                        CompoundField::Field(ident.clone()),
+                                                        kind,
+                                                    ),
+                                                    scope_len,
+                                                    generics,
+                                                );
+                                                return pos;
+                                            }
+                                            CompoundField::Method(ident) => {
+                                                return traverse_tail(
+                                                    objects,
+                                                    tail,
+                                                    context,
+                                                    scopes,
+                                                    code,
+                                                    fun,
+                                                    Position::CompoundField(
+                                                        InnerPath {
+                                                            file: kind.file.clone().unwrap(),
+                                                            block: Some(
+                                                                main.last()
+                                                                    .as_ref()
+                                                                    .unwrap()
+                                                                    .to_string(),
+                                                            ),
+                                                            ident: ident.clone(),
+                                                            kind: ImportKinds::Rd,
+                                                        },
+                                                        CompoundField::Method(ident.clone()),
+                                                        kind,
+                                                    ),
+                                                    scope_len,
+                                                    generics,
+                                                );
+                                            }
+                                            _ => todo!(),
+                                        },
+                                        None => Err(CodegenError::FieldNotInStruct(
+                                            ident.clone(),
+                                            node.1.clone(),
+                                        ))?,
+                                    };
+                                }
+                                dictionary::KindType::UserData => {
+                                    let userdata = find_userdata(
+                                        objects,
+                                        &_kind_main.first().unwrap(),
+                                        &kind.file.as_ref().unwrap(),
+                                    )
+                                    .unwrap()
+                                    .1;
+                                    match userdata.get_field(&ident) {
+                                        Some((field, _)) => match field {
+                                            CompoundField::Method(ident) => {
+                                                return traverse_tail(
+                                                    objects,
+                                                    tail,
+                                                    context,
+                                                    scopes,
+                                                    code,
+                                                    fun,
+                                                    Position::CompoundField(
+                                                        InnerPath {
+                                                            file: kind.file.clone().unwrap(),
+                                                            block: Some(
+                                                                main.last()
+                                                                    .as_ref()
+                                                                    .unwrap()
+                                                                    .to_string(),
+                                                            ),
+                                                            ident: ident.clone(),
+                                                            kind: ImportKinds::Dll,
+                                                        },
+                                                        CompoundField::Method(ident.clone()),
+                                                        kind,
+                                                    ),
+                                                    scope_len,
+                                                    generics,
+                                                );
+                                            }
+                                            _ => todo!(),
+                                        },
+                                        None => Err(CodegenError::FieldNotInStruct(
+                                            ident.clone(),
+                                            node.1.clone(),
+                                        ))?,
+                                    };
+                                }
+                                // in case of primitives we have to use internal functions in the core library
+                                dictionary::KindType::Primitive => {
+                                    let path =
+                                        find_primitive_method(objects, &kind, &ident, &node.1)?;
+                                    let return_kind = path.get_bin(objects)?.return_type.clone();
+                                    code.push(Move(GENERAL_REG1, RETURN_REG));
+                                    return traverse_tail(
+                                        objects,
+                                        tail,
+                                        context,
+                                        scopes,
+                                        code,
+                                        fun,
+                                        Position::Function(
+                                            FunctionKind::Binary(path),
+                                            return_kind,
+                                            kind,
+                                        ),
+                                        scope_len,
+                                        generics,
+                                    );
+                                }
+                                dictionary::KindType::Enum => todo!(),
+                                dictionary::KindType::BEnum => todo!(),
+                                dictionary::KindType::Trait => todo!(),
+                                dictionary::KindType::Fun => todo!(),
+                                dictionary::KindType::Error => todo!(),
+                                dictionary::KindType::BinFun => todo!(),
+                                dictionary::KindType::SelfRef => todo!(),
+                                dictionary::KindType::None => todo!(),
+                            }
+                        }
+                        _ => todo!(),
+                    }
+                    
                 }
                 Position::Compound(_kind) => {
                     let kind_main = match &_kind.body {
