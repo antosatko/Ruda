@@ -2,7 +2,145 @@ use std::{collections::HashMap, path};
 
 use compiler::{build_binaries, build_std_lib, prep_objects::Context, Dictionaries};
 
-pub fn bin(path: &str) {}
+pub fn bin(path: &str, profile: (&str, &config::Profile)) {
+    // check if there is directory for the profile
+    let profile_path = std::path::Path::new(path).join("target").join(profile.0);
+    if !profile_path.exists() {
+        // create directory
+        std::fs::create_dir_all(&profile_path).unwrap();
+    }
+    let ruda_path = match std::env::var("RUDA_PATH") {
+        Ok(path) => path,
+        Err(err) => {
+            println!("RUDA_PATH not found. {}\nProject not compiled.", err);
+            return;
+        }
+    };
+    let main_file = match profile.1.kind {
+        config::ProjectKind::Bin => {
+            let bin_path = std::path::Path::new(path).join("src").join("main.rd");
+            bin_path
+        }
+        config::ProjectKind::Lib => {
+            let lib_path = std::path::Path::new(path).join("src").join("lib.rd");
+            lib_path
+        }
+    };
+    let main_file = match main_file.to_str() {
+        Some(file) => file,
+        None => {
+            println!("Failed to convert path to string.");
+            return;
+        }
+    };
+    use compiler::*;
+    let (ast, params, registry) = match generate_ast(&ruda_path) {
+        Ok(ast) => (ast.ast, ast.params, ast.registry),
+        Err(err) => {
+            println!("{}", err);
+            println!("Close all programs that use Ruda and try again.");
+            println!("If that doesn't help, try to reinstall Ruda.");
+            return;
+        }
+    };
+    //println!("AST generated.");
+    let dictionaries = match build_dictionaries(&main_file, &mut (ast, params)) {
+        Ok(dictionaries) => dictionaries,
+        Err(err) => {
+            println!("Failed to load dictionaries.");
+            println!("Err: '{}':{}", err.1, err.0);
+            return;
+        }
+    };
+    //println!("Dictionary generated.");
+    // println!("{:?}", dictionaries);
+    // BEWARE: this part is what you call a technical debt
+    let mut bin_paths = Vec::new();
+    let mut lib_names = Vec::new();
+    for (lib_name, lib_path) in &profile.1.binaries {
+        let lib_path = std::path::Path::new(path).join(lib_path);
+        if !lib_path.exists() {
+            println!("{} does not exist.", lib_path.to_str().unwrap());
+            return;
+        }
+        let lib_path = match lib_path.to_str() {
+            Some(path) => path,
+            None => {
+                println!("Failed to convert path to string.");
+                return;
+            }
+        };
+        bin_paths.push(lib_path.to_string());
+        lib_names.push(lib_name.to_string());
+    }
+    let mut temp_ast = (registry, Vec::new());
+    let mut binaries = HashMap::new();
+    let mut std_lib = match build_std_lib(&mut temp_ast) {
+        Ok(std_lib) => std_lib,
+        Err(err) => {
+            println!("Failed to load std lib.");
+            println!("{}", err);
+            return;
+        }
+    };
+    let mut dicts = Vec::new();
+    let mut names = Vec::new();
+    for _ in 0..std_lib.len() {
+        let take = std_lib.remove(0);
+        dicts.push(take.0);
+        names.push(take.1);
+    }
+    drop(std_lib);
+    match build_binaries(&bin_paths, &mut temp_ast, &mut dicts) {
+        Ok(()) => {}
+        Err(err) => {
+            println!("Failed to load binaries.");
+            println!("{}", err);
+            return;
+        }
+    };
+    for _ in 0..names.len() {
+        binaries.insert(names.remove(0), dicts.remove(0));
+    }
+    for (_, libname) in lib_names.iter().enumerate() {
+        binaries.insert(libname.to_string(), dicts.remove(0));
+    }
+    const LIB_COUNT: usize = 9;
+    const STD_LIBS: [&str; LIB_COUNT] = [
+        "#io", "#string", "#fs", "#algo", "#core", "#time", "#window", "#memory", "#math",
+    ];
+    let mut count = LIB_COUNT;
+    for (name, bin) in binaries.iter_mut() {
+        match STD_LIBS.iter().position(|&lib| lib == name) {
+            Some(idx) => {
+                bin.id = idx;
+            }
+            None => {
+                bin.id = count;
+                count += 1;
+            }
+        }
+    }
+
+    let mut context = Context::new(dictionaries, binaries);
+    match prep_objects::prep(&mut context) {
+        Ok(_) => {}
+        Err(err) => {
+            println!("Failed to prepare objects.");
+            // TODO: println!("{}", err);
+            return;
+        }
+    }
+
+    match open(context, path.to_string()) {
+        Ok(()) => {}
+        Err(err) => {
+            println!("Failed to open lens.");
+            println!("{:?}", err);
+            return;
+        }
+    }
+}
 
 pub fn std() {
     println!("Loading std lib...");
@@ -57,7 +195,10 @@ pub fn std() {
 
     println!("Std lib loaded.");
     println!("openning lens...");
-    match open(Context::new(HashMap::new(), binaries)) {
+    match open(
+        Context::new(HashMap::new(), binaries),
+        "*STDLIB*".to_string(),
+    ) {
         Ok(()) => {}
         Err(err) => {
             println!("Failed to open lens.");
@@ -79,10 +220,12 @@ use iced::{
     Application, Command, Element, Settings,
 };
 
-fn open(dict: Context) -> Result<(), LensErr> {
+use crate::config;
+
+fn open(dict: Context, project_name: String) -> Result<(), LensErr> {
     match Lens::run(Settings::with_flags(LensFlags {
         objects: dict,
-        project_name: String::from("STDLIB"),
+        project_name,
     })) {
         Ok(()) => {}
         Err(err) => {
@@ -118,7 +261,7 @@ impl Lens {
     }
 
     pub fn forward(&mut self) {
-        if self.history.0 == self.history.1.len() - 1 {
+        if self.history.0 + 1 >= self.history.1.len() {
             return;
         }
         self.history.0 += 1;
@@ -229,130 +372,158 @@ impl Application for Lens {
                 let dict = match file.file_type {
                     FileType::Rd => {
                         let dict = self.objects.0.get(&file.name).unwrap();
-                        config = config.push(text(format!("Structs: {}", dict.structs.len())));
-                        for obj in &dict.structs {
-                            config = config.push(
-                                Button::new(text::Text::new(&obj.identifier)).on_press(
-                                    Message::Page(States::Struct {
-                                        file: file.clone(),
-                                        ident: obj.identifier.clone(),
-                                    }),
-                                ),
-                            );
+                        if dict.structs.len() > 0 {
+                            config = config.push(text(format!("Structs: {}", dict.structs.len())));
+                            for obj in &dict.structs {
+                                config = config.push(
+                                    Button::new(text::Text::new(&obj.identifier)).on_press(
+                                        Message::Page(States::Struct {
+                                            file: file.clone(),
+                                            ident: obj.identifier.clone(),
+                                        }),
+                                    ),
+                                );
+                            }
                         }
-                        config = config.push(text(format!("Enums: {}", dict.enums.len())));
-                        for obj in &dict.enums {
-                            config = config.push(
-                                Button::new(text::Text::new(&obj.identifier)).on_press(
-                                    Message::Page(States::Enum {
-                                        file: file.clone(),
-                                        ident: obj.identifier.clone(),
-                                    }),
-                                ),
-                            );
+                        if dict.enums.len() > 0 {
+                            config = config.push(text(format!("Enums: {}", dict.enums.len())));
+                            for obj in &dict.enums {
+                                config = config.push(
+                                    Button::new(text::Text::new(&obj.identifier)).on_press(
+                                        Message::Page(States::Enum {
+                                            file: file.clone(),
+                                            ident: obj.identifier.clone(),
+                                        }),
+                                    ),
+                                );
+                            }
                         }
-                        config = config.push(text(format!("Functions: {}", dict.functions.len())));
-                        for obj in &dict.functions {
-                            config = config.push(
-                                Button::new(text::Text::new(
-                                    obj.identifier.clone().unwrap_or("Anoymous".to_string()),
-                                ))
-                                .on_press(Message::Page(
-                                    States::Function {
-                                        file: file.clone(),
-                                        ident: obj
-                                            .identifier
-                                            .clone()
-                                            .unwrap_or("Anoymous".to_string())
-                                            .clone(),
-                                        block: None,
-                                    },
-                                )),
-                            );
+                        if dict.functions.len() > 0 {
+                            config =
+                                config.push(text(format!("Functions: {}", dict.functions.len())));
+                            for obj in &dict.functions {
+                                config = config.push(
+                                    Button::new(text::Text::new(
+                                        obj.identifier.clone().unwrap_or("Anoymous".to_string()),
+                                    ))
+                                    .on_press(Message::Page(
+                                        States::Function {
+                                            file: file.clone(),
+                                            ident: obj
+                                                .identifier
+                                                .clone()
+                                                .unwrap_or("Anoymous".to_string())
+                                                .clone(),
+                                            block: None,
+                                        },
+                                    )),
+                                );
+                            }
                         }
-                        config = config.push(text(format!("Traits: {}", dict.traits.len())));
-                        for obj in &dict.traits {
-                            config = config.push(
-                                Button::new(text::Text::new(&obj.identifier)).on_press(
-                                    Message::Page(States::Trait {
-                                        file: file.clone(),
-                                        ident: obj.identifier.clone(),
-                                    }),
-                                ),
-                            );
+                        if dict.traits.len() > 0 {
+                            config = config.push(text(format!("Traits: {}", dict.traits.len())));
+                            for obj in &dict.traits {
+                                config = config.push(
+                                    Button::new(text::Text::new(&obj.identifier)).on_press(
+                                        Message::Page(States::Trait {
+                                            file: file.clone(),
+                                            ident: obj.identifier.clone(),
+                                        }),
+                                    ),
+                                );
+                            }
                         }
-                        config = config.push(text(format!("Errors: {}", dict.errors.len())));
-                        for obj in &dict.errors {
-                            config = config.push(
-                                Button::new(text::Text::new(&obj.identifier)).on_press(
-                                    Message::Page(States::Error {
-                                        file: file.clone(),
-                                        ident: obj.identifier.clone(),
-                                    }),
-                                ),
-                            );
+                        if dict.errors.len() > 0 {
+                            config = config.push(text(format!("Errors: {}", dict.errors.len())));
+                            for obj in &dict.errors {
+                                config = config.push(
+                                    Button::new(text::Text::new(&obj.identifier)).on_press(
+                                        Message::Page(States::Error {
+                                            file: file.clone(),
+                                            ident: obj.identifier.clone(),
+                                        }),
+                                    ),
+                                );
+                            }
                         }
-                        config = config.push(text(format!("Consts: {}", dict.constants.len())));
-                        for obj in &dict.constants {
-                            config = config.push(
-                                Button::new(text::Text::new(&obj.identifier)).on_press(
-                                    Message::Page(States::Error {
-                                        file: file.clone(),
-                                        ident: obj.identifier.clone(),
-                                    }),
-                                ),
-                            );
+                        if dict.constants.len() > 0 {
+                            config = config.push(text(format!("Consts: {}", dict.constants.len())));
+                            for obj in &dict.constants {
+                                config = config.push(
+                                    Button::new(text::Text::new(&obj.identifier)).on_press(
+                                        Message::Page(States::Error {
+                                            file: file.clone(),
+                                            ident: obj.identifier.clone(),
+                                        }),
+                                    ),
+                                );
+                            }
                         }
                     }
                     FileType::Dll => {
                         let dict = self.objects.1.get(&file.name).unwrap();
-                        config = config.push(text(format!("Userdata: {}", dict.user_data.len())));
-                        for obj in &dict.user_data {
-                            config = config.push(Button::new(text::Text::new(&obj.name)).on_press(
-                                Message::Page(States::UserData {
-                                    file: file.clone(),
-                                    ident: obj.name.clone(),
-                                }),
-                            ));
+                        if dict.user_data.len() > 0 {
+                            config =
+                                config.push(text(format!("Userdata: {}", dict.user_data.len())));
+                            for obj in &dict.user_data {
+                                config =
+                                    config.push(Button::new(text::Text::new(&obj.name)).on_press(
+                                        Message::Page(States::UserData {
+                                            file: file.clone(),
+                                            ident: obj.name.clone(),
+                                        }),
+                                    ));
+                            }
                         }
-                        config = config.push(text(format!("Functions: {}", dict.functions.len())));
-                        for obj in &dict.functions {
-                            config = config.push(
-                                Button::new(text::Text::new(obj.name.clone())).on_press(
-                                    Message::Page(States::Function {
-                                        file: file.clone(),
-                                        block: None,
-                                        ident: obj.name.clone(),
-                                    }),
-                                ),
-                            );
+                        if dict.functions.len() > 0 {
+                            config =
+                                config.push(text(format!("Functions: {}", dict.functions.len())));
+                            for obj in &dict.functions {
+                                config =
+                                    config.push(Button::new(text::Text::new(&obj.name)).on_press(
+                                        Message::Page(States::Function {
+                                            file: file.clone(),
+                                            ident: obj.name.clone(),
+                                            block: None,
+                                        }),
+                                    ));
+                            }
                         }
-                        config = config.push(text(format!("Enums: {}", dict.enums.len())));
-                        for obj in &dict.enums {
-                            config = config.push(Button::new(text::Text::new(&obj.name)).on_press(
-                                Message::Page(States::Enum {
-                                    file: file.clone(),
-                                    ident: obj.name.clone(),
-                                }),
-                            ));
+                        if dict.enums.len() > 0 {
+                            config = config.push(text(format!("Enums: {}", dict.enums.len())));
+                            for obj in &dict.enums {
+                                config =
+                                    config.push(Button::new(text::Text::new(&obj.name)).on_press(
+                                        Message::Page(States::Enum {
+                                            file: file.clone(),
+                                            ident: obj.name.clone(),
+                                        }),
+                                    ));
+                            }
                         }
-                        config = config.push(text(format!("Traits: {}", dict.traits.len())));
-                        for obj in &dict.traits {
-                            config = config.push(Button::new(text::Text::new(&obj.name)).on_press(
-                                Message::Page(States::Trait {
-                                    file: file.clone(),
-                                    ident: obj.name.clone(),
-                                }),
-                            ));
+                        if dict.traits.len() > 0 {
+                            config = config.push(text(format!("Traits: {}", dict.traits.len())));
+                            for obj in &dict.traits {
+                                config =
+                                    config.push(Button::new(text::Text::new(&obj.name)).on_press(
+                                        Message::Page(States::Trait {
+                                            file: file.clone(),
+                                            ident: obj.name.clone(),
+                                        }),
+                                    ));
+                            }
                         }
-                        config = config.push(text(format!("Consts: {}", dict.consts.len())));
-                        for obj in &dict.consts {
-                            config = config.push(Button::new(text::Text::new(&obj.name)).on_press(
-                                Message::Page(States::Error {
-                                    file: file.clone(),
-                                    ident: obj.name.clone(),
-                                }),
-                            ));
+                        if dict.consts.len() > 0 {
+                            config = config.push(text(format!("Consts: {}", dict.consts.len())));
+                            for obj in &dict.consts {
+                                config =
+                                    config.push(Button::new(text::Text::new(&obj.name)).on_press(
+                                        Message::Page(States::Error {
+                                            file: file.clone(),
+                                            ident: obj.name.clone(),
+                                        }),
+                                    ));
+                            }
                         }
                     }
                 };
@@ -501,7 +672,10 @@ impl Application for Lens {
                             params = params
                                 .push(text(format!("{}: {:?}", param.identifier, param.kind)));
                         }
-                        let returns = text(format!("Returns: {:?}", fun.return_type));
+                        let returns = match &fun.return_type {
+                            Some(return_type) => text(format!("Returns: {:?}", return_type)),
+                            None => text("Returns: *void*"),
+                        };
                         (params, returns)
                     }
                     FileType::Dll => {

@@ -10,6 +10,7 @@ mod lens;
 
 use args::Task;
 use clap::Parser;
+use config::Profile;
 
 fn main() {
     let args = args::Args::parse();
@@ -60,10 +61,10 @@ fn main() {
         } => {
             build::restore(&path, profile, *compile, *run, args.clone(), *debug);
         }
-        Task::Lens { path, target } => {
+        Task::Lens { path, target, profile } => {
             match target {
                 args::LensTarget::Lib => todo!("unfortunately, this is not implemented yet"),
-                args::LensTarget::Bin => lens::bin(&path),
+                args::LensTarget::Bin => lens::bin(&path, (&profile, config::read(&path).profile.get(profile).expect("profile not found"))),
                 args::LensTarget::Std => lens::std(),
             }
         }

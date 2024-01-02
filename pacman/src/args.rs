@@ -126,6 +126,10 @@ pub enum Task {
         /// Path to project
         #[clap(name = "path", default_value = ".")]
         path: String,
+
+        /// Profile to use
+        #[clap(name = "profile", short, long, default_value = "default")]
+        profile: String,
     }
 }
 
