@@ -149,7 +149,6 @@ pub fn compile(path: &str, profile: (&str, &config::Profile)) -> bool{
             return false;
         }
     }
-
     let executable = match codegen::gen(&mut context, "main.rd") {
         Ok(ctx) => {
             // println!("{:?}", ctx.code.data);

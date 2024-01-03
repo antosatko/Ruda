@@ -22,7 +22,7 @@ use sfml::graphics::{
     Transformable, Sprite, VertexBufferUsage,
 };
 use sfml::system::{Vector2, Vector2f};
-use sfml::window::Style;
+use sfml::window::{Style, VideoMode};
 use sfml::*;
 
 fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_error::ErrTypes> {
@@ -2152,6 +2152,16 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
             line.update(&[a, b], 0);
             window.window.draw(&line);
         }
+        // screenWidth
+        87 => {
+            let width = VideoMode::desktop_mode().width;
+            return Ok(Types::Uint(width as usize));
+        }
+        // screenHeight
+        88 => {
+            let height = VideoMode::desktop_mode().height;
+            return Ok(Types::Uint(height as usize));
+        }
         _ => unreachable!("Invalid function id, {}", id),
     }
     return Ok(runtime_types::Types::Void);
@@ -2245,6 +2255,9 @@ fn register() -> String {
         fun save(self=reg.ptr) > 74i
         fun restore(self=reg.ptr) > 75i
     }
+
+    fun screenWidth(): uint > 87i
+    fun screenHeight(): uint > 88i
 
     userdata WinBuilder > 1i {
         new () > 1i

@@ -506,7 +506,7 @@ fn gen_fun<'a>(
                     line: line.line.line,
                     column: line.line.column,
                     file: debug.files.iter().position(|s| s == &fun.file).unwrap(),
-                    pos: line.pos + len,
+                    pos: pos.0
                 });
             }
         }
@@ -2824,7 +2824,7 @@ fn call_binary(
             let kind = Kind {
                 body: type_.body.clone(),
                 line: line.clone(),
-                file: Some(fun.file.clone()),
+                file: type_.file.clone(),
             };
             generics_map.insert("T".to_string(), kind);
         }

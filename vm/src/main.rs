@@ -81,6 +81,7 @@ fn main() {
             ctx.memory.heap.data = data.heap;
             ctx.code.ptr = data.entry_point;
             ctx.code.entry_point = data.entry_point;
+            ctx.debug = data.debug;
             ctx
         }
         None => {

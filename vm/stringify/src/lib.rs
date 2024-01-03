@@ -3,7 +3,7 @@ use std::{collections::HashMap, path::PathBuf};
 
 use runtime::runtime_types::{
     Context, FunSpec, Instructions, MemoryLoc, NonPrimitiveType, NonPrimitiveTypes, PointerTypes,
-    Types,
+    Types, Debug,
 };
 
 pub const MAGIC_NUMBER: &str = "RUDA";
@@ -19,6 +19,7 @@ pub struct Data {
     pub shared_libs: Vec<ShLib>,
     pub heap: Vec<Vec<Types>>,
     pub entry_point: usize,
+    pub debug: Option<Debug>,
 }
 
 #[derive(Debug)]
@@ -92,6 +93,33 @@ pub fn stringify(ctx: &Context, shlibs: Option<&Vec<ShLib>>) -> String {
             for shlib in shlibs.iter() {
                 lib_into_string(shlib, &mut res);
             }
+        }
+        None => res.push_str(&b256str(0, 8)),
+    }
+    // write debug info
+    match &ctx.debug {
+        Some(debug) => {
+            // notify that debug info is present
+            res.push_str(&b256str(1, 1));
+            // write number of files
+            res.push_str(&b256str(debug.files.len(), 8));
+            for file in debug.files.iter() {
+                // write file name
+                push_str(file, &mut res);
+            }
+            // write number of lines
+            res.push_str(&b256str(debug.lines.len(), 8));
+            for line in debug.lines.iter() {
+                // write file index
+                res.push_str(&b256str(line.file, 8));
+                // write line number
+                res.push_str(&b256str(line.line, 8));
+                // write line column
+                res.push_str(&b256str(line.column, 8));
+                // write instruction index
+                res.push_str(&b256str(line.pos, 8));
+            }
+
         }
         None => res.push_str(&b256str(0, 8)),
     }
@@ -227,6 +255,39 @@ pub fn parse(str: &str) -> Data {
         shared_libs.push(ShLib { path, owns });
         i += 1;
     }
+    // look if debug info is present
+    let debug = match chars.next().unwrap() as u8 {
+        0 => None,
+        1 => {
+            // read debug info
+            let len = read_number(&mut chars, 8);
+            let mut files = Vec::with_capacity(len);
+            i = 0;
+            while let Some(_) = chars.peek() {
+                if i == len {
+                    break;
+                }
+                files.push(read_str(&mut chars));
+                i += 1;
+            }
+            let len = read_number(&mut chars, 8);
+            let mut lines = Vec::with_capacity(len);
+            i = 0;
+            while let Some(_) = chars.peek() {
+                if i == len {
+                    break;
+                }
+                let file = read_number(&mut chars, 8);
+                let line = read_number(&mut chars, 8);
+                let column = read_number(&mut chars, 8);
+                let pos = read_number(&mut chars, 8);
+                lines.push(runtime::runtime_types::Line { file, line, column, pos });
+                i += 1;
+            }
+            Some(Debug { files, lines })
+        }
+        _ => panic!("Invalid debug flag"),
+    };
     let _ = std::panic::take_hook();
     Data {
         instructions,
@@ -237,6 +298,7 @@ pub fn parse(str: &str) -> Data {
         shared_libs,
         heap,
         entry_point,
+        debug,
     }
 }
 

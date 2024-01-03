@@ -1,0 +1,62 @@
+Programovací jazyk Ruda
+    - pozadí vzniku
+    - popis
+    - alternativy ?
+
+překladač
+    - fáze překladu (lexikální, syntaktická, sémantická analýza, generování kódu, optimalizace)
+    - vlastní parsovací jazyk
+        - popis parsovacího postupu
+        - syntax parseru
+
+bytecode
+    - popis
+    - výhody a nevýhody
+
+virtuální stroj
+    - popis instrukcí
+    - popis běhu programu
+    - model paměti
+    - garbage collector
+    - rozšíření pomocí dynamických knihoven
+        - proč
+        - jak
+    - nevýhody využití Rustu pro implementaci virtuálního stroje
+    - výhody a nevýhody
+
+schopnost skriptování
+    - popis
+    - výhody a nevýhody
+    - problémy využití jako skriptovací jazyk
+
+standardní knihovna
+    - popis
+    - grafická část
+    - závislost bytecode na knihovně
+
+nástroje pro práci s jazykem
+    - dokumentace
+    - syntax highlighting
+    - package manager
+    - grafický inspektor struktury projektu/bytecode
+
+instalace
+    - podporované platformy (windows, plán na linux)
+    - kompilace ze zdrojových kódů
+    - stažení předkompilovaných binárek
+    - možné problémy
+    - proměnné prostředí
+    
+syntaxe jazyka
+    - krátký úvod
+    - dokumentace
+
+příklady programů
+    - projekty v repozitáři
+    - dokumentace
+
+zhodnocení
+    - splnění cílů
+    - vyzdvihnout zajímavé vlastnosti implementace
+    - poučení pro další vývoj
+    - možnosti dalšího vývoje

@@ -121,7 +121,7 @@ pub enum Task {
     Lens {
         /// Target to lens
         #[clap(name = "target", short, long)]
-        target: LensTarget,
+        target: Option<LensTarget>,
 
         /// Path to project
         #[clap(name = "path", default_value = ".")]
@@ -143,8 +143,8 @@ pub enum ProjectKind {
 
 #[derive(Debug, ValueEnum, Clone)]
 pub enum LensTarget {
-    /// A library
-    Lib,
+    /// A project
+    Project,
     /// An executable
     Bin,
     /// Standard library

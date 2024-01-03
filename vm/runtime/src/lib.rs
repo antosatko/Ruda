@@ -1204,20 +1204,13 @@ impl Context {
             return true;
         }
         self.break_code = Some(self.code.ptr);
-        println!("{}", get_message(&kind, None));
-        match &self.debug {
-            Some(debug) => {
-                let debug = self.find_debug(self.code.ptr).unwrap();
-                println!("in file: {}, line: {}, column: {}", debug.file, debug.line, debug.column);
-            }
-            None => {}
-        }
+        println!("{}", get_message(&kind, self.find_debug(self.code.ptr)));
         self.exit_code = ExitCodes::Internal(kind);
         false
     }
     /// This function will find the line in the debug info that is closest to the given position.
     /// It will return None if the position is out of bounds.
-    fn find_debug(&self, pos: usize) -> Option<&Line> {
+    fn find_debug(&self, pos: usize) -> Option<(Line, String)> {
         let debug = match &self.debug {
             Some(debug) => debug,
             None => return None,
@@ -1225,10 +1218,13 @@ impl Context {
         // iterate from back to front to find the first line that is smaller than pos
         for i in (0..debug.lines.len()).rev() {
             if debug.lines[i].pos <= pos {
-                return Some(&debug.lines[i]);
+                return Some((debug.lines[i].clone(), debug.files[debug.lines[i].file].to_string()));
             }
         }
-        None
+        match debug.lines.first() {
+            Some(line) => Some((line.clone(), debug.files[line.file].to_string())),
+            None => None,
+        }
     }
     /// This function is called when an exception is thrown. It will search for a catch block
     /// that matches the exception type. If it finds one, it will set the code pointer to the
@@ -1472,6 +1468,7 @@ pub mod runtime_types {
         /// debug info will be genereated if the source code is compiled with the debug flag
         pub debug: Option<Debug>,
     }
+    #[derive(Debug, Clone)]
     pub struct Debug {
         pub lines: Vec<Line>,
         pub files: Vec<String>,
@@ -2648,6 +2645,8 @@ pub mod runtime_types {
     }
 }
 pub mod runtime_error {
+    use crate::runtime_types;
+
     use super::runtime_types::*;
     #[derive(Debug, Clone)]
     pub enum ErrTypes {
@@ -2672,15 +2671,15 @@ pub mod runtime_error {
         /// Cannot use userdata
         CannotReadUserdata,
     }
-    fn gen_message(header: String, line: Option<(usize, usize)>, err_no: u8) -> String {
-        return if let Some(line) = line {
+    fn gen_message(header: String, debug: Option<(Line, String)>, err_no: u8) -> String {
+        return if let Some((debug, file)) = debug {
             //                    code                      header                      line     column
-            format!("\x1b[90mErr{err_no:03}\x1b[0m \x1b[91m{header}\x1b[0m\n\x1b[90mAt: line {}, column {}.\x1b[0m", line.0, line.1)
+            format!("\x1b[90mErr{err_no:03}\x1b[0m \x1b[91m{header}\x1b[0m\n\x1b[90mAt: line {}, column {} in file '{}'\x1b[0m", debug.line, debug.column, file)
         } else {
             format!("\x1b[90mErr{err_no:03}\x1b[0m \x1b[91m{header}\x1b[0m\n\x1b[90mLocation unspecified.\x1b[0m")
         };
     }
-    pub fn get_message(kind: &ErrTypes, line: Option<(usize, usize)>) -> String {
+    pub fn get_message(kind: &ErrTypes, line: Option<(Line, String)>) -> String {
         let data = match &kind {
             ErrTypes::CrossTypeOperation(var1, var2, instr) => (
                 format!("Operation '{instr}' failed: Cross-type operation {var1:+}, {var2:+}"),

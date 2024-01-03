@@ -62,9 +62,13 @@ fn main() {
             build::restore(&path, profile, *compile, *run, args.clone(), *debug);
         }
         Task::Lens { path, target, profile } => {
+            let target = match target {
+                Some(target) => target.clone(),
+                None => args::LensTarget::Project,
+            };
             match target {
-                args::LensTarget::Lib => todo!("unfortunately, this is not implemented yet"),
                 args::LensTarget::Bin => lens::bin(&path, (&profile, config::read(&path).profile.get(profile).expect("profile not found"))),
+                args::LensTarget::Project => lens::project(&path, (&profile, config::read(&path).profile.get(profile).expect("profile not found"))),
                 args::LensTarget::Std => lens::std(),
             }
         }

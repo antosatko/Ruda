@@ -2,7 +2,58 @@ use std::{collections::HashMap, path};
 
 use compiler::{build_binaries, build_std_lib, prep_objects::Context, Dictionaries};
 
+/// Reads the projects output binary and opens lens for it
 pub fn bin(path: &str, profile: (&str, &config::Profile)) {
+    // check if there is directory for the profile
+    let profile_path = std::path::Path::new(path).join("target").join(profile.0);
+    if !profile_path.exists() {
+        // create directory
+        std::fs::create_dir_all(&profile_path).unwrap();
+    }
+    let ruda_path = match std::env::var("RUDA_PATH") {
+        Ok(path) => path,
+        Err(err) => {
+            println!("RUDA_PATH not found. {}\nProject not compiled.", err);
+            return;
+        }
+    };
+    let binary = match profile.1.kind {
+        config::ProjectKind::Bin => {
+            let bin_path = std::path::Path::new(path).join("target").join(profile.0).join("out.rdbin");
+            bin_path
+        }
+        config::ProjectKind::Lib => {
+            let lib_path = std::path::Path::new(path).join("target").join(profile.0).join("out.rdlib");
+            lib_path
+        }
+    };
+    let str = match std::fs::read_to_string(&binary) {
+        Ok(string) => {
+            string
+        }
+        Err(err) => {
+            println!("Failed to read binary.");
+            println!("{}", err);
+            return;
+        }
+    };
+    let bin = stringify::parse(&str);
+    println!("Binary loaded: {:?}", bin);
+    // open bin lens
+    match bin_lens::BinLens::run(Settings::with_flags(BinLensFlags {
+        objects: bin,
+        project_name: profile.0.to_string(),
+    })) {
+        Ok(()) => {}
+        Err(err) => {
+            println!("Failed to open lens.");
+            println!("{:?}", err);
+            return;
+        }
+    };
+}
+
+pub fn project(path: &str, profile: (&str, &config::Profile)) {
     // check if there is directory for the profile
     let profile_path = std::path::Path::new(path).join("target").join(profile.0);
     if !profile_path.exists() {
@@ -219,8 +270,9 @@ use iced::{
     window::Settings as WindowSettings,
     Application, Command, Element, Settings,
 };
+use stringify::Data;
 
-use crate::config;
+use crate::{config, lens::bin_lens::BinLensFlags};
 
 fn open(dict: Context, project_name: String) -> Result<(), LensErr> {
     match Lens::run(Settings::with_flags(LensFlags {
@@ -1007,4 +1059,106 @@ enum FileType {
 struct File {
     pub name: String,
     pub file_type: FileType,
+}
+
+pub mod bin_lens {
+    use std::fmt::format;
+
+    use stringify::Data;
+
+    use super::*;
+
+    #[derive(Debug, Clone)]
+    enum Navigation {
+        Back,
+        Forward,
+    }
+
+    #[derive(Debug, Clone)]
+    pub enum Message {
+        Navigation(Navigation),
+    }
+
+    pub struct BinLens {
+        state: States,
+        history: (usize, Vec<States>),
+        data: Data,
+        project_name: String,
+    }
+
+    impl BinLens {
+        pub fn back(&mut self) {
+            if self.history.0 == 0 {
+                return;
+            }
+            self.history.0 -= 1;
+            self.state = self.history.1[self.history.0].clone();
+        }
+
+        pub fn forward(&mut self) {
+            if self.history.0 + 1 >= self.history.1.len() {
+                return;
+            }
+            self.history.0 += 1;
+            self.state = self.history.1[self.history.0].clone();
+        }
+    }
+
+    impl Application for BinLens {
+        fn new(flags: BinLensFlags) -> (BinLens, iced::Command<Message>) {
+            (
+                Self {
+                    state: States::Main,
+                    history: (0, Vec::new()),
+                    data: flags.objects,
+                    project_name: flags.project_name,
+                },
+                Command::none(),
+            )
+        }
+
+        fn title(&self) -> String {
+            format!("Ruda Lens - {}", self.project_name)
+        }
+
+        fn update(&mut self, message: Self::Message) -> iced::Command<Message> {
+            match &message {
+                Message::Navigation(nav) => match nav {
+                    Navigation::Back => {
+                        self.back();
+                        iced::Command::none()
+                    }
+                    Navigation::Forward => {
+                        self.forward();
+                        iced::Command::none()
+                    }
+                },
+            }
+        }
+
+        fn theme(&self) -> iced::Theme {
+            iced::Theme::Dark
+        }
+
+        fn style(&self) -> iced::theme::Application {
+            iced::theme::Application::default()
+        }
+
+        fn view(&self) -> Element<'_, Self::Message> {
+            scrollable(text(format!("{:?}", self.data))).width(iced::Length::Fill).height(iced::Length::Fill).into()
+        }
+
+        type Executor = executor::Default;
+
+        type Message = Message;
+
+        type Theme = iced::Theme;
+
+        type Flags = BinLensFlags;
+    }
+
+    pub struct BinLensFlags {
+        pub objects: Data,
+        pub project_name: String,
+    }
 }
