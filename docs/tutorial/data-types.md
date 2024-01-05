@@ -8,12 +8,12 @@ Primitive types are the most basic data types.
 
 | Type | Description | Example |
 | ---- | ----------- | ------- |
-| `int` | Integer | `1` |
-| `float` | Floating point number | `1.0` |
-| `bool` | Boolean | `true` |
+| `int` | Integer | `1` & `-1` |
+| `float` | Floating point number | `3.14` |
+| `bool` | Boolean | `true` & `false` |
 | `string` | String | `"Hello, World!"` |
-| `char` | Character | `'a'` |
-| `unit` | Unit | `1` |
+| `char` | Character | `'a'` & `'\n'` |
+| `uint` | Unsigned Integer | `0` |
 
 
 ## Composite Types
