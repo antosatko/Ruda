@@ -8,8 +8,18 @@
 
 - [Rust](https://www.rust-lang.org/tools/install)
 - [Python](https://www.python.org/downloads/)
+- [SFML 2.6.1](https://www.sfml-dev.org/download/sfml/2.6.1/)
 
 ### Steps
+
+### 0. Dependencies
+
+After following the instructions on [SFML 2.6.1](https://www.sfml-dev.org/download/sfml/2.6.1/) you should have a folder with necessary files. Create the following system variables:
+
+- SFML_INCLUDE_DIR=path/to/your/sfml/include
+- SFML_LIBS_DIR=path/to/your/sfml/lib
+
+If this is unclear search for _setting system environment variables_ for your system.
 
 #### 1. Clone the repository
 
