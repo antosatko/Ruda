@@ -1,7 +1,7 @@
 Programovací jazyk Ruda
     - pozadí vzniku
     - popis
-    - alternativy ?
+    - porovnání alternativ
 
 překladač
     - fáze překladu (lexikální, syntaktická, sémantická analýza, generování kódu, optimalizace)
@@ -11,6 +11,7 @@ překladač
 
 bytecode
     - popis
+    - vlastní vs nativní
     - výhody a nevýhody
 
 virtuální stroj
@@ -22,7 +23,7 @@ virtuální stroj
         - proč
         - jak
     - nevýhody využití Rustu pro implementaci virtuálního stroje
-    - výhody a nevýhody
+    - výhody a nevýhody VM
 
 schopnost skriptování
     - popis
@@ -49,10 +50,8 @@ instalace
     
 syntaxe jazyka
     - krátký úvod
-    - dokumentace
-
-příklady programů
-    - projekty v repozitáři
+    - příklady programů
+        - projekty v repozitáři
     - dokumentace
 
 zhodnocení

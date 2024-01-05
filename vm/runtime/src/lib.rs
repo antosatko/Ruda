@@ -1210,7 +1210,7 @@ impl Context {
     }
     /// This function will find the line in the debug info that is closest to the given position.
     /// It will return None if the position is out of bounds.
-    fn find_debug(&self, pos: usize) -> Option<(Line, String)> {
+    fn find_debug(&self, pos: usize) -> Option<(Line, String, String)> {
         let debug = match &self.debug {
             Some(debug) => debug,
             None => return None,
@@ -1218,11 +1218,19 @@ impl Context {
         // iterate from back to front to find the first line that is smaller than pos
         for i in (0..debug.lines.len()).rev() {
             if debug.lines[i].pos <= pos {
-                return Some((debug.lines[i].clone(), debug.files[debug.lines[i].file].to_string()));
+                match debug.lines[i].label {
+                    Some(label) => {
+                        if debug.labels[label].kind != LabelKind::Definiton {
+                            continue;
+                        }
+                        return Some((debug.lines[i].clone(), debug.files[debug.lines[i].file].to_string(), debug.labels[label].msg.to_string()));
+                    }
+                    None => {}
+                }
             }
         }
         match debug.lines.first() {
-            Some(line) => Some((line.clone(), debug.files[line.file].to_string())),
+            Some(line) => Some((line.clone(), debug.files[line.file].to_string(), String::new())),
             None => None,
         }
     }
@@ -1472,6 +1480,57 @@ pub mod runtime_types {
     pub struct Debug {
         pub lines: Vec<Line>,
         pub files: Vec<String>,
+        pub labels: Vec<Label>,
+    }
+    impl Debug {
+        pub fn new() -> Self {
+            Self {
+                lines: Vec::new(),
+                files: Vec::new(),
+                labels: Vec::new(),
+            }
+        }
+
+        pub fn push(&mut self, line: usize, column: usize, pos: usize, file: &str, label: Option<Label>) {
+            let file = if let Some(idx) = self.files.iter().position(|e| e == file) {
+                idx
+            } else {
+                self.files.push(file.to_string());
+                self.files.len() - 1
+            };
+            let label = if let Some(label) = label {
+                self.labels.push(label);
+                let label = self.labels.len() - 1;
+                Some(label)
+            }else {
+                None
+            };
+            self.lines.push(Line {
+                line,
+                column,
+                pos,
+                file,
+                label,
+            });
+        }
+    }
+    #[derive(Debug, Clone)]
+    pub struct Label {
+        pub msg: String,
+        pub kind: LabelKind,
+    }
+    #[derive(Debug, Clone, PartialEq, Copy)]
+    pub enum LabelKind {
+        /// most likely a function
+        Definiton,
+        /// Start of a loop
+        Loop,
+        /// Variable initialization
+        Variable,
+        /// User-defined label
+        Label,
+        /// Could not determine the kind of the label
+        Other,
     }
     #[derive(Debug, Clone)]
     pub struct Line {
@@ -1480,6 +1539,8 @@ pub mod runtime_types {
         pub file: usize,
         /// The index of the instruction in the code
         pub pos: usize,
+        /// The index of the label in the labels vector
+        pub label: Option<usize>,
     }
     pub struct Memory {
         pub stack: Stack,
@@ -2671,15 +2732,15 @@ pub mod runtime_error {
         /// Cannot use userdata
         CannotReadUserdata,
     }
-    fn gen_message(header: String, debug: Option<(Line, String)>, err_no: u8) -> String {
-        return if let Some((debug, file)) = debug {
+    fn gen_message(header: String, debug: Option<(Line, String, String)>, err_no: u8) -> String {
+        return if let Some((debug, file, function)) = debug {
             //                    code                      header                      line     column
-            format!("\x1b[90mErr{err_no:03}\x1b[0m \x1b[91m{header}\x1b[0m\n\x1b[90mAt: line {}, column {} in file '{}'\x1b[0m", debug.line, debug.column, file)
+            format!("\x1b[90mErr{err_no:03}\x1b[0m \x1b[91m{header}\x1b[0m\n\x1b[90m{file}:{function}:{line}:{column}\x1b[0m", err_no = err_no, header = header, file = file, function = function, line = debug.line, column = debug.column)
         } else {
             format!("\x1b[90mErr{err_no:03}\x1b[0m \x1b[91m{header}\x1b[0m\n\x1b[90mLocation unspecified.\x1b[0m")
         };
     }
-    pub fn get_message(kind: &ErrTypes, line: Option<(Line, String)>) -> String {
+    pub fn get_message(kind: &ErrTypes, line: Option<(Line, String, String)>) -> String {
         let data = match &kind {
             ErrTypes::CrossTypeOperation(var1, var2, instr) => (
                 format!("Operation '{instr}' failed: Cross-type operation {var1:+}, {var2:+}"),

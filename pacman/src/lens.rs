@@ -19,18 +19,22 @@ pub fn bin(path: &str, profile: (&str, &config::Profile)) {
     };
     let binary = match profile.1.kind {
         config::ProjectKind::Bin => {
-            let bin_path = std::path::Path::new(path).join("target").join(profile.0).join("out.rdbin");
+            let bin_path = std::path::Path::new(path)
+                .join("target")
+                .join(profile.0)
+                .join("out.rdbin");
             bin_path
         }
         config::ProjectKind::Lib => {
-            let lib_path = std::path::Path::new(path).join("target").join(profile.0).join("out.rdlib");
+            let lib_path = std::path::Path::new(path)
+                .join("target")
+                .join(profile.0)
+                .join("out.rdlib");
             lib_path
         }
     };
     let str = match std::fs::read_to_string(&binary) {
-        Ok(string) => {
-            string
-        }
+        Ok(string) => string,
         Err(err) => {
             println!("Failed to read binary.");
             println!("{}", err);
@@ -1069,6 +1073,12 @@ pub mod bin_lens {
     use super::*;
 
     #[derive(Debug, Clone)]
+    pub enum States {
+        Main,
+        Search(String),
+    }
+
+    #[derive(Debug, Clone)]
     enum Navigation {
         Back,
         Forward,
@@ -1145,7 +1155,20 @@ pub mod bin_lens {
         }
 
         fn view(&self) -> Element<'_, Self::Message> {
-            scrollable(text(format!("{:?}", self.data))).width(iced::Length::Fill).height(iced::Length::Fill).into()
+            return text::Text::new("Hello world!").into();
+            /*let mut navigation = Row::new()
+                .push(
+                    Button::new(text::Text::new("Back"))
+                        .on_press(Message::Navigation(Navigation::Back)),
+                )
+                .push(
+                    Button::new(text::Text::new("Forward"))
+                        .on_press(Message::Navigation(Navigation::Forward)),
+                );
+            match self.state {
+                States::Main => todo!(),
+                States::Search(_) => todo!(),
+            }*/
         }
 
         type Executor = executor::Default;

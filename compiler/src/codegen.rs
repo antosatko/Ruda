@@ -47,9 +47,10 @@ pub fn gen(
         .stack
         .data
         .extend(consts.iter().map(|c| c.to_runtime()));
-    vm_context.debug = Some(runtime_types::Debug { 
+    vm_context.debug = Some(runtime_types::Debug {
         lines: Vec::new(),
         files: objects.0.keys().map(|s| s.clone()).collect::<Vec<_>>(),
+        labels: Vec::new(),
     });
     let main_path = InnerPath::main();
     let fun_locs = gen_all_fun_ids(objects)?;
@@ -499,15 +500,23 @@ fn gen_fun<'a>(
         Some(debug) => {
             let len = context.code.data.len();
             debug.lines.reserve_exact(temp.debug.len());
-            
+
             for mut line in temp.debug {
                 line.pos += len;
-                debug.lines.push(runtime_types::Line { 
-                    line: line.line.line,
-                    column: line.line.column,
-                    file: debug.files.iter().position(|s| s == &fun.file).unwrap(),
-                    pos: pos.0
-                });
+                let name = match fun.block.clone() {
+                    Some(block) => format!("{}::{}", block, fun.ident),
+                    None => fun.ident.clone(),
+                };
+                debug.push(
+                    line.line.line,
+                    line.line.column,
+                    line.pos,
+                    &line.file,
+                    Some(runtime_types::Label {
+                        msg: format!("{}:{}", fun.file, name),
+                        kind: runtime_types::LabelKind::Definiton,
+                    }),
+                );
             }
         }
         None => (),
@@ -1267,7 +1276,13 @@ fn identify_root(
                             code.read(&obj, GENERAL_REG1);
                             let return_kind = Kind {
                                 body: TypeBody::Array {
-                                    type_: Box::new(correct_kind(objects, &kind.unwrap_or(Kind::void()), fun, line, generics)?),
+                                    type_: Box::new(correct_kind(
+                                        objects,
+                                        &kind.unwrap_or(Kind::void()),
+                                        fun,
+                                        line,
+                                        generics,
+                                    )?),
                                     size: arr.len(),
                                     refs: 0,
                                     nullable: false,
@@ -1530,9 +1545,7 @@ fn traverse_tail(
                                                 let pos = Position::CompoundField(
                                                     InnerPath {
                                                         file: kind.file.clone().unwrap(),
-                                                        block: Some(
-                                                            structt.identifier.to_string(),
-                                                        ),
+                                                        block: Some(structt.identifier.to_string()),
                                                         ident: main.first().unwrap().clone(),
                                                         kind: ImportKinds::Rd,
                                                     },
@@ -1540,15 +1553,8 @@ fn traverse_tail(
                                                     kind,
                                                 );
                                                 let pos = traverse_tail(
-                                                    objects,
-                                                    tail,
-                                                    context,
-                                                    scopes,
-                                                    code,
-                                                    fun,
-                                                    pos,
-                                                    scope_len,
-                                                    generics,
+                                                    objects, tail, context, scopes, code, fun, pos,
+                                                    scope_len, generics,
                                                 );
                                                 return pos;
                                             }
@@ -1718,7 +1724,7 @@ fn traverse_tail(
                                         .fields
                                         .iter()
                                         .enumerate()
-                                        .find(|f| &f.1.0 == _ident);
+                                        .find(|f| &f.1 .0 == _ident);
                                     let method = structt
                                         .1
                                         .functions
@@ -1731,7 +1737,7 @@ fn traverse_tail(
                                                 ReadPtr(POINTER_REG),
                                                 IndexStatic(idx + 1),
                                                 Move(POINTER_REG, GENERAL_REG1),
-                                                ]);
+                                            ]);
                                             let path = InnerPath {
                                                 file: kind.file.clone().unwrap(),
                                                 block: Some(structt.1.identifier.to_string()),
@@ -1744,21 +1750,12 @@ fn traverse_tail(
                                                 kind.clone(),
                                             );
                                             return traverse_tail(
-                                                objects,
-                                                tail,
-                                                context,
-                                                scopes,
-                                                code,
-                                                fun,
-                                                pos,
-                                                scope_len,
-                                                generics,
+                                                objects, tail, context, scopes, code, fun, pos,
+                                                scope_len, generics,
                                             );
                                         }
                                         (None, Some((idx, method))) => {
-                                            code.extend(&[
-                                                ReadPtr(RETURN_REG),
-                                            ]);
+                                            code.extend(&[ReadPtr(RETURN_REG)]);
                                             let path = InnerPath {
                                                 file: kind.file.clone().unwrap(),
                                                 block: Some(structt.1.identifier.to_string()),
@@ -1774,24 +1771,23 @@ fn traverse_tail(
                                                 fun,
                                                 Position::Function(
                                                     FunctionKind::Fun(path),
-                                                    method.return_type.clone().unwrap_or(Kind::void()),
+                                                    method
+                                                        .return_type
+                                                        .clone()
+                                                        .unwrap_or(Kind::void()),
                                                     kind.clone(),
                                                 ),
                                                 scope_len,
                                                 generics,
                                             );
                                         }
-                                        _ => {
-                                            Err(CodegenError::FieldNotInStruct(
-                                                ident.clone(),
-                                                node.1.clone(),
-                                            ))?
-                                        }
+                                        _ => Err(CodegenError::FieldNotInStruct(
+                                            ident.clone(),
+                                            node.1.clone(),
+                                        ))?,
                                     }
                                 }
-                                None => {
-
-                                }
+                                None => {}
                             }
                         }
                         CompoundField::Method(method) => {
@@ -1822,7 +1818,7 @@ fn traverse_tail(
                                 ),
                                 scope_len,
                                 generics,
-                            );                            
+                            );
                         }
                         CompoundField::OverloadedOperator(_) => todo!(),
                         CompoundField::TraitMethod(_, _) => todo!(),
@@ -2021,7 +2017,6 @@ fn traverse_tail(
                         }
                         _ => todo!(),
                     }
-                    
                 }
                 Position::Compound(_kind) => {
                     let kind_main = match &_kind.body {
@@ -2035,13 +2030,14 @@ fn traverse_tail(
                         &kind_main.first().unwrap(),
                         &_kind.file.as_ref().unwrap(),
                     ) {
-                        let (field, kind) = match structt.fields.iter().find(|field| &field.0 == ident) {
-                            Some(field) => field,
-                            None => Err(CodegenError::FieldNotInStruct(
-                                ident.clone(),
-                                node.1.clone(),
-                            ))?,
-                        };
+                        let (field, kind) =
+                            match structt.fields.iter().find(|field| &field.0 == ident) {
+                                Some(field) => field,
+                                None => Err(CodegenError::FieldNotInStruct(
+                                    ident.clone(),
+                                    node.1.clone(),
+                                ))?,
+                            };
                     }
                     if let Some((_, enumm)) = find_enum(
                         objects,
@@ -2089,13 +2085,14 @@ fn traverse_tail(
                         &kind_main.first().unwrap(),
                         &_kind.file.as_ref().unwrap(),
                     ) {
-                        let method = match userdata.methods.iter().find(|field| &field.name == ident) {
-                            Some(field) => field,
-                            None => Err(CodegenError::FieldNotInStruct(
-                                ident.clone(),
-                                node.1.clone(),
-                            ))?,
-                        };
+                        let method =
+                            match userdata.methods.iter().find(|field| &field.name == ident) {
+                                Some(field) => field,
+                                None => Err(CodegenError::FieldNotInStruct(
+                                    ident.clone(),
+                                    node.1.clone(),
+                                ))?,
+                            };
                         let path = InnerPath {
                             file: _kind.file.as_ref().unwrap().to_string(),
                             block: Some(kind_main.last().as_ref().unwrap().to_string()),
@@ -2109,7 +2106,11 @@ fn traverse_tail(
                             scopes,
                             code,
                             fun,
-                            Position::Function(FunctionKind::Binary(path), method.return_type.clone(), _kind.clone()),
+                            Position::Function(
+                                FunctionKind::Binary(path),
+                                method.return_type.clone(),
+                                _kind.clone(),
+                            ),
                             scope_len,
                             generics,
                         );
@@ -2679,7 +2680,9 @@ fn traverse_tail(
                     Position::Variable(var, _) => {
                         let var = match find_var(scopes, &var) {
                             Some(var) => var,
-                            None => Err(CodegenError::VariableNotFound(var.clone(), node.1.clone()))?,
+                            None => {
+                                Err(CodegenError::VariableNotFound(var.clone(), node.1.clone()))?
+                            }
                         };
                         let pos_cloned = var.pos.clone();
                         code.read(&pos_cloned, GENERAL_REG1);
@@ -2726,10 +2729,13 @@ fn traverse_tail(
                     _ => Err(CodegenError::CannotTestNullable(node.1.clone()))?,
                 };
                 if !kind.get_nullable() {
-                    Err(CodegenError::CannotTestNonNullable(kind.clone(), node.1.clone()))?;
+                    Err(CodegenError::CannotTestNonNullable(
+                        kind.clone(),
+                        node.1.clone(),
+                    ))?;
                 }
                 code.push(Instructions::NullCheck);
-                let pos = Position::Value(Kind{
+                let pos = Position::Value(Kind {
                     body: TypeBody::Type {
                         refs: 0,
                         main: vec!["bool".to_string()],
@@ -2743,7 +2749,7 @@ fn traverse_tail(
                 return traverse_tail(
                     objects, tail, context, scopes, code, fun, pos, scope_len, generics,
                 );
-            },
+            }
         },
         None => {
             // finish the sequence
@@ -2854,7 +2860,7 @@ fn call_binary(
         .zip(called_fun.args.clone())
         .enumerate()
     {
-        let kind = match &arg.1.1.body {
+        let kind = match &arg.1 .1.body {
             TypeBody::Generic {
                 identifier,
                 constraints,
@@ -2900,7 +2906,7 @@ fn call_binary(
                 context,
                 &this,
                 scope_len,
-                Some(correct_kind(objects, &arg.1.1, fun, line, &generics_map)?),
+                Some(correct_kind(objects, &arg.1 .1, fun, line, &generics_map)?),
                 line.clone(),
                 &generics_map,
             )?,
@@ -4155,7 +4161,12 @@ impl Code {
         self.code.push(instr)
     }
     pub fn add_debug(&mut self, line: Line, file: String) {
-        self.debug.push(DebugInfo { line, file, pos: self.code.len(), kind: DebugInfoKind::None });
+        self.debug.push(DebugInfo {
+            line,
+            file,
+            pos: self.code.len(),
+            kind: DebugInfoKind::None,
+        });
     }
 }
 
@@ -5197,6 +5208,5 @@ impl DebugInfo {
 pub enum DebugInfoKind {
     None,
 }
-
 
 // heya :D
