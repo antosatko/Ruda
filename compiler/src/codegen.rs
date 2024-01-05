@@ -498,11 +498,9 @@ fn gen_fun<'a>(
     }
     match context.debug.as_mut() {
         Some(debug) => {
-            let len = context.code.data.len();
             debug.lines.reserve_exact(temp.debug.len());
 
-            for mut line in temp.debug {
-                line.pos += len;
+            for line in temp.debug {
                 let name = match fun.block.clone() {
                     Some(block) => format!("{}::{}", block, fun.ident),
                     None => fun.ident.clone(),
@@ -510,7 +508,7 @@ fn gen_fun<'a>(
                 debug.push(
                     line.line.line,
                     line.line.column,
-                    line.pos,
+                    pos.0,
                     &line.file,
                     Some(runtime_types::Label {
                         msg: format!("{}:{}", fun.file, name),

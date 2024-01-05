@@ -2735,7 +2735,7 @@ pub mod runtime_error {
     fn gen_message(header: String, debug: Option<(Line, String, String)>, err_no: u8) -> String {
         return if let Some((debug, file, function)) = debug {
             //                    code                      header                      line     column
-            format!("\x1b[90mErr{err_no:03}\x1b[0m \x1b[91m{header}\x1b[0m\n\x1b[90m{file}:{function}:{line}:{column}\x1b[0m", err_no = err_no, header = header, file = file, function = function, line = debug.line, column = debug.column)
+            format!("\x1b[90mErr{err_no:03}\x1b[0m \x1b[91m{header}\x1b[0m\n\x1b[90m{file}:{line}:{column}\x1b[0m", err_no = err_no, header = header, line = debug.line, column = debug.column)
         } else {
             format!("\x1b[90mErr{err_no:03}\x1b[0m \x1b[91m{header}\x1b[0m\n\x1b[90mLocation unspecified.\x1b[0m")
         };
