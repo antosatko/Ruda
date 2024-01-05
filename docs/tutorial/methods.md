@@ -4,16 +4,35 @@ Methods are functions that are defined on a type. Thats all there is to it.
 
 ## Defining methods
 
-Methods are defined using the `impl` keyword.
+Methods are defined **after** the struct fields. If the struct contains constructor, it must be the first method defined.
+
+```ruda
+struct Order {
+    // fields are always first
+    field1: int
+    field2: float
+    // ..
+
+    // constructor follows
+    new (n: int) {
+        self.field1 = n
+        self.field2 = 60f
+    }
+
+    // the rest of the methods
+    fun set1(self, n: int){
+        self.field1 = n
+    }
+    // ..
+}
+```
 
 ```ruda
 struct Person {
-    name: string,
+    name: string
     age: int
-}
 
-impl Person {
-    fun Person(name: string, age: int) {
+    new (name: string, age: int) {
         self.name = name
         self.age = age
     }
@@ -52,12 +71,11 @@ Static methods are methods that are defined on the type itself. They are called 
 
 ```ruda
 struct Person {
-    name: string,
+    name: string
     age: int
-}
 
-impl Person {
-    fun Person(name: string, age: int) {
+
+    new (name: string, age: int) {
         self.name = name
         self.age = age
     }

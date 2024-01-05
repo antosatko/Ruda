@@ -1,5 +1,7 @@
 # Traits
 
+> ⚠️ Will be implemented together with generics in future updates ⚠️
+
 Traits are a way to define a set of methods that a type can implement. Traits are similar to interfaces in other languages.
 
 Also see [Generics](/tutorial/advanced/generics), where traits are used to define constraints on type parameters.
@@ -98,5 +100,4 @@ fun main() {
 // Output:
 // Woof!
 // Meow!
-```
 ```

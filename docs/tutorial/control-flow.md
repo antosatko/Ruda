@@ -52,6 +52,8 @@ After one of the conditions is met, the rest of the conditions are not checked.
 
 # Switch statements
 
+> ⚠️ Unstable feature ⚠️
+
 Switch statements are used to execute different code depending on the value of a variable.
 
 ```ruda
@@ -110,6 +112,8 @@ This will print `0`, `1`, `2`, `3` and `4` to the console.
 
 ## For
 
+> ⚠️ Unstable feature ⚠️
+
 The `for` keyword is used to create a loop that executes for each item in a collection.
 
 ```ruda
@@ -158,3 +162,41 @@ for number in numbers {
 ```
 
 This will print `1`, `2`, `4` and `5` to the console.
+
+## Labels
+
+Breaking targets only the nearest loop:
+
+```ruda
+loop {
+    loop { // <--- this will exit
+        break
+    }
+}
+// results in infinite loop
+```
+
+To prevent this behaviour you can label your loops and later use the label to specify which loop you want to break.
+
+```ruda
+loop "myLoop": { break "myLoop" }
+while "myWhile": true { break "myWhile" }
+for "myFor": i in arr { break "myFor" }
+```
+
+```ruda
+loop "main": { // <--- this will exit
+    loop "secondary": {
+        loop {
+            break "main"
+        }
+    }
+    io.println("You will never see this Mark!")
+}
+```
+
+Same can be applied to continues
+
+```ruda
+loop "a": { continue "a" } // infinite loop that ends on continue statement
+```
