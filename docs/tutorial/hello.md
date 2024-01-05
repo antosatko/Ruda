@@ -9,7 +9,7 @@ When you create a new project, Ruda will automatically create a `main.rd` file i
 Open the `main.rd` file. You should see the following code:
 
 ```ruda
-import "std.io"
+import "#io"
 
 fun main() {
     io.println("Hello world")
@@ -19,7 +19,7 @@ fun main() {
 Let's go through this line by line.
 
 ```ruda
-import "std.io"
+import "#io"
 ```
 
 This line imports the `io` module from the standard library. This module allows you to read and write to the console.
