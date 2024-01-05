@@ -31,7 +31,7 @@ To import a module, you need to use the `import` keyword, followed by the name o
 Example:
 
 ```ruda
-import "math"
+import "math.rd"
 
 fun main() {
     let result = math.add(1, 2)
@@ -48,7 +48,7 @@ You can also alias a module using the `as` keyword.
 Example:
 
 ```ruda
-import "math" as m
+import "math.rd" as m
 
 fun main() {
     let result = m.add(1, 2)
