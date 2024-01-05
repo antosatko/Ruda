@@ -15,7 +15,7 @@ fun greet() {
 This defines a function called `greet`. Now we can call the function.
 
 ```ruda
-import "std.io"
+import "#io"
 
 fun greet() {
     io.println("Hello world")
@@ -70,6 +70,8 @@ Functions can only return one value which can be of any type.
 
 
 ## Anonymous functions
+
+> ⚠️ Planned for the next update ⚠️
 
 Functions can be defined without a name. These are called anonymous functions.
 
