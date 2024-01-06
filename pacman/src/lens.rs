@@ -1068,6 +1068,7 @@ struct File {
 pub mod bin_lens {
     use std::fmt::format;
 
+    use iced::{executor::Default, widget::{text_input, TextInput}};
     use stringify::Data;
 
     use super::*;
@@ -1075,7 +1076,13 @@ pub mod bin_lens {
     #[derive(Debug, Clone)]
     pub enum States {
         Main,
-        Search(String),
+        Heap,
+        Stack,
+        Strings,
+        Libs,
+        EntryPoint,
+        Instructions,
+        NonPrimitives,
     }
 
     #[derive(Debug, Clone)]
@@ -1087,6 +1094,9 @@ pub mod bin_lens {
     #[derive(Debug, Clone)]
     pub enum Message {
         Navigation(Navigation),
+        Page(States),
+        Search(String),
+        SearchSubmit,
     }
 
     pub struct BinLens {
@@ -1094,6 +1104,7 @@ pub mod bin_lens {
         history: (usize, Vec<States>),
         data: Data,
         project_name: String,
+        search: String,
     }
 
     impl BinLens {
@@ -1112,6 +1123,60 @@ pub mod bin_lens {
             self.history.0 += 1;
             self.state = self.history.1[self.history.0].clone();
         }
+
+        /// Returns true if the object should be displayed.
+        /// 
+        /// Each search is ranked based on the following criteria:
+        /// 1. Search is empty: full points
+        /// 2. The object's name equals the search (case sensitive): 1/1 points
+        /// 3. The object's name equals the search (case insensitive): 1/2 points
+        /// 4. The object's name contains the search (case sensitive): 1/3 points
+        /// 5. The object's name contains the search (case insensitive): 1/4 points
+        /// 
+        /// If none of the above are true, the object will be ranked based on the following criteria:
+        /// Characters in the search that are in the same order as in the object's name will be counted where each consecutive match will be worth the last match's points + match worth.
+        /// Match worth is determined by whether the match is case sensitive or not. (case sensitive: 1, case insensitive: 1/2)
+        /// 
+        pub fn searched(&self, search: &str) -> Option<i32> {
+            if self.search.len() == 0 {
+                return Some(i32::MAX);
+            }
+            if self.search == search {
+                return Some(i32::MAX);
+            }
+            if search.to_lowercase() == self.search.to_lowercase() {
+                return Some(i32::MAX / 2);
+            }
+            if search.contains(&self.search) {
+                return Some(i32::MAX / 3);
+            }
+            if search.to_lowercase().contains(&self.search.to_lowercase()) {
+                return Some(i32::MAX / 4);
+            }
+
+            let mut points = 0;
+            let mut last_match = 0;
+            let mut search_chars = self.search.chars();
+            for char in search.chars() {
+                if let Some(search_char) = search_chars.next() {
+                    if char == search_char {
+                        points += last_match + 2;
+                        last_match += 2;
+                    } else if char.to_lowercase().next() == search_char.to_lowercase().next() {
+                        points += last_match + 1;
+                        last_match += 1;
+                    } else {
+                        last_match = 0;
+                    }
+                } else {
+                    break;
+                }
+            }
+            if points == 0 {
+                return None
+            }
+            Some(points)
+        }
     }
 
     impl Application for BinLens {
@@ -1122,6 +1187,7 @@ pub mod bin_lens {
                     history: (0, Vec::new()),
                     data: flags.objects,
                     project_name: flags.project_name,
+                    search: String::new(),
                 },
                 Command::none(),
             )
@@ -1143,6 +1209,20 @@ pub mod bin_lens {
                         iced::Command::none()
                     }
                 },
+                Message::Page(page) => {
+                    self.history.1.truncate(self.history.0);
+                    self.history.0 += 1;
+                    self.history.1.push(self.state.clone());
+                    self.state = page.clone();
+                    iced::Command::none()
+                }
+                Message::Search(txt) => {
+                    self.search = txt.clone();
+                    iced::Command::none()
+                }
+                Message::SearchSubmit => {
+                    iced::Command::none()
+                }
             }
         }
 
@@ -1155,20 +1235,90 @@ pub mod bin_lens {
         }
 
         fn view(&self) -> Element<'_, Self::Message> {
-            return text::Text::new("Hello world!").into();
-            /*let mut navigation = Row::new()
-                .push(
-                    Button::new(text::Text::new("Back"))
-                        .on_press(Message::Navigation(Navigation::Back)),
-                )
-                .push(
-                    Button::new(text::Text::new("Forward"))
-                        .on_press(Message::Navigation(Navigation::Forward)),
-                );
-            match self.state {
-                States::Main => todo!(),
-                States::Search(_) => todo!(),
-            }*/
+            let config = Column::new().spacing(10)
+            .push(
+                TextInput::new(
+                    "Search",
+                    &self.search,
+                ).on_input(Message::Search)
+                .on_submit(Message::SearchSubmit)
+                .width(iced::Length::Fixed(350.))
+            );
+            let navigation = Row::new()
+            .push(
+                Button::new(text::Text::new("Back"))
+                    .on_press(Message::Navigation(Navigation::Back)),
+            )
+            .push(
+                Button::new(text::Text::new("Forward"))
+                    .on_press(Message::Navigation(Navigation::Forward)),
+            );
+            
+            let mut config = config.push(container::Container::new(navigation));
+            match &self.state {
+                States::Main => {
+                    // table of contents
+                    config = config.push(text("Table of contents:"));
+                    let heap = Button::new(text::Text::new("Heap"))
+                        .on_press(Message::Page(States::Heap));
+                    let stack = Button::new(text::Text::new("Stack"))
+                        .on_press(Message::Page(States::Stack));
+                    let strings = Button::new(text::Text::new("Strings"))
+                        .on_press(Message::Page(States::Strings));
+                    let libs = Button::new(text::Text::new("Libs"))
+                        .on_press(Message::Page(States::Libs));
+                    let entry_point = Button::new(text::Text::new("Entry point"))
+                        .on_press(Message::Page(States::EntryPoint));
+                    let instructions = Button::new(text::Text::new("Instructions"))
+                        .on_press(Message::Page(States::Instructions));
+                    let non_primitives = Button::new(text::Text::new("Non primitives"))
+                        .on_press(Message::Page(States::NonPrimitives));
+                    config = config
+                        .push(heap)
+                        .push(stack)
+                        .push(strings)
+                        .push(libs)
+                        .push(entry_point)
+                        .push(instructions)
+                        .push(non_primitives);
+                    
+                },
+                States::Strings => {
+                    // idx. content
+                    let mut strings = Vec::new();
+                    for string in self.data.strings.iter().enumerate() {
+                        let rank = match self.searched(string.1) {
+                            Some(rank) => rank,
+                            None => continue,
+                        };
+                        strings.push((string.0, rank));
+                    }
+                    strings.sort_by(|a, b| b.1.cmp(&a.1));
+                    let mut temp = Column::new().spacing(10);
+                    for string in strings {
+                        temp = temp.push(text(format!("{}: {}", string.0, self.data.strings[string.0])));
+                    }
+                    config = config.push(temp);
+                    config = config.push(text(format!("Total count: {}", self.data.strings.len())))
+                        .push(text(format!(
+                            "Total size: {}",
+                            self.data.strings.iter().fold(0, |acc, string| acc + string.len())
+                        )));
+
+                }
+                States::Heap => todo!(),
+                States::Stack => todo!(),
+                States::Libs => todo!(),
+                States::EntryPoint => todo!(),
+                States::Instructions => todo!(),
+                States::NonPrimitives => todo!(),
+            }
+            let scrollable = scrollable::Scrollable::new(config)
+                .height(iced::Length::Fill)
+                .width(iced::Length::Fill);
+            container::Container::new(scrollable)
+                .padding(10)
+                .into()
         }
 
         type Executor = executor::Default;
