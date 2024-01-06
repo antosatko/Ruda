@@ -1068,7 +1068,10 @@ struct File {
 pub mod bin_lens {
     use std::fmt::format;
 
-    use iced::{executor::Default, widget::{text_input, TextInput}};
+    use iced::{
+        executor::Default,
+        widget::{text_input, TextInput},
+    };
     use stringify::Data;
 
     use super::*;
@@ -1125,18 +1128,18 @@ pub mod bin_lens {
         }
 
         /// Returns true if the object should be displayed.
-        /// 
+        ///
         /// Each search is ranked based on the following criteria:
         /// 1. Search is empty: full points
         /// 2. The object's name equals the search (case sensitive): 1/1 points
         /// 3. The object's name equals the search (case insensitive): 1/2 points
         /// 4. The object's name contains the search (case sensitive): 1/3 points
         /// 5. The object's name contains the search (case insensitive): 1/4 points
-        /// 
+        ///
         /// If none of the above are true, the object will be ranked based on the following criteria:
         /// Characters in the search that are in the same order as in the object's name will be counted where each consecutive match will be worth the last match's points + match worth.
         /// Match worth is determined by whether the match is case sensitive or not. (case sensitive: 1, case insensitive: 1/2)
-        /// 
+        ///
         pub fn searched(&self, search: &str) -> Option<i32> {
             if self.search.len() == 0 {
                 return Some(i32::MAX);
@@ -1173,7 +1176,7 @@ pub mod bin_lens {
                 }
             }
             if points == 0 {
-                return None
+                return None;
             }
             Some(points)
         }
@@ -1220,9 +1223,7 @@ pub mod bin_lens {
                     self.search = txt.clone();
                     iced::Command::none()
                 }
-                Message::SearchSubmit => {
-                    iced::Command::none()
-                }
+                Message::SearchSubmit => iced::Command::none(),
             }
         }
 
@@ -1235,38 +1236,35 @@ pub mod bin_lens {
         }
 
         fn view(&self) -> Element<'_, Self::Message> {
-            let config = Column::new().spacing(10)
-            .push(
-                TextInput::new(
-                    "Search",
-                    &self.search,
-                ).on_input(Message::Search)
-                .on_submit(Message::SearchSubmit)
-                .width(iced::Length::Fixed(350.))
+            let config = Column::new().spacing(10).push(
+                TextInput::new("Search", &self.search)
+                    .on_input(Message::Search)
+                    .on_submit(Message::SearchSubmit)
+                    .width(iced::Length::Fixed(350.)),
             );
             let navigation = Row::new()
-            .push(
-                Button::new(text::Text::new("Back"))
-                    .on_press(Message::Navigation(Navigation::Back)),
-            )
-            .push(
-                Button::new(text::Text::new("Forward"))
-                    .on_press(Message::Navigation(Navigation::Forward)),
-            );
-            
+                .push(
+                    Button::new(text::Text::new("Back"))
+                        .on_press(Message::Navigation(Navigation::Back)),
+                )
+                .push(
+                    Button::new(text::Text::new("Forward"))
+                        .on_press(Message::Navigation(Navigation::Forward)),
+                );
+
             let mut config = config.push(container::Container::new(navigation));
             match &self.state {
                 States::Main => {
                     // table of contents
                     config = config.push(text("Table of contents:"));
-                    let heap = Button::new(text::Text::new("Heap"))
-                        .on_press(Message::Page(States::Heap));
+                    let heap =
+                        Button::new(text::Text::new("Heap")).on_press(Message::Page(States::Heap));
                     let stack = Button::new(text::Text::new("Stack"))
                         .on_press(Message::Page(States::Stack));
                     let strings = Button::new(text::Text::new("Strings"))
                         .on_press(Message::Page(States::Strings));
-                    let libs = Button::new(text::Text::new("Libs"))
-                        .on_press(Message::Page(States::Libs));
+                    let libs =
+                        Button::new(text::Text::new("Libs")).on_press(Message::Page(States::Libs));
                     let entry_point = Button::new(text::Text::new("Entry point"))
                         .on_press(Message::Page(States::EntryPoint));
                     let instructions = Button::new(text::Text::new("Instructions"))
@@ -1281,8 +1279,7 @@ pub mod bin_lens {
                         .push(entry_point)
                         .push(instructions)
                         .push(non_primitives);
-                    
-                },
+                }
                 States::Strings => {
                     // idx. content
                     let mut strings = Vec::new();
@@ -1296,15 +1293,21 @@ pub mod bin_lens {
                     strings.sort_by(|a, b| b.1.cmp(&a.1));
                     let mut temp = Column::new().spacing(10);
                     for string in strings {
-                        temp = temp.push(text(format!("{}: {}", string.0, self.data.strings[string.0])));
+                        temp = temp.push(text(format!(
+                            "{}: {}",
+                            string.0, self.data.strings[string.0]
+                        )));
                     }
                     config = config.push(temp);
-                    config = config.push(text(format!("Total count: {}", self.data.strings.len())))
+                    config = config
+                        .push(text(format!("Total count: {}", self.data.strings.len())))
                         .push(text(format!(
                             "Total size: {}",
-                            self.data.strings.iter().fold(0, |acc, string| acc + string.len())
+                            self.data
+                                .strings
+                                .iter()
+                                .fold(0, |acc, string| acc + string.len())
                         )));
-
                 }
                 States::Heap => todo!(),
                 States::Stack => todo!(),
@@ -1316,9 +1319,7 @@ pub mod bin_lens {
             let scrollable = scrollable::Scrollable::new(config)
                 .height(iced::Length::Fill)
                 .width(iced::Length::Fill);
-            container::Container::new(scrollable)
-                .padding(10)
-                .into()
+            container::Container::new(scrollable).padding(10).into()
         }
 
         type Executor = executor::Default;
