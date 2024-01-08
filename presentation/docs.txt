@@ -9,11 +9,6 @@ překladač
         - popis parsovacího postupu
         - syntax parseru
 
-bytecode
-    - popis
-    - vlastní vs nativní
-    - výhody a nevýhody
-
 virtuální stroj
     - popis instrukcí
     - popis běhu programu
@@ -30,6 +25,11 @@ schopnost skriptování
     - výhody a nevýhody
     - problémy využití jako skriptovací jazyk
 
+bytecode
+    - popis
+    - vlastní vs nativní
+    - výhody a nevýhody
+
 standardní knihovna
     - popis
     - grafická část
@@ -37,9 +37,9 @@ standardní knihovna
 
 nástroje pro práci s jazykem
     - dokumentace
-    - syntax highlighting
     - package manager
     - grafický inspektor struktury projektu/bytecode
+    - syntax highlighting
 
 instalace
     - podporované platformy (windows, plán na linux)

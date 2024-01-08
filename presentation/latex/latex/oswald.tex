@@ -1,0 +1,116 @@
+\documentclass[danish,a4paper,11pt]{scrartcl}
+\usepackage{babel}
+\usepackage{slantsc}
+\usepackage{array}
+\usepackage{amsmath}
+\setkomafont{subsection}{\usefont{T1}{fvm}{m}{n}}
+\setkomafont{section}{\usefont{T1}{fvs}{b}{n}\Large}
+\setcounter{secnumdepth}{0}
+\pagestyle{empty}
+\usepackage{Oswald}
+\usepackage[T1]{fontenc}
+
+\begin{document}
+\section*{Oswald}
+\subsection*{\textbackslash normalfont}
+\normalfont
+  For mange Aar siden levede en Keiser, som holdt saa uhyre meget af
+   smukke nye Kl\ae der, at han gav alle sine Penge ud for ret at blive
+   pyntet. Han br\o d sig ikke om sine Soldater, br\o d sig ei om
+   Comedie eller om at kj\o re i Skoven, uden alene for at vise sine
+   nye Kl\ae der. Han havde en Kjole for hver Time paa Dagen, og
+   ligesom man siger om en Konge, han er i Raadet, saa sagde man altid
+   her: >>Keiseren er i Garderoben!<<~--
+
+\subsection*{\textbackslash bfseries}
+\normalfont\bfseries
+  For mange Aar siden levede en Keiser, som holdt saa uhyre meget af
+   smukke nye Kl\ae der, at han gav alle sine Penge ud for ret at blive
+   pyntet. Han br\o d sig ikke om sine Soldater, br\o d sig ei om
+   Comedie eller om at kj\o re i Skoven, uden alene for at vise sine
+   nye Kl\ae der. Han havde en Kjole for hver Time paa Dagen, og
+   ligesom man siger om en Konge, han er i Raadet, saa sagde man altid
+   her: >>Keiseren er i Garderoben!<<~--
+
+\newpage
+\normalfont
+\section*{Font table}
+ \def\tfont{\usefont{T1}{fve}{m}{n}\selectfont}
+ \newcount\currchar
+ \currchar0
+ \def\showchar{\makebox[.09\linewidth]{\strut\char\currchar\hfill\tfont\tiny\the\currchar}
+   \global\advance\currchar1}
+ 
+ \begin{tabular}{|>{\tfont\strut}l|l|l|l|l|l|l|l|l|}
+   \hline
+   & \hfill\tfont'0 & \hfill\tfont'1 & \hfill\tfont'2 & \hfill\tfont'3
+   & \hfill\tfont'4 & \hfill\tfont'5 & \hfill\tfont'6 & \hfill\tfont'7
+   \\ \hline
+   '00x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '01x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '02x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '03x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '04x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '05x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '06x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '07x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '08x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '09x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '10x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '11x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '12x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '13x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '14x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '15x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '16x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '17x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '18x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '19x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '20x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '21x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '22x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '23x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '24x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '25x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '26x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '27x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '28x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '29x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '30x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+   '31x & \showchar & \showchar & \showchar & \showchar & \showchar &
+   \showchar & \showchar & \showchar \\\hline 
+ \end{tabular}
+
+
+\end{document}

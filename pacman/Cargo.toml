@@ -17,6 +17,7 @@ serde_either = "0.2.1"
 compiler = { path = "../compiler" }
 iced = { git = "https://github.com/iced-rs/iced.git", rev = "refs/tags/text-editor", features = ["debug"] }
 stringify ={ path = "../vm/stringify" }
+runtime = { path = "../vm/runtime" }
 
 [profile.dev]
 opt-level = 3

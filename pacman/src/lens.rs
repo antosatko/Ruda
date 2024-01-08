@@ -1066,12 +1066,13 @@ struct File {
 }
 
 pub mod bin_lens {
-    use std::fmt::format;
+
+    use std::vec;
 
     use iced::{
-        executor::Default,
-        widget::{text_input, TextInput},
+        widget::{TextInput},
     };
+    use runtime::runtime_types::{Types, PointerTypes, Instructions};
     use stringify::Data;
 
     use super::*;
@@ -1102,12 +1103,18 @@ pub mod bin_lens {
         SearchSubmit,
     }
 
+    pub struct LensInstructions {
+        pub instructions: HashMap<String, Vec<Instructions>>,
+        pub entry_point: (String, usize),
+    }
+
     pub struct BinLens {
         state: States,
         history: (usize, Vec<States>),
         data: Data,
         project_name: String,
         search: String,
+        instructions: LensInstructions,
     }
 
     impl BinLens {
@@ -1180,10 +1187,77 @@ pub mod bin_lens {
             }
             Some(points)
         }
+
+        fn print_value(&self, value: Types) -> String {
+            match &value {
+                Types::Bool(val) => format!("bool: {}", val),
+                Types::Int(val) => format!("int: {}", val),
+                Types::Float(val) => format!("float: {}", val),
+                Types::Uint(val) => format!("uint: {}", val),
+                Types::Char(val) => format!("char: {}", val),
+                Types::Function(val) => format!("function: {}", val), // todo: print function
+                Types::Null => format!("null"),
+                Types::Pointer(loc, kind) => {
+                    let mut res = String::from(format!("Pointer({loc}, {kind}): "));
+                    match kind {
+                        PointerTypes::Char(c) => {
+                            res.push_str(format!("{}", c).as_str());
+                        }
+                        PointerTypes::Stack => {
+                            res.push_str(&format!("{}", self.print_value(self.data.values[*loc])));
+                        }
+                        PointerTypes::Object => {
+                            res.push_str(&format!("{}", self.print_value(self.data.heap[*loc][0])));
+                        }
+                        PointerTypes::Heap(pos) => {
+                            res.push_str(&format!("{}", self.print_value(self.data.heap[*loc][*pos])));
+                        }
+                        PointerTypes::String => {
+                            res.push_str(&format!("{}", self.data.strings[*loc]));
+                        }
+                        PointerTypes::UserData => res.push_str("UserData"),
+                    }
+                    res
+                }
+                Types::NonPrimitive(idx) => {
+                    format!("NonPrimitive({}): {}", idx, self.data.non_primitives[*idx].name)
+                }
+                Types::Void => format!("*void*"),
+            }
+        }
     }
 
     impl Application for BinLens {
         fn new(flags: BinLensFlags) -> (BinLens, iced::Command<Message>) {
+            let mut instructions = HashMap::new();
+            match &flags.objects.debug {
+                Some(debug) => {
+                    println!("{:?}", debug.lines);
+                    if debug.lines.len() == 0 {
+                        let mut all = Vec::new();
+                        for instruction in flags.objects.instructions.iter() {
+                            all.push(instruction.clone());
+                        }
+                        instructions.insert(String::from("main"), all);
+                    }
+                    let mut idx = 0;
+                    for line in &debug.lines {
+                        let mut all = Vec::new();
+                        for i in idx..line.pos {
+                            all.push(flags.objects.instructions[i].clone());
+                        }
+                        idx = line.pos;
+                        instructions.insert(debug.labels[line.label.unwrap()].msg.clone(), all);
+                    }
+                }
+                None => {
+                    let mut all = Vec::new();
+                    for instruction in flags.objects.instructions.iter() {
+                        all.push(instruction.clone());
+                    }
+                    instructions.insert(String::from("main"), all);
+                }
+            }
             (
                 Self {
                     state: States::Main,
@@ -1191,6 +1265,10 @@ pub mod bin_lens {
                     data: flags.objects,
                     project_name: flags.project_name,
                     search: String::new(),
+                    instructions: LensInstructions {
+                        instructions,
+                        entry_point: (String::new(), 0),
+                    },
                 },
                 Command::none(),
             )
@@ -1259,7 +1337,7 @@ pub mod bin_lens {
                     config = config.push(text("Table of contents:"));
                     let heap =
                         Button::new(text::Text::new("Heap")).on_press(Message::Page(States::Heap));
-                    let stack = Button::new(text::Text::new("Stack"))
+                    let stack = Button::new(text::Text::new("Constants"))
                         .on_press(Message::Page(States::Stack));
                     let strings = Button::new(text::Text::new("Strings"))
                         .on_press(Message::Page(States::Strings));
@@ -1309,12 +1387,91 @@ pub mod bin_lens {
                                 .fold(0, |acc, string| acc + string.len())
                         )));
                 }
+                States::Stack => {
+                    // idx. value
+                    let mut stack = Vec::new();
+                    for value in self.data.values.iter().enumerate() {
+                        let rank = match self.searched(&self.print_value(value.1.clone())) {
+                            Some(rank) => rank,
+                            None => continue,
+                        };
+                        stack.push((value.0, rank));
+                    }
+                    stack.sort_by(|a, b| b.1.cmp(&a.1));
+                    let mut temp = Column::new();
+                    for value in stack {
+                        temp = temp.push(text(format!(
+                            "{}: {}",
+                            value.0,
+                            self.print_value(self.data.values[value.0].clone())
+                        ))).width(iced::Length::Fill);
+                    }
+                    config = config.push(temp);
+                    config = config.push(text(format!(
+                        "Total count: {}",
+                        self.data.values.len()
+                    )));
+                },
                 States::Heap => todo!(),
-                States::Stack => todo!(),
                 States::Libs => todo!(),
                 States::EntryPoint => todo!(),
-                States::Instructions => todo!(),
-                States::NonPrimitives => todo!(),
+                States::Instructions => {
+                    let mut instructions = Vec::new();
+                    for instruction in self.instructions.instructions.iter() {
+                        let rank = match self.searched(instruction.0) {
+                            Some(rank) => rank,
+                            None => continue,
+                        };
+                        instructions.push((instruction.0.clone(), rank));
+                    }
+                    instructions.sort_by(|a, b| b.1.cmp(&a.1));
+                    let mut temp = Column::new().spacing(10);
+                    for instruction in instructions {
+                        temp = temp.push(text(format!(
+                            "{}: {}",
+                            instruction.0,
+                            self.instructions.instructions[&instruction.0]
+                                .iter()
+                                .fold(String::new(), |acc, instruction| {
+                                    format!("{}\n{}", acc, instruction)
+                                })
+                        )).width(iced::Length::Fill));
+                    }
+                    config = config.push(temp);
+                    config = config.push(text(format!(
+                        "Total count: {}",
+                        self.instructions.instructions.len()
+                    )));
+                }
+                States::NonPrimitives => {
+                    let mut non_primitives = Vec::new();
+                    for non_primitive in self.data.non_primitives.iter().enumerate() {
+                        let rank = match self.searched(&non_primitive.1.name) {
+                            Some(rank) => rank,
+                            None => continue,
+                        };
+                        non_primitives.push((non_primitive.0, rank));
+                    }
+                    non_primitives.sort_by(|a, b| b.1.cmp(&a.1));
+                    let mut temp = Column::new().spacing(10);
+                    for non_primitive in non_primitives {
+                        temp = temp.push(text(format!(
+                            "{}: {}",
+                            non_primitive.0, self.data.non_primitives[non_primitive.0].name
+                        )));
+                        temp = temp.push(text(format!(
+                            "\t- Size: {}, Kind: {}, Ptrs: {}",
+                            self.data.non_primitives[non_primitive.0].len,
+                            self.data.non_primitives[non_primitive.0].kind,
+                            self.data.non_primitives[non_primitive.0].pointers,
+                        )));
+                    }
+                    config = config.push(temp);
+                    config = config.push(text(format!(
+                        "Total count: {}",
+                        self.data.non_primitives.len()
+                    )));
+                }
             }
             let scrollable = scrollable::Scrollable::new(config)
                 .height(iced::Length::Fill)
