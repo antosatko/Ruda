@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.25 (MiKTeX 23.10.12) (preloaded format=pdflatex 2023.12.25)  9 JAN 2024 00:14
+This is pdfTeX, Version 3.141592653-2.6-1.40.25 (MiKTeX 23.10.12) (preloaded format=pdflatex 2023.12.25)  11 JAN 2024 00:19
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -752,12 +752,12 @@ LaTeX Font Info:    Trying to load font information for T1+phv on input line 23
  (C:\Users\Unknown\AppData\Local\Programs\MiKTeX\tex/latex/psnfss\t1phv.fd
 File: t1phv.fd 2020/03/25 scalable font definitions for T1/phv.
 )
-<image/logo-skoly.png, id=128, 356.2911pt x 137.5539pt>
+<image/logo-skoly.png, id=124, 356.2911pt x 137.5539pt>
 File: image/logo-skoly.png Graphic file (type png)
 <use image/logo-skoly.png>
 Package pdftex.def Info: image/logo-skoly.png  used on input line 236.
 (pdftex.def)             Requested size: 273.14923pt x 105.45715pt.
-<image/logo.png, id=130, 385.44pt x 385.44pt>
+<image/logo.png, id=126, 385.44pt x 385.44pt>
 File: image/logo.png Graphic file (type png)
 <use image/logo.png>
 Package pdftex.def Info: image/logo.png  used on input line 254.
@@ -841,7 +841,7 @@ Kapitola 1.
 
 ]
 Kapitola 2.
-<image/lexer.png, id=212, 419.5675pt x 246.9225pt>
+<image/lexer.png, id=207, 419.5675pt x 246.9225pt>
 File: image/lexer.png Graphic file (type png)
 <use image/lexer.png>
 Package pdftex.def Info: image/lexer.png  used on input line 381.
@@ -855,11 +855,17 @@ nput line 390.
 Kapitola 3.
 [11
 
-] [12
-
 ]
+<image/memory.png, id=257, 864.22874pt x 546.04pt>
+File: image/memory.png Graphic file (type png)
+<use image/memory.png>
+Package pdftex.def Info: image/memory.png  used on input line 470.
+(pdftex.def)             Requested size: 364.19667pt x 230.10176pt.
+ [12 <./image/memory.png>]
 Kapitola 4.
-[13] [14
+[13
+
+] [14
 
 ]
 Kapitola 5.
@@ -875,7 +881,7 @@ Kapitola 7.
 
 ]
 LaTeX Font Info:    Trying to load font information for T1+cmtt on input line 5
-07.
+25.
 
 (C:\Users\Unknown\AppData\Local\Programs\MiKTeX\tex/latex/base\t1cmtt.fd
 File: t1cmtt.fd 2023/04/13 v2.5m Standard LaTeX font definitions
@@ -899,13 +905,13 @@ L3 programming layer <2023-12-11>
  ***********
 Package rerunfilecheck Info: File `sablona-zaverecne-prace.out' has not changed
 .
-(rerunfilecheck)             Checksum: 80D28870749027E611D18E5BAC141A2A;4296.
+(rerunfilecheck)             Checksum: DDD474835196A81AF5C5976E0F6F4F8B;4141.
  ) 
 Here is how much of TeX's memory you used:
- 18028 strings out of 474495
- 292644 string characters out of 5742990
+ 18044 strings out of 474495
+ 292924 string characters out of 5742990
  1938460 words of memory out of 5000000
- 39844 multiletter control sequences out of 15000+600000
+ 39860 multiletter control sequences out of 15000+600000
  624051 words of font info for 103 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
  79i,11n,93p,922b,1057s stack positions out of 10000i,1000n,20000p,200000b,200000s
@@ -915,9 +921,9 @@ tic/uhvb8a.pfb><C:/Users/Unknown/AppData/Local/Programs/MiKTeX/fonts/type1/urw/
 times/utmb8a.pfb><C:/Users/Unknown/AppData/Local/Programs/MiKTeX/fonts/type1/ur
 w/times/utmr8a.pfb><C:/Users/Unknown/AppData/Local/Programs/MiKTeX/fonts/type1/
 urw/times/utmri8a.pfb>
-Output written on sablona-zaverecne-prace.pdf (25 pages, 217178 bytes).
+Output written on sablona-zaverecne-prace.pdf (25 pages, 282588 bytes).
 PDF statistics:
- 413 PDF objects out of 1000 (max. 8388607)
+ 411 PDF objects out of 1000 (max. 8388607)
  97 named destinations out of 1000 (max. 500000)
- 284 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 281 words of extra memory for PDF output out of 10000 (max. 10000000)
 

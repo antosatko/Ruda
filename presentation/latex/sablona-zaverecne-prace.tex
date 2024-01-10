@@ -435,26 +435,44 @@ WritePtr(GENERAL_REG1)
 Write(a_stack_pos, POINTER_REG)  
 \end{lstlisting}
 
-Výraz vytvoří proměnnou a, do které zapíše ukazatel na hodnotu 60, která je uložená na haldě. Bytecode nejprve přečte hodnotu 60 z paměti a uloží ji do registru GENERAL-REG0. Potom na haldě vytvoří místo pro jednu hodnotu a ukazatel se automaticky uloží do registru POINTER-REG, který potom využije instrukce WritePtr, k tomu, aby na něj zapsala hodnotu z GENERAL-REG1, která je stále číslo 60. Už jenom potřebuje zapsat ukazatel, který stále přebývá v POINTER-REG do pozice na stacku vyhrazené pro proměnnou a. Tím tenhle příklad končí, ale je nutné vědět, že takhle bude bytecode vypadat až po optimalizaci. Generátor kódu je poměrně hloupí a nestará se ani o budoucnost, ani o minulost. Vždy zohledňuje pouze nejhorší možný případ a vytváří přitom poměrně nekvalitní a hlavně pomalý kód.
+Výraz vytvoří proměnnou a, do které zapíše ukazatel na hodnotu 60, která je uložená na haldě. Bytecode nejprve přečte hodnotu 60 z paměti a uloží ji do registru GENERAL-REG0. Potom na haldě vytvoří místo pro jednu hodnotu a ukazatel se automaticky uloží do registru POINTER-REG, který potom využije instrukce WritePtr, k tomu, aby na něj zapsala hodnotu z GENERAL-REG1, která je stále číslo 60. Už jenom potřebuje zapsat ukazatel, který stále přebývá v POINTER-REG do pozice na stacku vyhrazené pro proměnnou a.
 
+Tím tenhle příklad končí, ale je nutné vědět, že takhle bude bytecode vypadat až po optimalizaci. Generátor kódu je sám o sobě hloupí a nestará se o žádné stavy. Vždy zohledňuje pouze nejhorší možný případ a vytváří přitom poměrně nekvalitní a hlavně pomalý kód.
 
 \subsection{Optimalizace}
 
 \chapter{Virtuální stroj}
 
-\section{Popis}
+V minulé kapitole jsme prošli, jak ze zdrojového kódu vznikne program. Zde se zaměříme na jeho spuštění pomocí Ruda VM, který je zodpovědný za provedení Ruda programů.
 
-\subsection{Instrukcí}
+\section{Vlastnosti}
+
+\subsection{Instrukce}
+
+Instrukce jsou jedna ze částí Ruda bytecode. Jde o jednoduché pokyny, popisující co má provést Ruda VM. Jednotlivé instrukce jsou navrhnuté, pro co nejširší možné využití v rámci uzavřeného runtimu. 
+
+Právě proto lze Rudu použít tam, kde je bezpečnost priorita, pokud se povolí pouze moduly standardní knihovny pracující nezávisle na systému. Díky této vlastnosti by v budoucnu mohla Ruda běžet například na serverech, nebo jako skriptovací jazyk v jiném programu.
+
+Pro referenci jednotlivých instrukcí doporučuji prohlédnout přímo zdrojový kód runtimu, který lze nalézt na https://github.com/it-2001/Ruda/blob/main/vm/runtime/src/lib.rs. Zde můžete vyhledat "enum Instructions" (okolo řádku 2500), kde jsou všechny instrukce popsané.
 
 \subsection{Běh programu}
 
+Samotné jádro Rudy je pouze knihovna, nelze tudíž spustit přímo. K tomu pomáhá program Ruda VM, který zpracuje bytecode a připraví podle něj příslušné prostředí pro běh. Kromě toho podává zprávy o stavu, parsuje vstupní argumenty a připravuje potřebné knihovny.
+
+Poté, co Ruda VM připraví vše nutné, tak teprve spustí Ruda program. Instrukce běží sériově, dokud nenarazí na problém, nebo konec programu označený instrukcí End.
+
 \subsection{Model paměti}
+
+\lipsum[80]
+
+\begin{figure}[h]
+	\centering
+	\includegraphics[width=0.8\linewidth]{image/memory.png}
+\end{figure}
 
 \section{Garbage collector}
 
 \section{Rozšíření pomocí dynamických knihoven}
-
-\section{Nevýhody využití Rustu}
 
 \section{Schopnost skriptování}
 
