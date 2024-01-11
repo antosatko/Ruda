@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.25 (MiKTeX 23.10.12) (preloaded format=pdflatex 2023.12.25)  11 JAN 2024 00:19
+This is pdfTeX, Version 3.141592653-2.6-1.40.25 (MiKTeX 23.10.12) (preloaded format=pdflatex 2023.12.25)  11 JAN 2024 23:23
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -641,24 +641,24 @@ Package: lipsum 2021-09-20 v2.7 150 paragraphs of Lorem Ipsum dummy text
 )) (sablona-zaverecne-prace.aux)
 \openout1 = `sablona-zaverecne-prace.aux'.
 
-LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 222.
-LaTeX Font Info:    ... okay on input line 222.
-LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 222.
-LaTeX Font Info:    ... okay on input line 222.
-LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 222.
-LaTeX Font Info:    ... okay on input line 222.
-LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 222.
-LaTeX Font Info:    ... okay on input line 222.
-LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 222.
-LaTeX Font Info:    ... okay on input line 222.
-LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 222.
-LaTeX Font Info:    ... okay on input line 222.
-LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 222.
-LaTeX Font Info:    ... okay on input line 222.
-LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 222.
-LaTeX Font Info:    ... okay on input line 222.
-LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 222.
-LaTeX Font Info:    ... okay on input line 222.
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 234.
+LaTeX Font Info:    ... okay on input line 234.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 234.
+LaTeX Font Info:    ... okay on input line 234.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 234.
+LaTeX Font Info:    ... okay on input line 234.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 234.
+LaTeX Font Info:    ... okay on input line 234.
+LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 234.
+LaTeX Font Info:    ... okay on input line 234.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 234.
+LaTeX Font Info:    ... okay on input line 234.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 234.
+LaTeX Font Info:    ... okay on input line 234.
+LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 234.
+LaTeX Font Info:    ... okay on input line 234.
+LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 234.
+LaTeX Font Info:    ... okay on input line 234.
 
 *geometry* driver: auto-detecting
 *geometry* detected driver: pdftex
@@ -724,7 +724,7 @@ Package caption Info: Begin \AtBeginDocument code.
 Package caption Info: hyperref package is loaded.
 Package caption Info: listings package is loaded.
 Package caption Info: End \AtBeginDocument code.
-Package hyperref Info: Link coloring OFF on input line 222.
+Package hyperref Info: Link coloring OFF on input line 234.
  (sablona-zaverecne-prace.out) (sablona-zaverecne-prace.out)
 \@outlinefile=\write3
 \openout3 = `sablona-zaverecne-prace.out'.
@@ -747,69 +747,69 @@ Package pdflscape Info: Auto-detected driver: pdftex on input line 81.
 \c@mv@tabular=\count327
 \c@mv@boldtabular=\count328
 \c@lstlisting=\count329
-LaTeX Font Info:    Trying to load font information for T1+phv on input line 23
-2.
+LaTeX Font Info:    Trying to load font information for T1+phv on input line 24
+4.
  (C:\Users\Unknown\AppData\Local\Programs\MiKTeX\tex/latex/psnfss\t1phv.fd
 File: t1phv.fd 2020/03/25 scalable font definitions for T1/phv.
 )
 <image/logo-skoly.png, id=124, 356.2911pt x 137.5539pt>
 File: image/logo-skoly.png Graphic file (type png)
 <use image/logo-skoly.png>
-Package pdftex.def Info: image/logo-skoly.png  used on input line 236.
+Package pdftex.def Info: image/logo-skoly.png  used on input line 248.
 (pdftex.def)             Requested size: 273.14923pt x 105.45715pt.
 <image/logo.png, id=126, 385.44pt x 385.44pt>
 File: image/logo.png Graphic file (type png)
 <use image/logo.png>
-Package pdftex.def Info: image/logo.png  used on input line 254.
+Package pdftex.def Info: image/logo.png  used on input line 266.
 (pdftex.def)             Requested size: 227.62206pt x 227.61935pt.
 LaTeX Font Info:    Trying to load font information for OT1+ztmcm on input line
- 259.
+ 271.
 
 (C:\Users\Unknown\AppData\Local\Programs\MiKTeX\tex/latex/psnfss\ot1ztmcm.fd
 File: ot1ztmcm.fd 2000/01/03 Fontinst v1.801 font definitions for OT1/ztmcm.
 )<<ot1.cmap>>
 LaTeX Font Info:    Trying to load font information for OML+ztmcm on input line
- 259.
+ 271.
 
 (C:\Users\Unknown\AppData\Local\Programs\MiKTeX\tex/latex/psnfss\omlztmcm.fd
 File: omlztmcm.fd 2000/01/03 Fontinst v1.801 font definitions for OML/ztmcm.
 )<<oml.cmap>>
 LaTeX Font Info:    Trying to load font information for OMS+ztmcm on input line
- 259.
+ 271.
 
 (C:\Users\Unknown\AppData\Local\Programs\MiKTeX\tex/latex/psnfss\omsztmcm.fd
 File: omsztmcm.fd 2000/01/03 Fontinst v1.801 font definitions for OMS/ztmcm.
 )<<oms.cmap>>
 LaTeX Font Info:    Trying to load font information for OMX+ztmcm on input line
- 259.
+ 271.
 
 (C:\Users\Unknown\AppData\Local\Programs\MiKTeX\tex/latex/psnfss\omxztmcm.fd
 File: omxztmcm.fd 2000/01/03 Fontinst v1.801 font definitions for OMX/ztmcm.
 )<<omx.cmap>>
 LaTeX Font Info:    Trying to load font information for U+esint on input line 2
-59.
+71.
 
 (C:\Users\Unknown\AppData\Local\Programs\MiKTeX\tex/latex/esint\uesint.fd
 File: uesint.fd 
 )
-LaTeX Font Info:    Trying to load font information for U+rsfs on input line 25
-9.
+LaTeX Font Info:    Trying to load font information for U+rsfs on input line 27
+1.
 
 (C:\Users\Unknown\AppData\Local\Programs\MiKTeX\tex/latex/jknappen\ursfs.fd
 File: ursfs.fd 1998/03/24 rsfs font definition file (jk)
 )
 LaTeX Font Info:    Trying to load font information for OT1+ptm on input line 2
-59.
+71.
 
 (C:\Users\Unknown\AppData\Local\Programs\MiKTeX\tex/latex/psnfss\ot1ptm.fd
 File: ot1ptm.fd 2001/06/04 font definitions for OT1/ptm.
 )
 LaTeX Font Info:    Font shape `OT1/ptm/bx/n' in size <12> not available
-(Font)              Font shape `OT1/ptm/b/n' tried instead on input line 259.
+(Font)              Font shape `OT1/ptm/b/n' tried instead on input line 271.
 LaTeX Font Info:    Font shape `OT1/ptm/bx/n' in size <9> not available
-(Font)              Font shape `OT1/ptm/b/n' tried instead on input line 259.
+(Font)              Font shape `OT1/ptm/b/n' tried instead on input line 271.
 LaTeX Font Info:    Font shape `OT1/ptm/bx/n' in size <7> not available
-(Font)              Font shape `OT1/ptm/b/n' tried instead on input line 259.
+(Font)              Font shape `OT1/ptm/b/n' tried instead on input line 271.
 
 [1
 
@@ -828,60 +828,71 @@ skoly.png> <./image/logo.png>] [2] [3
 [2
 
 
+
 ]
 LaTeX Font Info:    Trying to load font information for TS1+ptm on input line 3
-41.
+53.
  (C:\Users\Unknown\AppData\Local\Programs\MiKTeX\tex/latex/psnfss\ts1ptm.fd
 File: ts1ptm.fd 2001/06/04 font definitions for TS1/ptm.
 ) [3] [4
 
+
 ]
 Kapitola 1.
 [5] [6
+
 
 ]
 Kapitola 2.
 <image/lexer.png, id=207, 419.5675pt x 246.9225pt>
 File: image/lexer.png Graphic file (type png)
 <use image/lexer.png>
-Package pdftex.def Info: image/lexer.png  used on input line 381.
+Package pdftex.def Info: image/lexer.png  used on input line 393.
 (pdftex.def)             Requested size: 227.62206pt x 133.95782pt.
 [7 <./image/lexer.png>]
 Package hyperref Info: bookmark level for unknown lstlisting defaults to 0 on i
-nput line 390.
+nput line 402.
  [8] [9
 
 ] [10]
 Kapitola 3.
 [11
 
+
 ]
-<image/memory.png, id=257, 864.22874pt x 546.04pt>
+<image/memory.png, id=256, 864.22874pt x 546.04pt>
 File: image/memory.png Graphic file (type png)
 <use image/memory.png>
-Package pdftex.def Info: image/memory.png  used on input line 470.
+Package pdftex.def Info: image/memory.png  used on input line 491.
 (pdftex.def)             Requested size: 364.19667pt x 230.10176pt.
- [12 <./image/memory.png>]
-Kapitola 4.
-[13
+ [12
 
-] [14
+ <./image/memory.png>] [13] [14
+
+
+]
+Kapitola 4.
+[15] [16
+
 
 ]
 Kapitola 5.
-[15] [16
+[17] [18
+
 
 ]
 Kapitola 6.
-[17] [18
+[19] [20
+
 
 ]
 Kapitola 7.
-[19] [20
+[21] [22
+
 
 ]
 LaTeX Font Info:    Trying to load font information for T1+cmtt on input line 5
-25.
+64.
 
 (C:\Users\Unknown\AppData\Local\Programs\MiKTeX\tex/latex/base\t1cmtt.fd
 File: t1cmtt.fd 2023/04/13 v2.5m Standard LaTeX font definitions
@@ -897,20 +908,20 @@ File: t1cmtt.fd 2023/04/13 v2.5m Standard LaTeX font definitions
 
 Underfull \vbox (badness 2726) has occurred while \output is active []
 
- [21]
-[22] (sablona-zaverecne-prace.aux)
+ [23]
+[24] (sablona-zaverecne-prace.aux)
  ***********
 LaTeX2e <2023-11-01>
 L3 programming layer <2023-12-11>
  ***********
 Package rerunfilecheck Info: File `sablona-zaverecne-prace.out' has not changed
 .
-(rerunfilecheck)             Checksum: DDD474835196A81AF5C5976E0F6F4F8B;4141.
+(rerunfilecheck)             Checksum: 923330D1A04BA81ABC07AE58D24647A9;4131.
  ) 
 Here is how much of TeX's memory you used:
- 18044 strings out of 474495
- 292924 string characters out of 5742990
- 1938460 words of memory out of 5000000
+ 18048 strings out of 474495
+ 292983 string characters out of 5742990
+ 1939460 words of memory out of 5000000
  39860 multiletter control sequences out of 15000+600000
  624051 words of font info for 103 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
@@ -921,9 +932,9 @@ tic/uhvb8a.pfb><C:/Users/Unknown/AppData/Local/Programs/MiKTeX/fonts/type1/urw/
 times/utmb8a.pfb><C:/Users/Unknown/AppData/Local/Programs/MiKTeX/fonts/type1/ur
 w/times/utmr8a.pfb><C:/Users/Unknown/AppData/Local/Programs/MiKTeX/fonts/type1/
 urw/times/utmri8a.pfb>
-Output written on sablona-zaverecne-prace.pdf (25 pages, 282588 bytes).
+Output written on sablona-zaverecne-prace.pdf (27 pages, 287687 bytes).
 PDF statistics:
- 411 PDF objects out of 1000 (max. 8388607)
- 97 named destinations out of 1000 (max. 500000)
+ 421 PDF objects out of 1000 (max. 8388607)
+ 101 named destinations out of 1000 (max. 500000)
  281 words of extra memory for PDF output out of 10000 (max. 10000000)
 

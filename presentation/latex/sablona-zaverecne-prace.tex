@@ -463,19 +463,28 @@ V minulé kapitole jsme prošli, jak ze zdrojového kódu vznikne program. Zde s
 
 Instrukce jsou jedna ze částí Ruda bytecode. Jde o jednoduché pokyny, popisující co má provést Ruda VM. Jednotlivé instrukce jsou navrhnuté, pro co nejširší možné využití v rámci uzavřeného runtimu. 
 
-Právě proto lze Rudu použít tam, kde je bezpečnost priorita, pokud se povolí pouze moduly standardní knihovny pracující nezávisle na systému. Díky této vlastnosti by v budoucnu mohla Ruda běžet například na serverech, nebo jako skriptovací jazyk v jiném programu.
+Právě proto lze Rudu použít tam, kde je bezpečnost priorita, pokud se povolí pouze moduly standardní knihovny pracující nezávisle na systému. Tato vlastnost by v budoucnu mohla Ruda běžet například na serverech, nebo jako skriptovací jazyk v jiném programu.
 
 Pro referenci jednotlivých instrukcí doporučuji prohlédnout přímo zdrojový kód runtimu, který lze nalézt na https://github.com/it-2001/Ruda/blob/main/vm/runtime/src/lib.rs. Zde můžete vyhledat "enum Instructions" (okolo řádku 2500), kde jsou všechny instrukce popsané.
 
 \subsection{Běh programu}
 
-Samotné jádro Rudy je pouze knihovna, nelze tudíž spustit přímo. K tomu pomáhá program Ruda VM, který zpracuje bytecode a připraví podle něj příslušné prostředí pro běh. Kromě toho podává zprávy o stavu, parsuje vstupní argumenty a připravuje potřebné knihovny.
+Samotné jádro Rudy je pouze knihovna, nelze tudíž přímo spustit. K tomu pomáhá program Ruda VM, který zpracuje bytecode a připraví podle něj příslušné prostředí pro běh. Kromě toho podává zprávy o stavu, parsuje vstupní argumenty a připravuje potřebné knihovny.
 
-Poté, co Ruda VM připraví vše nutné, tak teprve spustí Ruda program. Instrukce běží sériově, dokud nenarazí na problém, nebo konec programu označený instrukcí End.
+Poté, co Ruda VM připraví vše nutné, tak teprve spustí Ruda program. Instrukce běží sériově, dokud nenarazí na problém, nebo na konec programu označený instrukcí End.
 
+\clearpage
 \subsection{Model paměti}
 
-\lipsum[80]
+Pamět funguje na základě velmi využívané kombinace stacku, haldy a registrů. Pro většinu dat je tento způsob dostačující. Nedostatky se začnou ukazovat pokud chceme použít víc, než jen vlastní struktury. K pochopení tohoto problému je ale nutné vědět, jak Ruda ukládá data.
+
+Ruda je zároveň silně typovaný a dynamický jazyk. To znamená, že se typy kontrolují při kompilaci a zároveň za běhu programu. K tomu, aby typy mohly být otestovány dynamicky je nutné, aby každá hodnota obsahovala hlavičku udávající její typ. V případě ukazatelů nestačí pouze standardních 4 až 8 bytů z důvodů, které popíšu později a protože všechny typy musí mít schodnou velikost, tak každá hodnota zabírá přesně 24 bytů paměti.
+
+To by samo o sobě bylo v pořádku. Problém ale nastává při ukládání řetězců. Jeden řetězec s obsahem "Hello, world!" by měl zabrat 13 bytů. V Rudě vyroste ten stejný řetězec na celých 312 bytů. Tento nárust může být problematický zejména při zpracovávání velkých textů, jako jsou soubory, které mohou mnohonásobně nabýt na náročnosti pro paměť. Řešení bylo vytvořit novou haldu určenou pro řetězce. To umožňuje používat String typ v Rustu, který není jen rychlejší, ale přináší i užitečné vlastnosti jako kompatibilita s UTF-8 a celou škálu transformačních metod.
+
+Zbývalo ještě vyřešit, jak povolit nativním knihovnám ukládat vlastní data do Rudy. Tyto knihovny by mohly vytvořit objekt na haldě a vrátit ukazatel. Taková operace je ale náročná, protože vývojář knihovny musí zjistit, jak bude Ruda k takovému objektu přistupovat. Proto vznikla struktura podobná haldě, určená pro ukládání tzv. „user data“ - data neznámé velikosti, které splňují UserData interface. To dává Rudě schopnost vlastnit data, která by nešla uložit tradičnímy způsoby, jako například otevřené okno.
+
+Pro okamžitý přístup k jednotlivým hodnotám má Ruda celkem 9 registrů.
 
 \begin{figure}[h]
 	\centering
@@ -484,9 +493,27 @@ Poté, co Ruda VM připraví vše nutné, tak teprve spustí Ruda program. Instr
 
 \section{Garbage collector}
 
-\section{Rozšíření pomocí dynamických knihoven}
+Všechny výše zmíněné struktury se musí čistit od nepoužívaných dat. Ruda proto nabízí vlastní garbage collector, fungující na principu dvou kroků.
+
+\subsection{Označení}
+
+První krok se nazívá označení. Jeho funkce je projít známou paměť a vyhledat všechna data, ke kterým se dostane pomocí existujících ukazatelů. Za známá data se považuje stack, registry a speciální struktura pro uložení argumentů funkcí. Pokud při označování nalezne ukazatel na haldu, řetězec, nebo user data, tak si zaznačí, že data můžou být stále použity. V případě, že zaznačí data na haldě, hledá nové ukazatele na dané pozici.
+
+\subsection{Úklid}
+
+Při úklidu najde všechna data, ke kterým není přístup na základě informací z první fáze a příslušné data uvolní pro další použití. Prostor zůstává přiřazený Ruda programu i po uvolnění, protože je velmi pravděpodobné, že pokud byl prostor použit jednou, tak bude znovu. Doporučuji proto periodicky spouštět úklid, aby bylo maximální využití paměti. Ruda nabízí modul pro manipulaci s garbage collectorem, takže si uživatel může vybrat vhodný čas.
+
+\section{Rozšíření pomocí nativních knihoven}
+
+Možnost pro nativní knihovny byla nevyhnutelná. Ruda nedovoluje žádný input ani output, takže program napsaný v čisté Rudě by byl zbytečný. Standardní knihovna proto používá veřejný interface pro Ruda nativní knihovny. 
+
+Tento interface může použít každý pro vlastní účely a rozšířit tak vlastnosti Rudy.
+
+Zatím pouze pro jazyk Rust.
 
 \section{Schopnost skriptování}
+
+Jedna z výhod toho, že Ruda runtime je pouze knihovna je, že lze použít jako skriptovací jazyk v jiném programu. Momentálně pro podobné využití nemá dostatečnou podporu, ale v budoucnu to bude standardní součást jazyka.
 
 \chapter{Nástroje pro práci s jazykem}
 
