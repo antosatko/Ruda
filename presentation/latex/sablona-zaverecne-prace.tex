@@ -358,6 +358,8 @@ K tomu, abych vyřešil tyto problémy jsem pro Rudu zadal několik cílů:
 \noindent 
 V následujících kapitolách podrobně rozeberu proces kompilace zdrojových souborů, včetně jeho parsování. Nastíním strukturu Ruda bytecode a popíšu interpretaci v rámci virtuálního prostředí. Další témata zahrnují vestavěné nástroje, řešení chyb a praktické příklady použití.
 
+Github repozitář lze nalézt na adrese \url{https://github.com/it-2001/Ruda}
+
 %Tipy k psaní úvodu
 %Je povinný, nadpis neměňte, rozsah - max. 1 strana. 
 %Tato část práce obsahuje: 
@@ -465,7 +467,7 @@ Instrukce jsou jedna ze částí Ruda bytecode. Jde o jednoduché pokyny, popisu
 
 Právě proto lze Rudu použít tam, kde je bezpečnost priorita, pokud se povolí pouze moduly standardní knihovny pracující nezávisle na systému. Tato vlastnost by v budoucnu mohla Ruda běžet například na serverech, nebo jako skriptovací jazyk v jiném programu.
 
-Pro referenci jednotlivých instrukcí doporučuji prohlédnout přímo zdrojový kód runtimu, který lze nalézt na https://github.com/it-2001/Ruda/blob/main/vm/runtime/src/lib.rs. Zde můžete vyhledat "enum Instructions" (okolo řádku 2500), kde jsou všechny instrukce popsané.
+Pro referenci jednotlivých instrukcí doporučuji prohlédnout přímo zdrojový kód runtimu, který lze nalézt na \url{https://github.com/it-2001/Ruda/blob/main/vm/runtime/src/lib.rs}. Zde můžete vyhledat "enum Instructions" (okolo řádku 2500), kde jsou všechny instrukce popsané.
 
 \subsection{Běh programu}
 
@@ -531,6 +533,8 @@ Integrovaný správce projektu zajišťuje snadnou práci s celkovým projektem.
 
 Užitečná funkce pro kompilaci je uložení kontrolního řetězce, tento řetězec je vytvořen vždy při kompilaci. Pokud se vytvořený řetězec shoduje s tím minulým, tak správce předpokládá, že se obsah projektu nezměnil a přeskočí kompilaci.
 
+\clearpage
+
 \section{Standardní knihovna}
 
 Standardní knihovna je zaměřená hlavně na funkce, které v čisté Rudě nelze napsat. 
@@ -558,58 +562,131 @@ Existuje také rozšíření pro textový editor Visual studio code. Poskytuje v
 
 \chapter{Instalace}
 
-Celá instalace je popsaná i an hlavním repozitáři.
+Krátká kapitola o instalaci Rudy. Celá instalace je popsaná i v hlavním repozitáři.
 
 \section{Podporované platformy}
 
+Zatím pouze 64 bitový windows. Hlavní příčina je kompilace Rust projektu s SFML na Linuxu. V budoucnu bude problém vyřešen a přidám širší podporu platforem.
+
 \section{Stažení}
+
+Hlavní repozitář obsahuje verzi v0.1.0-alpha, zde jsou potřebné binárky v zip souboru a testovací program.
 
 \subsection{Kompilace ze zdrojových kódů}
 
-\subsection{Stažení předkompilované verze}
+Vyžaduje předem nainstalovat:
+
+\begin{enumerate}
+	\item Python
+	\item Rust
+	\item SFML - včetně vytvoření potřebných proměnných prostředí.
+\end{enumerate}
+
+Dále naklonovat hlavní repozitář. Pokud se vše povedlo, stačí spustit python skript ruda\_build.py a vytvoří se složka s názvem build.
 
 \section{Proměnné prostředí}
 
-\section{Možné problémy}
+Ruda vyžeduje 2 proměnné:
+
+\begin{enumerate}
+	\item Path - do proměnné path přidat cestu do složky build/bin.
+	\item Ruda root - vytvořit proměnnou RUDA\_PATH a nastavit ji na cestu do složky build.
+\end{enumerate}
 
 \chapter{Programování v Rudě}
 
+Toto téma je do hloubky vysvětleno v oficiální dokumentaci, takže tady pouze projdu některé zajímavosti. Dokumentaci lze najít na: \url{https://it-2001.github.io/Ruda-docs/}
+
 \section{Syntaxe}
+
+Ruda je C-like programovací jazyk. To znamená, že se podobá většině moderních jazyků a přechod na Rudu je proto mnohem snažší. Změna oproti ostatním jazykům je psaní objektů. Pro deklaraci používá klíčové slovo struct, ale při vytváření instancí stále vyžaduje využití konstruktoru.
+
+\begin{lstlisting}[numbers=left, caption={Struktura}]
+struct Auto {
+	rychlost: float
+	barva_: Color
+	
+	new (barva: Color) {
+		self.barva_ = barva
+		self.rychlost = 210
+	}
+	
+	fun barva(self, barva: Color?): Color {
+		if barva? {
+			self.barva_ = barva
+		}
+		return self.barva_
+	}
+}
+\end{lstlisting}
+
+\clearpage
+
+Výjimky mají vlastní klíčové slovo error a speciální syntax. To z důvodu, že výjimky můžou být časté, i když je kód ignoruje. Speciální syntax umožňuje vytvářet líné výjimky, které nezdržují program, pokud jsou zahozeny.
+
+\begin{lstlisting}[numbers=left, caption={Výjimky}]
+error Error(message: string?) {
+	message: {
+		if message? {
+			return message
+		} else {
+			return "Neco se pokazilo"
+		}
+	}
+	code: 1,
+}
+\end{lstlisting}
 
 \section{Příklady}
 
 \chapter{Zhodnocení}
 
+Ruda je můj doposud největší projekt. Kombinuje mnoho různých odvětví programování, s většinou z nich jsem se při vývoji setkal poprvé. Projekt sice nemá moc komerční hodnotu vzhledem k tomu, že existují mraky skvělých jazyků a jejich knihoven, zato ale mě osobně dal hodnotné zkušenosti a úctu k nástrojům, které dnes existují.
+
+Většinu věcí jsem dělal sám bez zdrojů z internetu, takže se moje řešení možná bude lišit od těch komerčních. Až potom, co jsem dokončil nějakou část jazyka, jsem se podíval, jak to řeší ostatní.
+
 \section{Splněné cíle}
+
+Jazyk je použitelný a vestavěné nástroje dokážou opravdu zpříjemnit jeho používání. Podle toho si mýslím, že hlavní cíle jsem splnil. Dále mě ale čeká dodělání některých funkcí, polishing, opravení chyb a rozšíření standardní knihovny.
 
 \section{Poznatky}
 
+Při psaní kompilátoru mi hodně pomohl jazyk Rust, ve kterém jsem vše psal. Když jsem ale psal runtime, tak i když mi Rust zase velmi pomáhal, tak si začínám uvědomovat, že pro takový program by bylo lepší použít jazyk s větší kontrolou nad paměcí, jako je C nebo Zig. Rust vyžaduje ověření správnosti za běhu programu, což se stává zbytečné, když úkol runtimu je zpracovat bytecode, který je zaručeně správný. To způsobuje značnou ztrátu výkonu.
+
 \section{Možnosti dalšího vývoje}
 
+Chtěl bych udělat snadnou podporu pro skriptování. V dnešní době existuje jen pár skriptovacích a přidání takového jazyku často vyžaduje zvláštní postupy. Jediný z moderních jazyků, který má skvělou podporu pro skriptování je Lua, ta ale přináší výkonové nedostatky a snadný syntax může být často přínosem, ale rozhodně se nedá považovat za univerzální řešení.
 
 
+\chapter*{Inspirace a pomoc}
+
+Protože nemám žádné zdroje, ze kterých bych čerpal, tak chci tuto část alespoň věnovat lidem, kteří mě inspirovali k vytvoření tohoto projektu. Díky kterých jsem nešel úplně naslepo a dali mi obecné chápání překladačů.
+
+\section*{Inspirace}
+
+\begin{enumerate}
+	\item ThePrimeagen - vysílá na Twitchi o programování, občas mluví o překladačích
+	
+	\url{https://www.twitch.tv/ThePrimeagen}
+	\item Tsoding - vysílá na Twitchi, má zkušenosti s překladači
+	
+	\url{https://www.twitch.tv/tsoding}
+	\item l-m - vývojář jazyku V, edukatvní vysílání na Twitchi
+	
+	\url{https://l-m.dev/}
+	\item Terry A. Davis - tvůrce operačního systému TempleOS a programovacího jazyku Holy C
+	
+	\url{https://templeos.org/}
+\end{enumerate}
+
+\section*{Pomoc}
+
+Michael Antoš mi poskytnul pomoc při vytváření loga a vytvořil syntax highlighting pro textový editor Visual studio code.
 
 	
-	%% literatura
-	\begin{thebibliography}{99}
-		\bibitem{sablonaSOC} DOKULIL Jakub. \textit{Šablona pro psaní SOČ v programu \LaTeX} [Online]. Brno, 2020 [cit. 2020-08-24]. Dostupné z: \url{https://github.com/Kubiczek36/SOC_sablona}
-		\bibitem{LaTeXprirucka}OETIKER, Tobias, Hubert PARTL, Irene HYNA, Elisabeth SCHEGL, Michal KOČER a Pavel SÝKORA. \textit{Ne příliš stručný úvod do systému LaTeX2e} [online]. 1998 [cit. 2020-08-24]. Dostupné z: \url{https://www.jaroska.cz/elearning/informatika/typografie/lshort2e-cz.pdf}
-		\bibitem{wikibooksLaTeX}\textit{Wikibooks: LaTeX} [online]. San Francisco (CA): Wikimedia Foundation, 2001- [cit. 2020-08-24]. Dostupné z: \url{https://en.wikibooks.org/wiki/LaTeX}
-		\bibitem{stackExchange} \textit{TeX - LaTeX Stack Exchange} [online]. Stack Exchange, 2020 [cit. 2020-09-01]. Dostupné z: \url{https://tex.stackexchange.com}
-		\bibitem{sspuLogo} \textit{Střední škola průmyslová a umělecká Opava} [online]. [cit. 2023-11-11]. Dostupné z: \url{https://www.sspu-opava.cz}
-		\bibitem{citacePRO}\textit{Citace PRO} [online]. Citace.com, 2020 [cit. 2020-08-31]. Dostupné z: \url{https://www.citacepro.com}
-		\bibitem{Born2019} BORN, Max a Emil WOLF. \textit{Principles of optics: electromagnetic theory of propagation, interference and diffraction of light}. 7th (expanded) edition. Reprinted wirth corrections 2002. 15th printing 2019. Cambridge: Cambridge University Press, 2019. ISBN 978-0-521-64222-4.
-	\end{thebibliography}
+\appendix %% začínají přílohy
 	
-	%% obrázky 
-	\listoffigures
-	
-	%% tabulky
-	\listoftables
-	
-	\appendix %% začínají přílohy
-	
-	\titleformat{\chapter}[block]{\scshape\bfseries\LARGE}{Příloha \thechapter}{10pt}{\vspace{0pt}}[\vspace{-22pt}] %% nastavení nadpisu u příloh
+\titleformat{\chapter}[block]{\scshape\bfseries\LARGE}{Příloha \thechapter}{10pt}{\vspace{0pt}}[\vspace{-22pt}] %% nastavení nadpisu u příloh
 	
 
 	

@@ -1,5 +1,7 @@
 # Constants
 
+> ⚠️ Under development ⚠️: Constat values are a lot more complex than it may seem and require special care during development. This feature will be available in future versions.
+
 Constants are values that cannot be changed. They are declared using the `const` keyword.
 
 Unlike variables, constants must be assigned a value when they are declared. And they can be Accessed anywhere if imported.

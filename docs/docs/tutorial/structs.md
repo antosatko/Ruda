@@ -6,7 +6,7 @@ Structs are declared using the `struct` keyword.
 
 ```ruda
 struct Person {
-    name: string,
+    name: string
     age: int
 }
 ```
@@ -29,19 +29,15 @@ We can define a constructor for the `Person` struct like this:
 
 ```ruda
 struct Person {
-    name: string,
+    name: string
     age: int
-}
 
-impl Person {
-    fun Person(name: string, age: int) {
+    new (name: string, age: int) {
         self.name = name
         self.age = age
     }
 }
 ```
-
-Don't look too much into all the keywords and syntax yet. We will cover them in later sections.
 
 For now just know that constructor is a function that is called when a struct is created. The constructor is used to initialize the struct fields (name, age).
 

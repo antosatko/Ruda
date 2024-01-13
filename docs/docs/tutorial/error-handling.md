@@ -1,5 +1,7 @@
 # Error handling
 
+> ⚠️ Not implemented ⚠️: This feature is planned for the next update.
+
 Sometimes an operation can fail. For example, if you try to open a file that doesn't exist, or if you try to divide by zero. In Ruda, you can handle these errors using the `try` keyword.
 
 ```ruda

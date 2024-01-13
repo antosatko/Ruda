@@ -35,8 +35,9 @@ Do you want to play again? (y/n): n
 
 ## Tips
 
-- Use the `io.input()` function to read user input.
+- Use the `io.inputln()` function to read user input.
 - Use the `io.println()` function to print output.
+- String library contains `parse()` function that can be used to convert user input to a number.
 - The generated number can be constant.
 
 ## Strategy
@@ -55,11 +56,12 @@ In my head I'm focusing on the following parts:
 > Just kidding, but seriously try to solve the problem yourself before looking at the solution.
 
 ```ruda
-import "std.io"
+import "#io"
+import "#string"
 
-const answer = 29
 
 fun main() {
+    let answer = 29
     let guesses = 0
 
     io.println("Welcome to the number guessing game!")
@@ -67,7 +69,7 @@ fun main() {
 
     loop {
         io.print("Guess the number: ")
-        let guess = io.input() as int
+        let guess = string.parse(io.inputln())
 
         guesses += 1
 
@@ -87,16 +89,28 @@ fun main() {
 
 Let's go over the solution.
 
-First we create a constant called `answer` and assign it the value of `29`. This is the number that the user has to guess.
+First we import the `io` and `string` libraries.
 
 ```ruda
-const answer = 29
+import "#io"
+import "#string"
 ```
 
-Then we create a variable called `guesses` and assign it the value of `0`. This variable will be used to keep track of how many guesses the user has made.
+Then we define the `main()` function. This is the entry point of our program.
+
+```ruda
+fun main() {
+    // ...
+}
+```
+
+Then we create a variable called `guesses` and assign it the value of `0`. This variable will be used to keep track of how many guesses the user has made. We also create a variable called `answer` and assign it the value of `29`. This variable will be used to store the answer to the game.
+
+```ruda
 
 ```ruda
 let guesses = 0
+let answer = 29
 ```
 
 After the initial setup, we print a welcome message and tell the user that we are thinking of a number between 1 and 100.
@@ -114,11 +128,11 @@ loop {
 }
 ```
 
-Inside the loop we ask the user to guess the number and read their input.
+Inside the loop we ask the user to guess the number and read their input. We convert the user's input to a number using the `string.parse()` function.
 
 ```ruda
 io.print("Guess the number: ")
-let guess = io.input() as int
+let guess = string.parse(io.inputln())
 ```
 
 Then we increment the `guesses` variable by `1` to keep track of how many guesses the user has made.

@@ -1,5 +1,7 @@
 # Operator Overloading
 
+> ⚠️ This feature is unlikely to ever be implemented ⚠️: Source code should work the way you expect it to. Operator overloads may cause a lot of confusion. TLDR: bad 
+
 This is a feature that allows you to define the behavior of operators when applied to your own types. For example, you can define what happens when you add two instances of your class together, or when you compare them for equality.
 
 ## Syntax

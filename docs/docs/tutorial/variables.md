@@ -26,7 +26,7 @@ x = 10
 Knowing this, we can rewrite our hello world program to use a variable.
 
 ```ruda
-import "std.io"
+import "#io"
 
 fun main() {
     let message = "Hello world"

@@ -1,5 +1,7 @@
 # Generics
 
+> ⚠️ Experimental feature ⚠️: While simple examples work this is still in early development and more useful use cases are not supported yet. It is **not recommended** to use this.
+
 Generics are a feature that allows you to write code that can be reused for different types. For example, you might want to write a function that returns the first element of any array. This is a generic function because it can be used for any type of array, like an array of strings or an array of numbers.
 
 ```ruda

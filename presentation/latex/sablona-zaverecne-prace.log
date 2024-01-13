@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.25 (MiKTeX 23.10.12) (preloaded format=pdflatex 2023.12.25)  13 JAN 2024 16:02
+This is pdfTeX, Version 3.141592653-2.6-1.40.25 (MiKTeX 23.10.12) (preloaded format=pdflatex 2023.12.25)  13 JAN 2024 21:00
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -752,12 +752,12 @@ LaTeX Font Info:    Trying to load font information for T1+phv on input line 24
  (C:\Users\Unknown\AppData\Local\Programs\MiKTeX\tex/latex/psnfss\t1phv.fd
 File: t1phv.fd 2020/03/25 scalable font definitions for T1/phv.
 )
-<image/logo-skoly.png, id=124, 356.2911pt x 137.5539pt>
+<image/logo-skoly.png, id=120, 356.2911pt x 137.5539pt>
 File: image/logo-skoly.png Graphic file (type png)
 <use image/logo-skoly.png>
 Package pdftex.def Info: image/logo-skoly.png  used on input line 248.
 (pdftex.def)             Requested size: 273.14923pt x 105.45715pt.
-<image/logo.png, id=126, 385.44pt x 385.44pt>
+<image/logo.png, id=122, 385.44pt x 385.44pt>
 File: image/logo.png Graphic file (type png)
 <use image/logo.png>
 Package pdftex.def Info: image/logo.png  used on input line 266.
@@ -834,7 +834,13 @@ LaTeX Font Info:    Trying to load font information for TS1+ptm on input line 3
 53.
  (C:\Users\Unknown\AppData\Local\Programs\MiKTeX\tex/latex/psnfss\ts1ptm.fd
 File: ts1ptm.fd 2001/06/04 font definitions for TS1/ptm.
-) [3] [4
+)
+LaTeX Font Info:    Trying to load font information for T1+cmtt on input line 3
+61.
+(C:\Users\Unknown\AppData\Local\Programs\MiKTeX\tex/latex/base\t1cmtt.fd
+File: t1cmtt.fd 2023/04/13 v2.5m Standard LaTeX font definitions
+)
+[3] [4
 
 
 ]
@@ -844,26 +850,32 @@ Kapitola 1.
 
 ]
 Kapitola 2.
-<image/lexer.png, id=207, 419.5675pt x 246.9225pt>
+<image/lexer.png, id=204, 419.5675pt x 246.9225pt>
 File: image/lexer.png Graphic file (type png)
 <use image/lexer.png>
-Package pdftex.def Info: image/lexer.png  used on input line 393.
+Package pdftex.def Info: image/lexer.png  used on input line 395.
 (pdftex.def)             Requested size: 227.62206pt x 133.95782pt.
 [7 <./image/lexer.png>]
 Package hyperref Info: bookmark level for unknown lstlisting defaults to 0 on i
-nput line 402.
+nput line 404.
  [8] [9
 
 ] [10]
 Kapitola 3.
+
+Overfull \hbox (9.594pt too wide) in paragraph at lines 470--471
+\T1/ptm/m/n/12 který lze na-lézt na []$\T1/cmtt/m/n/12 https : / / github . com
+ / it-[]2001 / Ruda / blob / main / vm / runtime / src / lib .
+ []
+
 [11
 
 
 ]
-<image/memory.png, id=256, 864.22874pt x 546.04pt>
+<image/memory.png, id=255, 864.22874pt x 546.04pt>
 File: image/memory.png Graphic file (type png)
 <use image/memory.png>
-Package pdftex.def Info: image/memory.png  used on input line 491.
+Package pdftex.def Info: image/memory.png  used on input line 493.
 (pdftex.def)             Requested size: 364.19667pt x 230.10176pt.
  [12
 
@@ -873,80 +885,70 @@ Package pdftex.def Info: image/memory.png  used on input line 491.
 ]
 Kapitola 4.
 
-Overfull \hbox (1.30861pt too wide) in paragraph at lines 530--531
+Overfull \hbox (1.30861pt too wide) in paragraph at lines 532--533
 \T1/ptm/m/n/12 Integrovaný správce pro-jektu za-ji²-´uje snad-nou práci s cel-k
 o-vým pro-jek-tem. Mezi hlavní funkce
  []
 
 [15]
-<image/lens.png, id=278, 768.62157pt x 577.40718pt>
+<image/lens.png, id=277, 768.62157pt x 577.40718pt>
 File: image/lens.png Graphic file (type png)
 <use image/lens.png>
-Package pdftex.def Info: image/lens.png  used on input line 552.
+Package pdftex.def Info: image/lens.png  used on input line 556.
 (pdftex.def)             Requested size: 364.19667pt x 273.60165pt.
- [16 <./image/lens.png>]
-Kapitola 5.
-[17
+ [16
 
-
-] [18
+ <./image/lens.png>] [17] [18
 
 
 ]
-Kapitola 6.
+Kapitola 5.
+
+Overfull \hbox (19.1503pt too wide) in paragraph at lines 585--586
+[]\T1/ptm/m/n/12 Dále na-klo-no-vat hlavní re-po-zi-tá°. Po-kud se v²e po-vedlo
+, sta£í spus-tit py-thon skript ruda_build.py
+ []
+
 [19] [20
 
 
 ]
-Kapitola 7.
+Kapitola 6.
 [21] [22
 
-
 ]
-LaTeX Font Info:    Trying to load font information for T1+cmtt on input line 5
-93.
-
-(C:\Users\Unknown\AppData\Local\Programs\MiKTeX\tex/latex/base\t1cmtt.fd
-File: t1cmtt.fd 2023/04/13 v2.5m Standard LaTeX font definitions
-)
-(sablona-zaverecne-prace.lof)
-\tf@lof=\write5
-\openout5 = `sablona-zaverecne-prace.lof'.
-
- (sablona-zaverecne-prace.lot)
-\tf@lot=\write6
-\openout6 = `sablona-zaverecne-prace.lot'.
+Kapitola 7.
+[23
 
 
-Underfull \vbox (badness 2726) has occurred while \output is active []
+] [24
 
- [23]
-[24] (sablona-zaverecne-prace.aux)
+
+] [25] (sablona-zaverecne-prace.aux)
  ***********
 LaTeX2e <2023-11-01>
 L3 programming layer <2023-12-11>
  ***********
 Package rerunfilecheck Info: File `sablona-zaverecne-prace.out' has not changed
 .
-(rerunfilecheck)             Checksum: 242F48760F72BB603155387CCE55B023;4139.
+(rerunfilecheck)             Checksum: 777A0428EB95D4B647115527323685C0;4002.
  ) 
 Here is how much of TeX's memory you used:
- 18062 strings out of 474495
- 293231 string characters out of 5742990
- 1939460 words of memory out of 5000000
- 39869 multiletter control sequences out of 15000+600000
- 624051 words of font info for 103 fonts, out of 8000000 for 9000
+ 18060 strings out of 474495
+ 292907 string characters out of 5742990
+ 1942460 words of memory out of 5000000
+ 39849 multiletter control sequences out of 15000+600000
+ 618355 words of font info for 99 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
  79i,11n,93p,922b,1057s stack positions out of 10000i,1000n,20000p,200000b,200000s
  <C:\Users\Unknown\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ec
 tt1200.pk><C:/Users/Unknown/AppData/Local/Programs/MiKTeX/fonts/type1/urw/helve
 tic/uhvb8a.pfb><C:/Users/Unknown/AppData/Local/Programs/MiKTeX/fonts/type1/urw/
 times/utmb8a.pfb><C:/Users/Unknown/AppData/Local/Programs/MiKTeX/fonts/type1/ur
-w/times/utmr8a.pfb><C:/Users/Unknown/AppData/Local/Programs/MiKTeX/fonts/type1/
-urw/times/utmri8a.pfb>
-Output written on sablona-zaverecne-prace.pdf (27 pages, 315579 bytes).
+w/times/utmr8a.pfb>
+Output written on sablona-zaverecne-prace.pdf (28 pages, 304434 bytes).
 PDF statistics:
- 429 PDF objects out of 1000 (max. 8388607)
- 106 named destinations out of 1000 (max. 500000)
- 286 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 447 PDF objects out of 1000 (max. 8388607)
+ 135 named destinations out of 1000 (max. 500000)
+ 278 words of extra memory for PDF output out of 10000 (max. 10000000)
 
