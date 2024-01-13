@@ -40,17 +40,23 @@ First you need to have:
  1. Python - https://www.python.org/downloads/
  2. Rust - https://www.rust-lang.org/tools/install
 
+Ruda also requires `SFLM 2.6+` to be installed. You can download it from https://www.sfml-dev.org/download/sfml/2.6.1/. Make sure to follow the instructions for your platform and toolchain.
+
 Just clone the repository and run `py ruda_build.py`. This should create a  `build/` directory with the whole application. You can move it anywhere you want.
 
-Add `build/bin` to your enviroment path variable and create a new variable `RUDA_PATH` with the path to `build` directory. If this is unclear, look up _How to Change the PATH Environment Variable on Windows_ (or any other platform).
+## Download binaries
 
-Ruda also requires `SFLM 2.6+` to be installed. You can download it from https://www.sfml-dev.org/download/sfml/2.6.1/. Make sure to follow the instructions for your platform and toolchain.
+You can find the binaries in releases [here](https://github.com/it-2001/Ruda/releases). Download the corresponding zip file for your system and the extract it. Extracted directory will be refered to as `build`.
+
+## Installation
+
+Add `build/bin` to your enviroment path variable and create a new variable `RUDA_PATH` with the path to `build` directory. If this is unclear, look up _How to Change the PATH Environment Variable on Windows_ (or any other platform).
 
 Open new terminal and try `ruda --version`.
 
 ### Compatability
 
-Ruda is currently only supported on Windows. Linux support is planned for public testing.
+Ruda is currently only supported on Windows. Linux support is planned for full release.
 
 Only 64-bit systems are supported. This is very unlikely to change in the future.
 
