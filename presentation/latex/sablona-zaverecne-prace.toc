@@ -23,10 +23,10 @@
 \contentsline {section}{\numberline {3.4}Schopnost skriptování}{13}{section.3.4}%
 \contentsline {chapter}{\numberline {4}Nástroje pro práci s jazykem}{15}{chapter.4}%
 \contentsline {section}{\numberline {4.1}Dokumentace}{15}{section.4.1}%
-\contentsline {section}{\numberline {4.2}Package manager}{15}{section.4.2}%
+\contentsline {section}{\numberline {4.2}Správce projektu}{15}{section.4.2}%
 \contentsline {section}{\numberline {4.3}Standardní knihovna}{15}{section.4.3}%
-\contentsline {section}{\numberline {4.4}Grafický inspektor Ruda projektu}{15}{section.4.4}%
-\contentsline {section}{\numberline {4.5}Syntax highlighting}{15}{section.4.5}%
+\contentsline {section}{\numberline {4.4}Grafický inspektor Ruda projektu}{16}{section.4.4}%
+\contentsline {section}{\numberline {4.5}Syntax highlighting}{16}{section.4.5}%
 \contentsline {chapter}{\numberline {5}Instalace}{17}{chapter.5}%
 \contentsline {section}{\numberline {5.1}Podporované platformy}{17}{section.5.1}%
 \contentsline {section}{\numberline {5.2}Stažení}{17}{section.5.2}%

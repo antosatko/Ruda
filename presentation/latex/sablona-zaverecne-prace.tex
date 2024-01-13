@@ -517,17 +517,48 @@ Jedna z výhod toho, že Ruda runtime je pouze knihovna je, že lze použít jak
 
 \chapter{Nástroje pro práci s jazykem}
 
+Programování je jen část vývoje software. Důležité je také vývojové prostředí, přehlednost nástrojů a komunita vývojářů. Ruda jako začínající jazyk komunitu nemá, ale může se zaměřit na dva zbývající aspekty. Nabízí proto řadu nástrojů pro ulehčení vývojářského procesu.
+
 \section{Dokumentace}
 
-\section{Package manager}
+Žádnému jazyku nesmí chybět dokumentace. Pokud se povede správně, může být prvním místem, kde hledat pomoc. Dokumentace Rudy obsahuje vše, co by jakkoliv zkušený vývojář potřeboval. Výsvětluje témata začínající od instalace a prvního projektu, až po fungování paměti a ukáže Rudu v akci na projektech k vypracování.
+
+Dokumentace obsahuje i vlastnosti, které jsou v plánu do budoucna. Taková témata jsou vždy patřičně označeny.
+
+\section{Správce projektu}
+
+Integrovaný správce projektu zajišťuje snadnou práci s celkovým projektem. Mezi hlavní funkce patří vytvoření projektu, kompilace, spuštění a stažení knihoven ze vzdáleného git repozitáře. Stažené knihovny jsou uloženy do globální složky pro možnost opakovaného použití. Ruda jako nový jazyk žádné knihovny nemá, z tohoto důvodu nebyla jejich implementace příliš velkou prioritou a využití je tak zatím velmi omezené.
+
+Užitečná funkce pro kompilaci je uložení kontrolního řetězce, tento řetězec je vytvořen vždy při kompilaci. Pokud se vytvořený řetězec shoduje s tím minulým, tak správce předpokládá, že se obsah projektu nezměnil a přeskočí kompilaci.
 
 \section{Standardní knihovna}
 
+Standardní knihovna je zaměřená hlavně na funkce, které v čisté Rudě nelze napsat. 
+Mezi ně patří například.
+
+\begin{enumerate}
+	\item Systém - práce se souborovým systémem počítače, parametry programu, systémový čas a funkce pro vstup a výstup.
+	\item Paměť - správa paměti runtimu. Slouží primárně jako abstrakce pro garbage collector.
+	\item Metody typů - obsahuje také některé metody pro vnitřní typy včetně čísel, polí a řetězců.
+	\item Okno - Pro snadný vývoj aplikací je zde obsažen i modul pro práci s okny. Ten využívá SFML pro fungovaní okna, ale má vlastní elegantní implementaci.
+\end{enumerate}
+
 \section{Grafický inspektor Ruda projektu}
+
+Interaktivní program Ruda lens je určený jako doplněk ručně psané dokumentace. Po spuštění příkazu ruda lens se otevře aplikace s přehledem projektu. Obsahuje náhled všech deklarací. Příkaz ruda lens -t bin je experimentální funkce s přehledem Ruda bytecode.
+
+\begin{figure}[h]
+	\centering
+	\includegraphics[width=0.8\linewidth]{image/lens.png}
+\end{figure}
 
 \section{Syntax highlighting}
 
+Existuje také rozšíření pro textový editor Visual studio code. Poskytuje vylepšený syntax highlighting. Jedná se pouze o zbarvení kódu, LSP (language server protocol) není implementované. Budoucí implementace LSP by fungovala podobně jako Ruda lens.
+
 \chapter{Instalace}
+
+Celá instalace je popsaná i an hlavním repozitáři.
 
 \section{Podporované platformy}
 

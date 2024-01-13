@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.25 (MiKTeX 23.10.12) (preloaded format=pdflatex 2023.12.25)  11 JAN 2024 23:23
+This is pdfTeX, Version 3.141592653-2.6-1.40.25 (MiKTeX 23.10.12) (preloaded format=pdflatex 2023.12.25)  13 JAN 2024 16:02
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -872,12 +872,24 @@ Package pdftex.def Info: image/memory.png  used on input line 491.
 
 ]
 Kapitola 4.
-[15] [16
 
+Overfull \hbox (1.30861pt too wide) in paragraph at lines 530--531
+\T1/ptm/m/n/12 Integrovaný správce pro-jektu za-ji²-´uje snad-nou práci s cel-k
+o-vým pro-jek-tem. Mezi hlavní funkce
+ []
 
-]
+[15]
+<image/lens.png, id=278, 768.62157pt x 577.40718pt>
+File: image/lens.png Graphic file (type png)
+<use image/lens.png>
+Package pdftex.def Info: image/lens.png  used on input line 552.
+(pdftex.def)             Requested size: 364.19667pt x 273.60165pt.
+ [16 <./image/lens.png>]
 Kapitola 5.
-[17] [18
+[17
+
+
+] [18
 
 
 ]
@@ -892,7 +904,7 @@ Kapitola 7.
 
 ]
 LaTeX Font Info:    Trying to load font information for T1+cmtt on input line 5
-64.
+93.
 
 (C:\Users\Unknown\AppData\Local\Programs\MiKTeX\tex/latex/base\t1cmtt.fd
 File: t1cmtt.fd 2023/04/13 v2.5m Standard LaTeX font definitions
@@ -916,13 +928,13 @@ L3 programming layer <2023-12-11>
  ***********
 Package rerunfilecheck Info: File `sablona-zaverecne-prace.out' has not changed
 .
-(rerunfilecheck)             Checksum: 923330D1A04BA81ABC07AE58D24647A9;4131.
+(rerunfilecheck)             Checksum: 242F48760F72BB603155387CCE55B023;4139.
  ) 
 Here is how much of TeX's memory you used:
- 18048 strings out of 474495
- 292983 string characters out of 5742990
+ 18062 strings out of 474495
+ 293231 string characters out of 5742990
  1939460 words of memory out of 5000000
- 39860 multiletter control sequences out of 15000+600000
+ 39869 multiletter control sequences out of 15000+600000
  624051 words of font info for 103 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
  79i,11n,93p,922b,1057s stack positions out of 10000i,1000n,20000p,200000b,200000s
@@ -932,9 +944,9 @@ tic/uhvb8a.pfb><C:/Users/Unknown/AppData/Local/Programs/MiKTeX/fonts/type1/urw/
 times/utmb8a.pfb><C:/Users/Unknown/AppData/Local/Programs/MiKTeX/fonts/type1/ur
 w/times/utmr8a.pfb><C:/Users/Unknown/AppData/Local/Programs/MiKTeX/fonts/type1/
 urw/times/utmri8a.pfb>
-Output written on sablona-zaverecne-prace.pdf (27 pages, 287687 bytes).
+Output written on sablona-zaverecne-prace.pdf (27 pages, 315579 bytes).
 PDF statistics:
- 421 PDF objects out of 1000 (max. 8388607)
- 101 named destinations out of 1000 (max. 500000)
- 281 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 429 PDF objects out of 1000 (max. 8388607)
+ 106 named destinations out of 1000 (max. 500000)
+ 286 words of extra memory for PDF output out of 10000 (max. 10000000)
 
