@@ -368,12 +368,6 @@ Github repozitář lze nalézt na adrese \url{https://github.com/it-2001/Ruda}
 %* motivaci pro další čtení textu včetně stručného uvedení obsahu následujících kapitol 
 
 
-\chapter{Programovací jazyk Ruda}
-
-\section{Pozadí vzniku}
-
-\section{Porovnání alternativ}
-
 \chapter{Překladač}
 
 Zdaleka nejrozsáhlejší část celého projektu je právě překladač. Každý jazyk musí projít nějakou formou překladu zdrojového kódu do formy, která je lépe pochopitelná pro počítač. Nejčastější metody jsou kompilace a interpretace. Ruda používá oba tyto způsoby tak, že zdrojový kód na počítači vývojáře projde kompilací a výsledný soubor obsahuje bytecode, který si potom může spustit klient pomocí interpretu Ruda VM.
@@ -401,7 +395,7 @@ Při syntaktické analýze dochází k parsování vstupních tokenů, hovořím
 
 Pro Rudu jsem vytvořil vlastní univerzální parser. Používá programovatelný syntax čtený ze souboru, chybová hlášení generuje automaticky, a k tomu nabízí funkce pro debugování pravidel a jednoduchou validaci. Jeho syntax je jednoduchý a přehledný, programátor by měl být schopný zorientovat se už po pár minutách. Klíčové slovo let by v něm mohlo vypadat následovně:
 
-\begin{lstlisting}[numbers=left, caption={Ukázka klíčového slova let}]
+\begin{lstlisting}[caption={Ukázka klíčového slova let}]
 KWLet ident type expr
 	"let" harderr="true"
 	"'text" set="ident"
@@ -438,7 +432,7 @@ Překladač začíná tím, že všem funkcím rozdá unikátní ID, které bude
 
 Pro překlad funkce používá rekurzivní prohledávání uzlů, které reprezentují výrazy. Pro každý vygeneruje patřičný bytecode. Například pro klíčové slovo let:
 
-\begin{lstlisting}[numbers=left, caption={Překlad klíčového slova let}]
+\begin{lstlisting}[caption={Překlad klíčového slova let}]
 // vyraz
 let a = new 60
 
@@ -453,15 +447,12 @@ Výraz vytvoří proměnnou a, do které zapíše ukazatel na hodnotu 60, která
 
 Tím tenhle příklad končí, ale je nutné vědět, že takhle bude bytecode vypadat až po optimalizaci. Generátor kódu je sám o sobě hloupí a nestará se o žádné stavy. Vždy zohledňuje pouze nejhorší možný případ a vytváří přitom poměrně nekvalitní a hlavně pomalý kód.
 
-\subsection{Optimalizace}
-
 \chapter{Virtuální stroj}
 
 V minulé kapitole jsme prošli, jak ze zdrojového kódu vznikne program. Zde se zaměříme na jeho spuštění pomocí Ruda VM, který je zodpovědný za provedení Ruda programů.
 
-\section{Vlastnosti}
 
-\subsection{Instrukce}
+\section{Instrukce}
 
 Instrukce jsou jedna ze částí Ruda bytecode. Jde o jednoduché pokyny, popisující co má provést Ruda VM. Jednotlivé instrukce jsou navrhnuté, pro co nejširší možné využití v rámci uzavřeného runtimu. 
 
@@ -469,14 +460,14 @@ Právě proto lze Rudu použít tam, kde je bezpečnost priorita, pokud se povol
 
 Pro referenci jednotlivých instrukcí doporučuji prohlédnout přímo zdrojový kód runtimu, který lze nalézt na \url{https://github.com/it-2001/Ruda/blob/main/vm/runtime/src/lib.rs}. Zde můžete vyhledat "enum Instructions" (okolo řádku 2500), kde jsou všechny instrukce popsané.
 
-\subsection{Běh programu}
+\section{Běh programu}
 
 Samotné jádro Rudy je pouze knihovna, nelze tudíž přímo spustit. K tomu pomáhá program Ruda VM, který zpracuje bytecode a připraví podle něj příslušné prostředí pro běh. Kromě toho podává zprávy o stavu, parsuje vstupní argumenty a připravuje potřebné knihovny.
 
 Poté, co Ruda VM připraví vše nutné, tak teprve spustí Ruda program. Instrukce běží sériově, dokud nenarazí na problém, nebo na konec programu označený instrukcí End.
 
 \clearpage
-\subsection{Model paměti}
+\section{Model paměti}
 
 Pamět funguje na základě velmi využívané kombinace stacku, haldy a registrů. Pro většinu dat je tento způsob dostačující. Nedostatky se začnou ukazovat pokud chceme použít víc, než jen vlastní struktury. K pochopení tohoto problému je ale nutné vědět, jak Ruda ukládá data.
 
@@ -601,7 +592,7 @@ Toto téma je do hloubky vysvětleno v oficiální dokumentaci, takže tady pouz
 
 Ruda je C-like programovací jazyk. To znamená, že se podobá většině moderních jazyků a přechod na Rudu je proto mnohem snažší. Změna oproti ostatním jazykům je psaní objektů. Pro deklaraci používá klíčové slovo struct, ale při vytváření instancí stále vyžaduje využití konstruktoru.
 
-\begin{lstlisting}[numbers=left, caption={Struktura}]
+\begin{lstlisting}[caption={Struktura}]
 struct Auto {
 	rychlost: float
 	barva_: Color
@@ -624,7 +615,7 @@ struct Auto {
 
 Výjimky mají vlastní klíčové slovo error a speciální syntax. To z důvodu, že výjimky můžou být časté, i když je kód ignoruje. Speciální syntax umožňuje vytvářet líné výjimky, které nezdržují program, pokud jsou zahozeny.
 
-\begin{lstlisting}[numbers=left, caption={Výjimky}]
+\begin{lstlisting}[caption={Výjimky}]
 error Error(message: string?) {
 	message: {
 		if message? {
@@ -637,23 +628,23 @@ error Error(message: string?) {
 }
 \end{lstlisting}
 
-\section{Příklady}
+\chapter*{Závěr}
 
-\chapter{Zhodnocení}
+\addcontentsline{toc}{chapter}{Závěr}
 
 Ruda je můj doposud největší projekt. Kombinuje mnoho různých odvětví programování, s většinou z nich jsem se při vývoji setkal poprvé. Projekt sice nemá moc komerční hodnotu vzhledem k tomu, že existují mraky skvělých jazyků a jejich knihoven, zato ale mě osobně dal hodnotné zkušenosti a úctu k nástrojům, které dnes existují.
 
 Většinu věcí jsem dělal sám bez zdrojů z internetu, takže se moje řešení možná bude lišit od těch komerčních. Až potom, co jsem dokončil nějakou část jazyka, jsem se podíval, jak to řeší ostatní.
 
-\section{Splněné cíle}
+\section*{Splněné cíle}
 
 Jazyk je použitelný a vestavěné nástroje dokážou opravdu zpříjemnit jeho používání. Podle toho si mýslím, že hlavní cíle jsem splnil. Dále mě ale čeká dodělání některých funkcí, polishing, opravení chyb a rozšíření standardní knihovny.
 
-\section{Poznatky}
+\section*{Poznatky}
 
 Při psaní kompilátoru mi hodně pomohl jazyk Rust, ve kterém jsem vše psal. Když jsem ale psal runtime, tak i když mi Rust zase velmi pomáhal, tak si začínám uvědomovat, že pro takový program by bylo lepší použít jazyk s větší kontrolou nad paměcí, jako je C nebo Zig. Rust vyžaduje ověření správnosti za běhu programu, což se stává zbytečné, když úkol runtimu je zpracovat bytecode, který je zaručeně správný. To způsobuje značnou ztrátu výkonu.
 
-\section{Možnosti dalšího vývoje}
+\section*{Možnosti dalšího vývoje}
 
 Chtěl bych udělat snadnou podporu pro skriptování. V dnešní době existuje jen pár skriptovacích a přidání takového jazyku často vyžaduje zvláštní postupy. Jediný z moderních jazyků, který má skvělou podporu pro skriptování je Lua, ta ale přináší výkonové nedostatky a snadný syntax může být často přínosem, ale rozhodně se nedá považovat za univerzální řešení.
 
