@@ -1,5 +1,5 @@
 \babel@toc {czech}{}\relax 
-\contentsline {chapter}{Úvod}{3}{chapter*.4}%
+\contentsline {chapter}{Úvod}{3}{chapter*.2}%
 \contentsline {chapter}{\numberline {1}Překladač}{5}{chapter.1}%
 \contentsline {section}{\numberline {1.1}Analýza}{5}{section.1.1}%
 \contentsline {subsection}{\numberline {1.1.1}Lexikální}{5}{subsection.1.1.1}%
@@ -11,8 +11,8 @@
 \contentsline {section}{\numberline {2.1}Instrukce}{9}{section.2.1}%
 \contentsline {section}{\numberline {2.2}Běh programu}{9}{section.2.2}%
 \contentsline {section}{\numberline {2.3}Model paměti}{10}{section.2.3}%
-\contentsline {section}{\numberline {2.4}Garbage collector}{10}{section.2.4}%
-\contentsline {subsection}{\numberline {2.4.1}Označení}{10}{subsection.2.4.1}%
+\contentsline {section}{\numberline {2.4}Garbage collector}{11}{section.2.4}%
+\contentsline {subsection}{\numberline {2.4.1}Označení}{11}{subsection.2.4.1}%
 \contentsline {subsection}{\numberline {2.4.2}Úklid}{11}{subsection.2.4.2}%
 \contentsline {section}{\numberline {2.5}Rozšíření pomocí nativních knihoven}{11}{section.2.5}%
 \contentsline {section}{\numberline {2.6}Schopnost skriptování}{11}{section.2.6}%
@@ -29,4 +29,4 @@
 \contentsline {section}{\numberline {4.3}Proměnné prostředí}{17}{section.4.3}%
 \contentsline {chapter}{\numberline {5}Programování v Rudě}{19}{chapter.5}%
 \contentsline {section}{\numberline {5.1}Syntaxe}{19}{section.5.1}%
-\contentsline {chapter}{Závěr}{21}{chapter*.8}%
+\contentsline {chapter}{Závěr}{21}{chapter*.6}%
