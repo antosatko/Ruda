@@ -74,15 +74,13 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
                 // first get a vector of args
                 let args: Vec<String> = std::env::args().collect();
                 // allocate enough space for the array on the heap
-                let obj = m.allocate_obj(args.len() + 1);
-                // set the first element to the length of the array
-                m.heap.data[obj][0] = Types::NonPrimitive(0);
+                let obj = m.allocate_obj(args.len());
                 // iterate over the args
                 for (i, arg) in args.iter().enumerate() {
                     // push the string to the string pool
                     let str = m.strings.from_str(&arg);
                     // set the element in the array to the index of the string in the string pool
-                    m.heap.data[obj][i + 1] = Types::Pointer(str, PointerTypes::String);
+                    m.heap.data[obj][i] = Types::Pointer(str, PointerTypes::String);
                 }
                 // return the pointer to the array
                 return Ok(Types::Pointer(obj, PointerTypes::Object));
@@ -93,15 +91,13 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
                 // first get a vector of args
                 let args: Vec<String> = m.runtime_args.clone();
                 // allocate enough space for the array on the heap
-                let obj = m.allocate_obj(args.len() + 1);
-                // set the first element to the length of the array
-                m.heap.data[obj][0] = Types::NonPrimitive(0);
+                let obj = m.allocate_obj(args.len());
                 // iterate over the args
                 for (i, arg) in args.iter().enumerate() {
                     // push the string to the string pool
                     let str = m.strings.from_str(&arg);
                     // set the element in the array to the index of the string in the string pool
-                    m.heap.data[obj][i + 1] = Types::Pointer(str, PointerTypes::String);
+                    m.heap.data[obj][i] = Types::Pointer(str, PointerTypes::String);
                 }
                 // return the pointer to the array
                 return Ok(Types::Pointer(obj, PointerTypes::Object));
@@ -172,19 +168,32 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
 #[no_mangle]
 fn register() -> String {
     return r#"
-    
-
-    
+    /// Prints the provided string to the standard output without a newline.
     fun print(msg=reg.ptr: string) > 0i
+
+    /// Prints the provided string to the standard output with a newline.
     fun println(msg=reg.ptr: string) > 1i
+
+    /// Reads a line of input from the standard input and returns it as a string.
     fun input(): string > 2i
+
+    /// Returns an array of strings representing the arguments passed to the program.
     fun args(): [string] > 3i
+
+    /// Returns an array of strings representing the arguments passed to the runtime.
     fun vmargs(): [string] > 4i
+
+    /// Reads a line of input from the standard input and returns it as a string, removing the trailing newline.
     fun inputln(): string > 5i
+
+    /// Waits for a key press and returns the character corresponding to the key pressed.
     fun getChar(): char > 6i
+
+    /// Clears the terminal screen.
     fun clear()! > 7i
     "#.to_string()
 }
+    
 
 #[no_mangle]
 pub fn init(_ctx: &mut Context, my_id: usize) -> fn(&mut Context, usize, usize) -> Result<Types, runtime_error::ErrTypes> {

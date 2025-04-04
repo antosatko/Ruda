@@ -1,0 +1,20 @@
+# Ruda configuration file
+# 
+# See official documentation for more information:
+# (todo add link to documentation)
+
+[project]
+name = "project"
+version = "0.1.0"
+author = "author"
+kind = "bin"
+license = "MIT"
+runtime = "latest"
+description = "description"
+3rdparty = "allow" # "allow" | "std" | "sandboxed" | "deny"
+
+[dependencies]
+
+[binaries]
+
+[profile.default]

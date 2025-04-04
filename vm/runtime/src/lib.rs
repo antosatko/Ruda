@@ -35,7 +35,10 @@ impl Context {
                         pointers_len: 0,
                     }; CALL_STACK_SIZE],
                 },
-                args: Args { data: [[Types::Null; MAX_ARGS]; CALL_STACK_SIZE], ptr: 1 },
+                args: Args {
+                    data: [[Types::Null; MAX_ARGS]; CALL_STACK_SIZE],
+                    ptr: 1,
+                },
                 registers: [Types::Null; REGISTER_SIZE],
                 heap: Heap {
                     data: vec![],
@@ -811,10 +814,7 @@ impl Context {
                 self.next_line();
             }
             Cal(lib, fun_id) => {
-                match self.libs[lib].clone()(
-                    self,
-                    fun_id
-                ) {
+                match self.libs[lib].clone()(self, fun_id) {
                     Ok(value) => {
                         if let Types::Void = value {
                         } else {
@@ -1105,9 +1105,11 @@ impl Context {
         }
         return true;
     }
+    #[inline]
     fn stack_end(&self) -> usize {
         self.memory.stack.call_stack[self.memory.stack.ptr].end
     }
+    #[inline]
     fn next_line(&mut self) {
         self.code.ptr += 1;
     }
@@ -1223,14 +1225,22 @@ impl Context {
                         if debug.labels[label].kind != LabelKind::Definiton {
                             continue;
                         }
-                        return Some((debug.lines[i].clone(), debug.files[debug.lines[i].file].to_string(), debug.labels[label].msg.to_string()));
+                        return Some((
+                            debug.lines[i].clone(),
+                            debug.files[debug.lines[i].file].to_string(),
+                            debug.labels[label].msg.to_string(),
+                        ));
                     }
                     None => {}
                 }
             }
         }
         match debug.lines.first() {
-            Some(line) => Some((line.clone(), debug.files[line.file].to_string(), String::new())),
+            Some(line) => Some((
+                line.clone(),
+                debug.files[line.file].to_string(),
+                String::new(),
+            )),
             None => None,
         }
     }
@@ -1491,7 +1501,14 @@ pub mod runtime_types {
             }
         }
 
-        pub fn push(&mut self, line: usize, column: usize, pos: usize, file: &str, label: Option<Label>) {
+        pub fn push(
+            &mut self,
+            line: usize,
+            column: usize,
+            pos: usize,
+            file: &str,
+            label: Option<Label>,
+        ) {
             let file = if let Some(idx) = self.files.iter().position(|e| e == file) {
                 idx
             } else {
@@ -1502,7 +1519,7 @@ pub mod runtime_types {
                 self.labels.push(label);
                 let label = self.labels.len() - 1;
                 Some(label)
-            }else {
+            } else {
                 None
             };
             self.lines.push(Line {
@@ -1678,9 +1695,11 @@ pub mod runtime_types {
             }
         }
         /// returns the len of object ignoring the header
+        #[inline]
         pub fn obj_len(&self, heap_idx: usize) -> usize {
             self.heap.data[heap_idx].len()
         }
+        #[inline]
         pub fn size_of(&self, val: &Types) -> usize {
             match val {
                 Types::NonPrimitive(id) => self.non_primitives[*id].len,
@@ -1783,6 +1802,7 @@ pub mod runtime_types {
             }
             Types::Void
         }
+        #[inline]
         pub fn args(&self) -> &[Types; MAX_ARGS] {
             let ptr = self.args.ptr;
             &self.args.data[ptr]
@@ -1926,7 +1946,7 @@ pub mod runtime_types {
             obj_idx: usize,
             marked: &mut Vec<bool>,
             marked_str: &mut Vec<bool>,
-            marked_ud: &mut Vec<bool>
+            marked_ud: &mut Vec<bool>,
         ) {
             if marked.len() == 0 {
                 return;
@@ -2046,7 +2066,6 @@ pub mod runtime_types {
                         _ => {}
                     }
                 }
-            
             }
         }
         /// return the size of memory in bytes
@@ -2286,6 +2305,7 @@ pub mod runtime_types {
     }
     impl Types {
         /// may panic, so use this only if you are 100% certain that you got a character
+        #[inline]
         pub fn get_char(&self) -> char {
             if let Types::Char(chr) = self {
                 return *chr;
@@ -2318,6 +2338,7 @@ pub mod runtime_types {
             }
         }
         /// returns the first index of pointer
+        #[inline]
         pub fn ptr_loc(&self) -> usize {
             match *self {
                 Types::Pointer(loc, _) => loc,
@@ -2325,6 +2346,7 @@ pub mod runtime_types {
             }
         }
         /// returns the second index of pointer or 0
+        #[inline]
         pub fn ptr_idx(&self) -> usize {
             match *self {
                 Types::Pointer(_, PointerTypes::Heap(idx)) => idx,
@@ -2333,6 +2355,7 @@ pub mod runtime_types {
             }
         }
         /// returns kind of pointer
+        #[inline]
         pub fn kind(&self) -> PointerTypes {
             match *self {
                 Types::Pointer(_, kind) => kind,
@@ -2340,6 +2363,7 @@ pub mod runtime_types {
             }
         }
         /// advances the pointer by index
+        #[inline]
         pub fn index(&mut self, idx: i64) {
             match *self {
                 Types::Pointer(ref mut loc, ref mut kind) => {
@@ -2375,9 +2399,7 @@ pub mod runtime_types {
 
     use crate::user_data::{self, UserData};
 
-    use super::{
-        runtime_error::{self, ErrTypes},
-    };
+    use super::runtime_error::{self, ErrTypes};
     impl fmt::Display for Types {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
             if f.alternate() {

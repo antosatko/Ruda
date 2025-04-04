@@ -7,12 +7,8 @@ fun factorial(n: int): int {
 }
 
 fun fib(n: uint): uint {
-    if n == 0 {
-        return 0
-    }
-
-    if n == 1 {
-        return 1
+    if n < 2 {
+        return n
     }
 
     return fib(n - 1) + fib(n - 2)
@@ -23,7 +19,6 @@ fun fib(n: uint): uint {
 
 
 fun main() {
-    loop {
-        "ahoj" + " " + "svete"
-    }
+    let n = 33
+    fib(n)
 }

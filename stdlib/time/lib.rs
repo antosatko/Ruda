@@ -107,22 +107,43 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
 #[no_mangle]
 fn register() -> String {
     r#"
+    /// Clock UserData: Represents a clock to track time.
+    /// This user data type provides functionality for tracking and managing elapsed time.
     userdata Clock > 1i {
+        /// Creates a new clock instance.
         new () > 5i
 
+        /// Returns the current time as a float (elapsed time in seconds).
         fun time(): float > 0i
+
+        /// Resets the clock's elapsed time.
         fun reset(self=reg.ptr) > 6i
+
+        /// Returns the elapsed time since the clock was last reset.
         fun elapsed(self=reg.ptr): float > 7i
     }
 
+    /// Rng UserData: Represents a random number generator.
+    /// This user data type provides functionality for generating random values.
     userdata Rng > 0i {
+        /// Creates a new RNG instance.
         new () > 1i
 
+        /// Generates a random boolean value (coin flip).
         fun coin(self=reg.ptr): bool > 2i
+
+        /// Generates a random integer within the specified range.
         fun range(self=reg.ptr, min=reg.g1: int, max=reg.g2: int): int > 3i
+
+        /// Generates a random floating-point number.
         fun gen(self=reg.ptr): float > 4i
     }
+
+
+    /// Returns the current system time as a float (elapsed time in seconds).
     fun time(): float > 0i
+
+    /// Pauses the program for a specified number of milliseconds.
     fun sleep(ms=reg.g1: float) > 8i
     "#.to_string()
 }

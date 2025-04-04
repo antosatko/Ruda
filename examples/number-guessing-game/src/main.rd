@@ -1,6 +1,6 @@
 //import "std.io"
 import "#io"
-import "#string" // new
+import "#string"
 
 
 fun main() {
@@ -12,7 +12,7 @@ fun main() {
 
     loop {
         io.print("Guess the number: ")
-        let guess = string.parse(io.inputln()) // io.input() as int
+        let guess = string.parse(io.inputln())
 
         guesses += 1
 
@@ -21,7 +21,7 @@ fun main() {
         } else if guess > answer {
             io.println("Too high!")
         } else {
-            io.println("You win! It took you " + guesses + " guesses.") // guesses as string
+            io.println("You win! It took you " + guesses + " guesses.")
             break
         }
     }

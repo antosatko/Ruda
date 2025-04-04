@@ -5,7 +5,7 @@ pub mod test {
     use libloading::Library;
     use runtime::runtime_error::ErrTypes;
 
-    const ID: usize = 15;
+    const ID: usize = 16;
     pub fn test_init(id: Option<usize>, context: &mut Context) -> bool {
         let test_id = if let Some(num) = id { num } else { ID };
         println!("Running test {test_id}");
@@ -680,6 +680,25 @@ pub mod test {
                     ReserveStack(1, 0),
                     Write(1, GENERAL_REG1),
                     Jump(1), // RETURN_REG now has the value of fib(n)
+                    End,
+                ];
+                true
+            }
+            // loop benchmark
+            16 => {
+                context.memory.stack.data = vec![
+                    Int(0),
+                    Int(1),
+                    Int(1_000_000),
+                ];
+                context.code.data = vec![
+                    ReadConst(0, MEMORY_REG1),
+                    ReadConst(1, GENERAL_REG2),
+                    ReadConst(2, GENERAL_REG3),
+                    Less(MEMORY_REG1, GENERAL_REG3, GENERAL_REG1),
+                    Branch(5, 7),
+                    Add(MEMORY_REG1, GENERAL_REG2, MEMORY_REG1),
+                    Goto(3),
                     End,
                 ];
                 true

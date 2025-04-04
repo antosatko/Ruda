@@ -132,6 +132,58 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
                 )));
             }
         }
+        // string::to_upper
+        8 => {
+            let args = m.args();
+            if let Types::Pointer(u_size, PointerTypes::String) = args[0] {
+                let original_str = m.strings.to_str(u_size);
+                let upper_str = original_str.to_uppercase();
+                return Ok(Types::Pointer(
+                    m.strings.from_str(&upper_str),
+                    PointerTypes::String,
+                ));
+            } else {
+                return Err(runtime_error::ErrTypes::Message("Invalid string pointer".to_owned()));
+            }
+        }
+        // string::to_lower
+        9 => {
+            let args = m.args();
+            if let Types::Pointer(u_size, PointerTypes::String) = args[0] {
+                let original_str = m.strings.to_str(u_size);
+                let lower_str = original_str.to_lowercase();
+                return Ok(Types::Pointer(
+                    m.strings.from_str(&lower_str),
+                    PointerTypes::String,
+                ));
+            } else {
+                return Err(runtime_error::ErrTypes::Message("Invalid string pointer".to_owned()));
+            }
+        }
+        // string::starts_with
+        10 => {
+            let args = m.args();
+            if let Types::Pointer(u_size, PointerTypes::String) = args[0] {
+                if let Types::Pointer(u_size2, PointerTypes::String) = args[1] {
+                    let original_str = m.strings.to_str(u_size);
+                    let prefix = m.strings.to_str(u_size2);
+                    return Ok(Types::Bool(original_str.starts_with(prefix)));
+                }
+            }
+            return Err(runtime_error::ErrTypes::Message("Invalid string pointers".to_owned()));
+        }
+        // string::ends_with
+        11 => {
+            let args = m.args();
+            if let Types::Pointer(u_size, PointerTypes::String) = args[0] {
+                if let Types::Pointer(u_size2, PointerTypes::String) = args[1] {
+                    let original_str = m.strings.to_str(u_size);
+                    let suffix = m.strings.to_str(u_size2);
+                    return Ok(Types::Bool(original_str.ends_with(suffix)));
+                }
+            }
+            return Err(runtime_error::ErrTypes::Message("Invalid string pointers".to_owned()));
+        }
         _ => {
             unreachable!("Invalid function id")
         }
@@ -142,12 +194,50 @@ fn call(ctx: &mut Context, id: usize, lib_id: usize) -> Result<Types, runtime_er
 #[no_mangle]
 fn register() -> std::string::String {
     "
+    /// Concatenates two strings and returns a new string.
+    /// The function takes two string pointers, concatenates the strings, and returns the result as a new string pointer.
     fun concat(str=reg.ptr: string, other=reg.g1: string): string > 0i
+
+    /// Trims whitespace from both ends of a string.
+    /// The function takes a string pointer, trims it, and returns the resulting string as a new pointer.
     fun trim(str=reg.ptr: string): string > 1i
+
+    /// Splits a string into an array of strings based on a delimiter string.
+    /// The function takes two string pointers, splits the first string using the second string as a delimiter, and returns the result as an array of strings.
     fun split(str=reg.ptr: string, split=reg.g1: string): [string] > 2i
+
+    /// Creates a clone of a string.
+    /// The function takes a string pointer and returns a new pointer with a copy of the original string.
     fun clone(str=reg.ptr: string): string > 3i
+
+    /// Returns the length of the string.
+    /// The function takes a string pointer and returns the length of the string as an unsigned integer.
     fun len(str=reg.ptr: string): usize > 4i
+
+    /// Parses a string to a floating point number.
+    /// The function takes a string pointer and attempts to parse it to a float, returning the result as a floating point number.
     fun parse(str=reg.ptr: string): float > 5i
+
+
+    /// Converts a string to uppercase.
+    /// The function takes a string pointer and returns the string converted to uppercase.
+    fun to_upper(str=reg.ptr: string): string > 8i
+
+    /// Converts a string to lowercase.
+    /// The function takes a string pointer and returns the string converted to lowercase.
+    fun to_lower(str=reg.ptr: string): string > 9i
+
+    /// Checks if the string starts with a given prefix.
+    /// The function takes two string pointers, the first is the original string,
+    /// and the second is the prefix to check.
+    /// It returns a boolean value indicating whether the string starts with the prefix.
+    fun starts_with(str=reg.ptr: string, prefix=reg.g1: string): bool > 10i
+
+    /// Checks if the string ends with a given suffix.
+    /// The function takes two string pointers, the first is the original string,
+    /// and the second is the suffix to check.
+    /// It returns a boolean value indicating whether the string ends with the suffix.
+    fun ends_with(str=reg.ptr: string, suffix=reg.g1: string): bool > 11i
     ".to_string()
 }
 
